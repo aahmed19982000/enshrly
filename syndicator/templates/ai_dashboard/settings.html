@@ -90,14 +90,7 @@
                 </div>
             </div>
 
-            <!-- Publish to main site Checkbox toggle -->
-            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
-                <input type="checkbox" name="publish_to_main_site" id="id_publish_to_main_site" {% if form.publish_to_main_site.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
-                <div class="flex-1">
-                    <label for="id_publish_to_main_site" class="block text-sm font-bold text-slate-200">النشر على الموقع الأساسي</label>
-                    <p class="text-xs text-slate-500">عند إلغاء التفعيل، لن يتم نشر الأخبار المولدة على موقع المغرب العربي الأساسي (ستُنشر فقط على مواقع الووردبريس المتصلة المحددة).</p>
-                </div>
-            </div>
+
 
             <!-- Default Authors (multi-select with rotation) -->
             <div class="space-y-4 pt-6 border-t border-slate-800">
@@ -117,23 +110,7 @@
                 </div>
             </div>
 
-            <!-- Local Site Sources Selection -->
-            <div class="space-y-4 pt-6 border-t border-slate-800">
-                <h4 class="text-sm font-bold text-slate-300"><i class="fa-solid fa-globe text-teal-400 ml-2"></i>مصادر الأخبار المغذية لموقع المغرب العربي</h4>
-                <p class="text-xs text-slate-500">حدد المصادر التي تريد النشر منها على موقع المغرب العربي مباشرة. إذا تركت الكل بدون تحديد سيستخدم النظام جميع المصادر النشطة تلقائياً.</p>
-                <div class="grid grid-cols-2 gap-3">
-                    {% for source in all_sources %}
-                    <label class="flex items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 cursor-pointer hover:border-teal-500/50 transition-colors">
-                        <input type="checkbox" name="local_sources" value="{{ source.id }}"
-                            {% if source.id in local_source_ids %}checked{% endif %}
-                            class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
-                        <span class="text-sm text-slate-300">{{ source.name }}</span>
-                    </label>
-                    {% empty %}
-                    <p class="text-xs text-slate-500 italic col-span-2">لا توجد مصادر نشطة مضافة بعد. أضف مصادر أخبار أولاً من قسم "مصادر الأخبار".</p>
-                    {% endfor %}
-                </div>
-            </div>
+
 
             <!-- WordPress Sites Limits -->
             <div class="space-y-4 pt-6 border-t border-slate-800">

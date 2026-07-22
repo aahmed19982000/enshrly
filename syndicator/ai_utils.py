@@ -3336,8 +3336,8 @@ def run_ai_generation_cycle(target_site_id=None):
             except Exception as e:
                 pass
 
-            source_allowed_for_local = not local_sources_restricted or source.id in local_source_ids
-            if ai_settings.publish_to_main_site and source_allowed_for_local and not target_site_id:
+            source_allowed_for_local = False
+            if False:  # Disabled on backend server
                 # Always generate and publish locally first (Case 1)
                 prompt = (
                     f"بصفتك محررًا صحفيًا محترفًا باللغة العربية، يرجى كتابة خبر صحفي جديد ومصاغ بأسلوبك الخاص بالكامل "

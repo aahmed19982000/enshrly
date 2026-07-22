@@ -602,12 +602,102 @@ def _scrape_image_from_article_page(link_url, headers):
     return ""
 
 
+def _minify_html_for_scraping(html_content, base_url):
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        # Remove scripts, styles, and other metadata to reduce token usage
+        for element in soup(['script', 'style', 'nav', 'footer', 'header', 'noscript', 'svg', 'iframe']):
+            element.decompose()
+            
+        links_data = []
+        for a in soup.find_all('a', href=True):
+            text = a.get_text().strip()
+            href = a['href']
+            # Only keep links that look like actual news articles
+            if len(text) > 15 and not href.startswith('#') and not href.startswith('javascript:'):
+                img_src = ""
+                img = a.find('img') or a.find_next('img')
+                if img and img.get('src'):
+                    img_src = urljoin(base_url, img.get('src'))
+                
+                links_data.append({
+                    'title': text,
+                    'link': urljoin(base_url, href),
+                    'image_url': img_src
+                })
+                
+        # Return unique links
+        seen_links = set()
+        unique_links = []
+        for link in links_data:
+            if link['link'] not in seen_links:
+                seen_links.add(link['link'])
+                unique_links.append(link)
+                
+        return unique_links[:50]
+    except Exception as e:
+        logger.warning(f"Error minifying HTML for scraping: {e}")
+        return []
+
+
+def scrape_webpage_articles_via_gemini(html_content, source_url):
+    try:
+        links = _minify_html_for_scraping(html_content, source_url)
+        if not links:
+            return []
+            
+        prompt = f"""
+أنت خبير كشط ويب وتحليل بيانات المواقع الإخبارية.
+إليك قائمة بالروابط والنصوص المستخرجة من الصفحة الرئيسية لموقع إخباري:
+URL: {source_url}
+الروابط:
+{json.dumps(links, ensure_ascii=False, indent=2)}
+
+المطلوب:
+تحليل هذه الروابط واكتشاف أفضل 8 مقالات إخبارية حقيقية وجديدة معروضة على الصفحة الرئيسية.
+استبعد الروابط غير الإخبارية (مثل: اتصل بنا، سياسة الخصوصية، تصنيفات عامة، روابط شبكات التواصل الاجتماعي).
+أعد النتيجة بصيغة JSON فقط كقائمة من الكائنات (Array of Objects) بالهيكل التالي:
+[
+  {{
+    "title": "عنوان الخبر بالكامل كما ظهر",
+    "link": "الرابط الكامل للخبر",
+    "image_url": "رابط الصورة المرتبط بالخبر إن وجد أو اتركه فارغاً"
+  }}
+]
+ملاحظة: لا تكتب أي نصوص تمهيدية أو تعليقات خارج كود الـ JSON. أعد JSON صالح ومباشر.
+"""
+        ai_response, _usage = call_gemini_api(prompt)
+        if not ai_response:
+            return []
+            
+        if "```json" in ai_response:
+            ai_response = ai_response.split("```json")[1].split("```")[0].strip()
+        elif "```" in ai_response:
+            ai_response = ai_response.split("```")[1].split("```")[0].strip()
+            
+        parsed_items = json.loads(ai_response.strip())
+        items = []
+        for item in parsed_items:
+            if item.get('title') and item.get('link'):
+                items.append({
+                    'title': item['title'],
+                    'link': item['link'],
+                    'description': item['title'],
+                    'image_url': item.get('image_url', ''),
+                    'guid': item['link']
+                })
+        return items
+    except Exception as e:
+        logger.error(f"Error scraping webpage via Gemini for {source_url}: {e}")
+        return []
+
+
 def fetch_news_items_from_source(source_url):
     """
     Fetches news items from an RSS feed or webpage.
     Returns a list of dictionaries with keys: 'title', 'link', 'description', 'image_url', 'guid'.
     """
-    if 'trends.google.com' in source_url:
+    if 'trends.google.com' in source_url or 'google.com/trending' in source_url:
         return fetch_google_trends_items(source_url)
 
     headers = {
@@ -664,18 +754,6 @@ def fetch_news_items_from_source(source_url):
                 if not image_url and link_text:
                     image_url = _scrape_image_from_article_page(link_text, headers)
 
-                # NOTE: deliberately NOT calling the AI-reviewed Commons search
-                # (_find_topical_image) here - this function runs for every
-                # single item in the feed on every scheduled poll (every 10
-                # minutes, see scrape_and_generate_news_task's crontab),
-                # regardless of whether an item ends up actually being
-                # generated (most are skipped later as duplicates or excluded
-                # topics). Doing a Gemini call per item here silently multiplied
-                # into a real, unbounded cost spike. The AI search only runs
-                # later, in generate_regular_article_for_site/reword_regular_
-                # article_for_site, once an item has already survived the
-                # duplicate/exclusion checks and is about to actually publish.
-
                 items.append({
                     'title': title_text,
                     'link': link_text,
@@ -688,31 +766,35 @@ def fetch_news_items_from_source(source_url):
             html_soup = BeautifulSoup(content, 'html.parser')
             # Look for article links or common news containers
             articles = html_soup.find_all('article') or html_soup.find_all('div', class_=re.compile(r'post|article|news-item'))
-            for idx, art in enumerate(articles[:10]):
-                link_tag = art.find('a', href=True)
-                title_tag = art.find(['h1', 'h2', 'h3', 'h4']) or art.find(class_=re.compile(r'title'))
-                img_tag = art.find('img')
-                
-                if link_tag and title_tag:
-                    title_text = title_tag.get_text().strip()
-                    link_text = link_tag['href']
-                    if not link_text.startswith('http'):
-                        # Resolve relative links
-                        from urllib.parse import urljoin
-                        link_text = urljoin(source_url, link_text)
+            if articles:
+                for idx, art in enumerate(articles[:10]):
+                    link_tag = art.find('a', href=True)
+                    title_tag = art.find(['h1', 'h2', 'h3', 'h4']) or art.find(class_=re.compile(r'title'))
+                    img_tag = art.find('img')
                     
-                    image_url = img_tag.get('src') if img_tag else ""
-                    if image_url and not image_url.startswith('http'):
-                        from urllib.parse import urljoin
-                        image_url = urljoin(source_url, image_url)
+                    if link_tag and title_tag:
+                        title_text = title_tag.get_text().strip()
+                        link_text = link_tag['href']
+                        if not link_text.startswith('http'):
+                            # Resolve relative links
+                            from urllib.parse import urljoin
+                            link_text = urljoin(source_url, link_text)
                         
-                    items.append({
-                        'title': title_text,
-                        'link': link_text,
-                        'description': title_text,
-                        'image_url': image_url,
-                        'guid': link_text
-                    })
+                        image_url = img_tag.get('src') if img_tag else ""
+                        if image_url and not image_url.startswith('http'):
+                            from urllib.parse import urljoin
+                            image_url = urljoin(source_url, image_url)
+                            
+                        items.append({
+                            'title': title_text,
+                            'link': link_text,
+                            'description': title_text,
+                            'image_url': image_url,
+                            'guid': link_text
+                        })
+            else:
+                logger.info(f"Standard HTML parsing yielded no items for {source_url}. Activating Gemini Intelligent Scraper.")
+                items = scrape_webpage_articles_via_gemini(content, source_url)
     except Exception as e:
         logger.error(f"Error fetching news from source {source_url}: {e}")
         

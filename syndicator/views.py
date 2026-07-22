@@ -7,8 +7,12 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Sum, Q
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import json
 from django.conf import settings
-from .models import AISettings, AISource, AIImportLog, Category, Article, WordPressSite, WordPressScheduleSlot, WordPressSiteGroup, SocialSharePost
+from .models import AISettings, AISource, AIImportLog, Category, Article, WordPressSite, WordPressScheduleSlot, WordPressSiteGroup, SocialSharePost, WPConnectionToken
 from .tasks import scrape_and_generate_news_task
 
 class StaffRequiredMixin(UserPassesTestMixin):
@@ -303,12 +307,15 @@ class WordPressSiteUpdateView(StaffRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['has_schedule_slots'] = self.object.schedule_slots.filter(is_active=True).exists()
-        from .views_facebook_connect import make_facebook_connect_token
-        if settings.FACEBOOK_APP_ID:
-            token = make_facebook_connect_token(self.object.pk)
-            context['facebook_connect_link'] = self.request.build_absolute_uri(
-                reverse('facebook_connect_start', kwargs={'token': token})
-            )
+        try:
+            from .views_facebook_connect import make_facebook_connect_token
+            if getattr(settings, 'FACEBOOK_APP_ID', None):
+                token = make_facebook_connect_token(self.object.pk)
+                context['facebook_connect_link'] = self.request.build_absolute_uri(
+                    reverse('facebook_connect_start', kwargs={'token': token})
+                )
+        except ImportError:
+            pass
         return context
 
     def form_valid(self, form):
@@ -622,3 +629,205 @@ class SourceGroupDeleteView(StaffRequiredMixin, DeleteView):
         obj = self.get_object()
         messages.success(self.request, f"?? ??? ???????? '{obj.name}' ?????.")
         return super().delete(request, *args, **kwargs)
+
+
+class WPConnectionTokenListView(StaffRequiredMixin, ListView):
+    model = WPConnectionToken
+    template_name = 'ai_dashboard/wp_tokens_list.html'
+    context_object_name = 'tokens'
+
+class WPConnectionTokenCreateView(StaffRequiredMixin, CreateView):
+    model = WPConnectionToken
+    fields = ['client_name']
+    template_name = 'ai_dashboard/wp_token_form.html'
+    success_url = reverse_lazy('news_ai:wp_tokens')
+
+    def form_valid(self, form):
+        messages.success(self.request, f"تم إنشاء كود ربط جديد للعميل '{form.instance.client_name}'.")
+        return super().form_valid(form)
+
+class WPConnectionTokenDeleteView(StaffRequiredMixin, DeleteView):
+    model = WPConnectionToken
+    template_name = 'ai_dashboard/wp_token_confirm_delete.html'
+    success_url = reverse_lazy('news_ai:wp_tokens')
+
+    def delete(self, request, *args, **kwargs):
+        obj = self.get_object()
+        messages.success(self.request, f"تم حذف كود الربط للعميل '{obj.client_name}' بنجاح.")
+        return super().delete(request, *args, **kwargs)
+
+
+@csrf_exempt
+@require_POST
+def wp_connect_api_view(request):
+    try:
+        data = json.loads(request.body)
+        token_str = data.get('token')
+        site_url = data.get('site_url')
+        username = data.get('username')
+        application_password = data.get('application_password')
+
+        if not all([token_str, site_url, username, application_password]):
+            return JsonResponse({'status': 'error', 'message': 'Missing required fields.'}, status=400)
+
+        # Validate token
+        try:
+            import uuid
+            uuid_obj = uuid.UUID(token_str)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid token format.'}, status=400)
+
+        token_obj = WPConnectionToken.objects.filter(token=token_str).first()
+        if not token_obj:
+            return JsonResponse({'status': 'error', 'message': 'Invalid token.'}, status=403)
+        
+        settings_data = data.get('settings', {})
+
+        if token_obj.is_used:
+            # Check if this token belongs to the same site URL (for updates)
+            if token_obj.wp_site and token_obj.wp_site.url.rstrip('/') == site_url.rstrip('/'):
+                wp_site = token_obj.wp_site
+                wp_site.username = username
+                wp_site.application_password = application_password
+                # Update settings
+                wp_site.use_rich_formatting = bool(settings_data.get('use_rich_formatting', wp_site.use_rich_formatting))
+                wp_site.heading_color = settings_data.get('heading_color', wp_site.heading_color)
+                wp_site.use_internal_links = bool(settings_data.get('use_internal_links', wp_site.use_internal_links))
+                wp_site.use_explainer_style = bool(settings_data.get('use_explainer_style', wp_site.use_explainer_style))
+                wp_site.site_tags = settings_data.get('site_tags', wp_site.site_tags)
+                
+                # Prices
+                from .models import WordPressScheduleSlot
+                enabled_price_articles = data.get('enabled_price_articles', [])
+                for key, _ in WordPressScheduleSlot.CONTENT_TYPE_CHOICES:
+                    pf = f"generate_{key}_price_articles"
+                    if hasattr(wp_site, pf):
+                        setattr(wp_site, pf, key in enabled_price_articles)
+                
+                if 'category_mapping' in settings_data:
+                    wp_site.category_mapping = settings_data['category_mapping']
+                
+                if 'wp_author_ids' in settings_data:
+                    wp_site.wp_author_ids = settings_data['wp_author_ids']
+                
+                wp_site.save()
+                
+                # Source Groups
+                if 'source_groups' in settings_data:
+                    wp_site.source_groups.set(settings_data['source_groups'])
+                    
+                # Schedules
+                if 'schedules' in settings_data:
+                    from .models import WordPressScheduleSlot
+                    wp_site.schedule_slots.all().delete()
+                    for sched in settings_data['schedules']:
+                        WordPressScheduleSlot.objects.create(
+                            wp_site=wp_site,
+                            time_of_day=sched.get('time_of_day', '00:00'),
+                            content_types=','.join(sched.get('content_types', [])),
+                            regular_news_count=int(sched.get('regular_news_count', 1)),
+                            is_active=True
+                        )
+
+                return JsonResponse({'status': 'success', 'message': 'Site settings updated successfully.'})
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Token has already been used by a different site.'}, status=403)
+
+        # Create new WordPressSite
+        from urllib.parse import urlparse
+        domain = urlparse(site_url).netloc or site_url
+        site_name = f"{token_obj.client_name} ({domain})"
+
+        wp_site = WordPressSite(
+            name=site_name,
+            url=site_url,
+            username=username,
+            application_password=application_password,
+            is_active=True
+        )
+
+        # Apply settings
+        wp_site.use_rich_formatting = bool(settings_data.get('use_rich_formatting', False))
+        if settings_data.get('heading_color'):
+            wp_site.heading_color = settings_data['heading_color']
+        wp_site.use_internal_links = bool(settings_data.get('use_internal_links', False))
+        wp_site.use_explainer_style = bool(settings_data.get('use_explainer_style', False))
+        if settings_data.get('site_tags'):
+            wp_site.site_tags = settings_data['site_tags']
+        
+        from .models import WordPressScheduleSlot
+        enabled_price_articles = data.get('enabled_price_articles', [])
+        for key, _ in WordPressScheduleSlot.CONTENT_TYPE_CHOICES:
+            pf = f"generate_{key}_price_articles"
+            if hasattr(wp_site, pf):
+                setattr(wp_site, pf, key in enabled_price_articles)
+        
+        if settings_data.get('category_mapping'):
+            wp_site.category_mapping = settings_data['category_mapping']
+
+        if 'wp_author_ids' in settings_data:
+            wp_site.wp_author_ids = settings_data['wp_author_ids']
+
+        wp_site.save()
+
+        # Source Groups
+        if 'source_groups' in settings_data:
+            wp_site.source_groups.set(settings_data['source_groups'])
+            
+        # Schedules
+        if 'schedules' in settings_data:
+            from .models import WordPressScheduleSlot
+            for sched in settings_data['schedules']:
+                WordPressScheduleSlot.objects.create(
+                    wp_site=wp_site,
+                    time_of_day=sched.get('time_of_day', '00:00'),
+                    content_types=','.join(sched.get('content_types', [])),
+                    regular_news_count=int(sched.get('regular_news_count', 1)),
+                    is_active=True
+                )
+
+        # Mark token as used
+        token_obj.is_used = True
+        token_obj.wp_site = wp_site
+        token_obj.save()
+
+        return JsonResponse({'status': 'success', 'message': 'Site connected successfully.'})
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"WP Connect API Error: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error.'}, status=500)
+
+
+@csrf_exempt
+def wp_plugin_data_api_view(request):
+    try:
+        from .models import AISourceGroup, WordPressScheduleSlot, WPConnectionToken
+        groups = AISourceGroup.objects.all().values('id', 'name')
+        
+        content_types = [
+            {'id': key, 'name': label} 
+            for key, label in WordPressScheduleSlot.CONTENT_TYPE_CHOICES
+        ]
+        
+        daily_limit = 3
+        token = request.GET.get('token') or request.POST.get('token')
+        if token:
+            try:
+                token_obj = WPConnectionToken.objects.get(token=token)
+                if token_obj.wp_site:
+                    daily_limit = token_obj.wp_site.daily_limit
+            except WPConnectionToken.DoesNotExist:
+                pass
+        
+        return JsonResponse({
+            'status': 'success',
+            'data': {
+                'source_groups': list(groups),
+                'content_types': content_types,
+                'daily_limit': daily_limit
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

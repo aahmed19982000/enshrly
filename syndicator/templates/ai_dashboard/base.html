@@ -118,6 +118,10 @@
                 <i class="fa-solid fa-layer-group w-6 text-lg"></i>
                 <span>مجموعات الدمج</span>
             </a>
+            <a href="{% url 'news_ai:wp_tokens' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if 'wp_token' in request.resolver_match.view_name %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-key w-6 text-lg"></i>
+                <span>أكواد ربط ووردبريس</span>
+            </a>
             <a href="{% url 'news_ai:settings' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if request.resolver_match.view_name == 'news_ai:settings' %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
                 <i class="fa-solid fa-sliders w-6 text-lg"></i>
                 <span>الإعدادات العامة</span>

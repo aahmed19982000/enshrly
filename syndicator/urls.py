@@ -5,6 +5,7 @@ app_name = 'news_ai'
 
 urlpatterns = [
     path('api/ai-settings/', views_ai.AISettingsAPIView.as_view(), name='ai_settings'),
+    path('api/wp-connect/', views_ai.wp_connect_api_view, name='wp_connect'),
     path('', views_ai.DashboardIndexView.as_view(), name='index'),
     path('settings/', views_ai.SettingsUpdateView.as_view(), name='settings'),
     path('sources/', views_ai.SourceListView.as_view(), name='sources'),
@@ -38,4 +39,11 @@ urlpatterns = [
     path('wp-site-groups/add/', views_ai.WordPressSiteGroupCreateView.as_view(), name='wp_site_group_add'),
     path('wp-site-groups/<int:pk>/edit/', views_ai.WordPressSiteGroupUpdateView.as_view(), name='wp_site_group_edit'),
     path('wp-site-groups/<int:pk>/delete/', views_ai.WordPressSiteGroupDeleteView.as_view(), name='wp_site_group_delete'),
+    # WP Connection Tokens
+    path('wp-tokens/', views_ai.WPConnectionTokenListView.as_view(), name='wp_tokens'),
+    path('wp-tokens/add/', views_ai.WPConnectionTokenCreateView.as_view(), name='wp_token_add'),
+    path('wp-tokens/<int:pk>/delete/', views_ai.WPConnectionTokenDeleteView.as_view(), name='wp_token_delete'),
+    
+    # API endpoints for WP plugin
+    path('api/wp-plugin-data/', views_ai.wp_plugin_data_api_view, name='wp_plugin_data_api'),
 ]

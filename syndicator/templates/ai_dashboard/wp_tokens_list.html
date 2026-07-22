@@ -1,0 +1,66 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}أكواد ربط ووردبريس - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}أكواد ربط المواقع (Connection Tokens){% endblock %}
+
+{% block content %}
+<div class="glass-panel p-6 rounded-2xl border border-slate-800">
+    <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+        <div>
+            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-key text-teal-400 ml-2"></i>إدارة أكواد الربط</h3>
+            <p class="text-xs text-slate-400 mt-1">قم بإنشاء كود ربط وإرساله للعميل ليضعه في الإضافة الخاصة به، ليتم تسجيل موقعه آلياً.</p>
+        </div>
+        <a href="{% url 'news_ai:wp_token_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>توليد كود جديد</span>
+        </a>
+    </div>
+
+    <!-- Tokens Table -->
+    {% if tokens %}
+    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+        <table class="w-full text-right border-collapse">
+            <thead>
+                <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
+                    <th scope="col" class="px-6 py-4 font-bold">اسم العميل</th>
+                    <th scope="col" class="px-6 py-4 font-bold">كود الربط (Token)</th>
+                    <th scope="col" class="px-6 py-4 font-bold">تاريخ الإنشاء</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الحالة</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                {% for token in tokens %}
+                <tr class="hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-6 py-4 font-semibold text-slate-100">{{ token.client_name }}</td>
+                    <td class="px-6 py-4 font-mono text-xs text-teal-400 max-w-xs truncate select-all">{{ token.token }}</td>
+                    <td class="px-6 py-4 text-xs text-slate-400">{{ token.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="px-6 py-4 text-center">
+                        {% if token.is_used %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                مستخدم ({{ token.wp_site.name|default:'موقع محذوف' }})
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">متاح</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center space-x-2 space-x-reverse">
+                            <a href="{% url 'news_ai:wp_token_delete' token.pk %}" class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="حذف"><i class="fa-solid fa-trash-can"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-500 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+        <i class="fa-solid fa-key text-5xl mb-4 block text-slate-600"></i>
+        <h4 class="text-lg font-bold text-slate-400">لا توجد أكواد ربط</h4>
+        <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">قم بتوليد كود ربط وإرساله للعميل لتسهيل تسجيل موقعه.</p>
+        <a href="{% url 'news_ai:wp_token_add' %}" class="btn-glow inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl mt-6 transition duration-150">توليد كود جديد</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

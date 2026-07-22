@@ -1,4 +1,5 @@
 from decimal import Decimal
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from .fields import EncryptedCharField
@@ -470,6 +471,7 @@ class WordPressSite(models.Model):
     is_active = models.BooleanField(default=True, verbose_name="نشط")
     merge_group = models.ForeignKey(WordPressSiteGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='sites', verbose_name="مجموعة الدمج", help_text="إذا انضم موقعان أو أكثر من نفس المجموعة النشطة لنفس الخبر، يُولَّد الخبر مرة واحدة (Master) ثم تُعاد صياغته بشكل أخف وأرخص لباقي أعضاء المجموعة بدلاً من توليد كامل ومستقل لكل موقع، لتقليل التكلفة. اتركه فارغاً ليبقى الموقع مستقلاً بالكامل بأسلوبه الخاص.")
     sources = models.ManyToManyField(AISource, related_name='wp_sites', verbose_name="مصادر الأخبار المرتبطة", blank=True)
+    source_groups = models.ManyToManyField(AISourceGroup, related_name='wp_sites', verbose_name="مجموعات المصادر المرتبطة", blank=True)
     category_mapping = models.TextField(default="{}", help_text="خريطة الأقسام بتنسيق JSON. رقم واحد يُستخدم كقسم أساسي: {\"اقتصاد\": 5}. أو قسم أساسي وأقسام فرعية معاً: {\"اقتصاد\": {\"primary\": 5, \"secondary\": [12, 20]}}", verbose_name="خريطة الأقسام")
     use_rich_formatting = models.BooleanField(default=False, verbose_name="تنسيق غني بعناوين فرعية ملوّنة (SEO)", help_text="عند التفعيل، يُقسَّم الخبر إلى عناوين فرعية H2/H3 ملوّنة بدلاً من فقرات فقط، مع إضافة وسوم (Tags) تلقائية لتحسين توافق السيو (Yoast).")
     heading_color = models.CharField(max_length=7, default='#0066cc', verbose_name="لون العناوين الفرعية", help_text="كود اللون السداسي عشري (Hex)، مثال: #0066cc")
@@ -560,7 +562,6 @@ class SocialSharePost(models.Model):
 
 class WordPressScheduleSlot(models.Model):
     CONTENT_TYPE_CHOICES = [
-        ('regular', 'أخبار عامة (RSS / ترند)'),
         ('gold', 'سعر الذهب'),
         ('silver', 'سعر الفضة'),
         ('dollar', 'سعر الدولار'),
@@ -623,3 +624,17 @@ class WordPressScheduleSlot(models.Model):
         return [(choice_labels.get(k, k), v) for k, v in log.items()]
 
 
+class WPConnectionToken(models.Model):
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="كود الربط (Token)")
+    client_name = models.CharField(max_length=255, verbose_name="اسم العميل / الموقع", help_text="لتمييز الكود ولمن يتبع")
+    is_used = models.BooleanField(default=False, verbose_name="تم الاستخدام؟")
+    wp_site = models.ForeignKey(WordPressSite, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="الموقع المرتبط", help_text="سيتم ملؤه تلقائياً بعد نجاح الربط")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "كود ربط ووردبريس"
+        verbose_name_plural = "أكواد ربط ووردبريس"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.client_name} - {'مستخدم' if self.is_used else 'متاح'} ({self.token})"

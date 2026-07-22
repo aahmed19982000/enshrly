@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import AISourceGroup, AISource, AISettings, WordPressSite, AIImportLog
+from .models import AISourceGroup, AISource, AISettings, WordPressSite, AIImportLog, WPConnectionToken
 
 @admin.register(AISourceGroup)
 class AISourceGroupAdmin(admin.ModelAdmin):
@@ -26,3 +26,11 @@ class AIImportLogAdmin(admin.ModelAdmin):
     list_display = ('title', 'source', 'wp_site', 'status', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('title', 'source_url')
+
+
+@admin.register(WPConnectionToken)
+class WPConnectionTokenAdmin(admin.ModelAdmin):
+    list_display = ('client_name', 'token', 'is_used', 'wp_site', 'created_at')
+    list_filter = ('is_used', 'created_at')
+    search_fields = ('client_name', 'token')
+    readonly_fields = ('token', 'created_at')

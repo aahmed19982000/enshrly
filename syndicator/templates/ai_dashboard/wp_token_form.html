@@ -1,0 +1,55 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}توليد كود ربط ووردبريس - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}توليد كود ربط ووردبريس{% endblock %}
+
+{% block content %}
+<div class="glass-panel p-6 rounded-2xl border border-slate-800 max-w-2xl mx-auto">
+    <div class="mb-6 border-b border-slate-800 pb-4">
+        <h3 class="text-xl font-bold text-white"><i class="fa-solid fa-key text-teal-400 ml-2"></i>توليد كود ربط جديد</h3>
+        <p class="text-sm text-slate-400 mt-2">أدخل اسم العميل أو اسم الموقع ليتم توليد كود ربط فريد (Token) خاص به.</p>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <!-- Render form non-field errors -->
+        {% if form.non_field_errors %}
+        <div class="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-4 rounded-xl mb-6">
+            <ul class="list-disc list-inside text-sm">
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div>
+            <label for="{{ form.client_name.id_for_label }}" class="block text-sm font-semibold text-slate-300 mb-2">
+                {{ form.client_name.label }}
+                {% if form.client_name.field.required %}<span class="text-rose-500">*</span>{% endif %}
+            </label>
+            <input type="text" name="{{ form.client_name.name }}" id="{{ form.client_name.id_for_label }}" 
+                   class="w-full bg-slate-900/50 border {% if form.client_name.errors %}border-rose-500/50 focus:border-rose-500 focus:ring-rose-500/20{% else %}border-slate-700 focus:border-teal-500 focus:ring-teal-500/20{% endif %} text-slate-100 rounded-xl px-4 py-3 outline-none transition focus:ring-4"
+                   placeholder="مثال: موقع أخبار مصر"
+                   {% if form.client_name.value %}value="{{ form.client_name.value }}"{% endif %}
+                   {% if form.client_name.field.required %}required{% endif %}>
+            
+            {% if form.client_name.help_text %}
+            <p class="mt-2 text-xs text-slate-500"><i class="fa-solid fa-circle-info ml-1"></i>{{ form.client_name.help_text }}</p>
+            {% endif %}
+            
+            {% if form.client_name.errors %}
+            <p class="mt-2 text-sm text-rose-400"><i class="fa-solid fa-triangle-exclamation ml-1"></i>{{ form.client_name.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="pt-6 border-t border-slate-800 flex items-center justify-end space-x-3 space-x-reverse">
+            <a href="{% url 'news_ai:wp_tokens' %}" class="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition duration-150">إلغاء</a>
+            <button type="submit" class="btn-glow px-6 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center transition duration-200 shadow-lg shadow-teal-500/20">
+                <i class="fa-solid fa-check ml-2"></i>حفظ وتوليد الكود
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

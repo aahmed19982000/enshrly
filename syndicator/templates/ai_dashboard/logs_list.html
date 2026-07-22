@@ -1,0 +1,163 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}سجل العمليات - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}سجل العمليات والأخطاء{% endblock %}
+
+{% block content %}
+<div class="glass-panel p-6 rounded-2xl border border-slate-800">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-file-invoice text-teal-400 ml-2"></i>تفاصيل عمليات الجلب والتوليد</h3>
+            <p class="text-xs text-slate-400 mt-1">تتبع حالة فحص الأخبار، والنشر الناجح أو تفاصيل المشاكل والأخطاء التي يواجهها النظام.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="?" class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition {% if not status_filter %}bg-teal-500/10 text-teal-400 border-teal-500/30{% else %}bg-slate-800/60 text-slate-400 border-slate-700/50 hover:border-slate-600{% endif %}">الكل</a>
+            <a href="?status=success" class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition {% if status_filter == 'success' %}bg-emerald-500/10 text-emerald-400 border-emerald-500/30{% else %}bg-slate-800/60 text-slate-400 border-slate-700/50 hover:border-slate-600{% endif %}"><i class="fa-solid fa-check ml-1"></i>نجح</a>
+            <a href="?status=failed" class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition {% if status_filter == 'failed' %}bg-rose-500/10 text-rose-400 border-rose-500/30{% else %}bg-slate-800/60 text-slate-400 border-slate-700/50 hover:border-slate-600{% endif %}"><i class="fa-solid fa-xmark ml-1"></i>فشل</a>
+        </div>
+    </div>
+
+    {% if logs %}
+    <!-- Bulk redistribute: type how many of the checked failed articles below
+         each site should get here, check rows below (checkboxes submit into
+         this form via the form="" attribute even though they live inside the
+         table further down), then submit once. -->
+    <form id="bulk-redistribute-form" method="post" action="{% url 'news_ai:logs_bulk_redistribute' %}"
+          class="mb-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+        {% csrf_token %}
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold text-amber-400 whitespace-nowrap">
+                <i class="fa-solid fa-shuffle ml-1.5"></i>توزيع وإعادة نشر المحدد دفعة واحدة - حدد كم خبر ياخذ كل موقع:
+            </span>
+            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-bold rounded-lg transition whitespace-nowrap">
+                توزيع ونشر بدون تكلفة إضافية
+            </button>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            {% for site in all_sites %}
+            <label class="inline-flex items-center gap-2 text-xs text-slate-300 bg-slate-800/60 border border-slate-700/50 px-2.5 py-1.5 rounded-lg">
+                <span>{{ site.name }}</span>
+                <input type="number" name="site_count_{{ site.pk }}" min="0" placeholder="0" class="w-16 px-2 py-1 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-200 text-center">
+            </label>
+            {% endfor %}
+        </div>
+        <p class="text-[11px] text-slate-500 mt-2">يوزّع المقالات المحددة على المواقع بالعدد المحدد لكل واحد بالضبط، بدون أي اعتماد على الحد اليومي المسموح للموقع. اترك الحقل فارغاً أو صفر لاستبعاد الموقع.</p>
+    </form>
+    {% endif %}
+
+    <!-- Logs Table -->
+    {% if logs %}
+    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+        <table class="w-full text-right border-collapse">
+            <thead>
+                <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
+                    <th scope="col" class="px-4 py-4 font-bold text-center">
+                        <input type="checkbox" onclick="document.querySelectorAll('.log-select-cb').forEach(cb => cb.checked = this.checked)" class="accent-amber-500" title="تحديد كل الفاشلة">
+                    </th>
+                    <th scope="col" class="px-6 py-4 font-bold">التاريخ والوقت</th>
+                    <th scope="col" class="px-6 py-4 font-bold">الموقع المصدر</th>
+                    <th scope="col" class="px-6 py-4 font-bold">الخبر المستهدف / الأصلي</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الحالة</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">التكلفة</th>
+                    <th scope="col" class="px-6 py-4 font-bold">الخبر المنشور / رسالة الخطأ</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                {% for log in logs %}
+                <tr class="hover:bg-slate-800/30 transition duration-150 align-top">
+                    <td class="px-4 py-4 text-center">
+                        {% if log.status == 'failed' and log.article %}
+                        <input type="checkbox" name="log_ids" value="{{ log.pk }}" form="bulk-redistribute-form" class="log-select-cb accent-amber-500">
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-xs font-mono text-slate-400 whitespace-nowrap">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+                    <td class="px-6 py-4 font-semibold text-slate-200 whitespace-nowrap">{{ log.source.name|default:"مصدر محذوف" }}</td>
+                    <td class="px-6 py-4 max-w-xs">
+                        <div class="font-medium text-slate-300 truncate" title="{{ log.title }}">{{ log.title|default:"بدون عنوان" }}</div>
+                        <a href="{{ log.source_url }}" target="_blank" class="text-[10px] text-teal-500 hover:underline truncate block mt-0.5 font-mono" title="{{ log.source_url }}">{{ log.source_url }}</a>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% if log.status == 'success' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><i class="fa-solid fa-check ml-1"></i>نجح</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><i class="fa-solid fa-xmark ml-1"></i>فشل</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center whitespace-nowrap">
+                        <span class="font-mono text-xs text-slate-300 bg-slate-800/60 px-2 py-1 rounded border border-slate-700/50">
+                            ${{ log.estimated_cost|floatformat:5 }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 max-w-md">
+                        {% if log.status == 'success' %}
+                            {% if log.published_url %}
+                                <a href="{{ log.published_url }}" target="_blank" class="text-xs text-teal-450 hover:underline flex items-center font-medium">
+                                    {% if log.wp_site %}
+                                        <i class="fa-solid fa-earth-americas ml-1.5 text-sky-400" title="تم النشر على ووردبريس"></i>
+                                        <span class="truncate" title="رابط الخبر على {{ log.wp_site.name }}">[{{ log.wp_site.name }}] {{ log.title|default:log.article.title }}</span>
+                                    {% else %}
+                                        <i class="fa-solid fa-square-rss ml-1.5 text-teal-400"></i>
+                                        <span class="truncate">{{ log.title|default:log.article.title }}</span>
+                                    {% endif %}
+                                </a>
+                            {% elif log.article %}
+                                <a href="{{ log.article.get_absolute_url }}" target="_blank" class="text-xs text-teal-400 hover:underline flex items-center font-medium">
+                                    <i class="fa-solid fa-square-rss ml-1.5"></i>
+                                    <span class="truncate">{{ log.article.title }}</span>
+                                </a>
+                            {% else %}
+                                <span class="text-xs text-slate-500 italic">تم النشر بنجاح</span>
+                            {% endif %}
+                        {% elif log.status == 'failed' %}
+                            <div class="text-xs text-rose-450 bg-rose-950/30 p-2.5 rounded-lg border border-rose-900/50 break-words font-mono">
+                                {% if log.wp_site %}<strong>[{{ log.wp_site.name }}]</strong> {% endif %}{{ log.error_message }}
+                            </div>
+                            {% if log.article and log.wp_site %}
+                            <form method="post" action="{% url 'news_ai:log_republish' log.pk %}" class="mt-2">
+                                {% csrf_token %}
+                                <button type="submit" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition">
+                                    <i class="fa-solid fa-rotate-right ml-1.5"></i>إعادة نشر بدون تكلفة إضافية
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-xs text-slate-500 italic">لا يوجد سجل منشور أو محذوف</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="flex items-center justify-between border-t border-slate-800 pt-6 mt-6">
+        <div class="text-xs text-slate-400">
+            صفحة <strong>{{ page_obj.number }}</strong> من أصل <strong>{{ paginator.num_pages }}</strong> صفحة.
+        </div>
+        <div class="flex space-x-2 space-x-reverse">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition">السابق</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition">التالي</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-16 text-slate-500">
+        <i class="fa-solid fa-file-invoice text-5xl mb-4 block text-slate-600"></i>
+        {% if status_filter == 'success' %}
+            <p>لا توجد عمليات ناجحة.</p>
+        {% elif status_filter == 'failed' %}
+            <p>لا توجد عمليات فاشلة.</p>
+        {% else %}
+            <p>سجل العمليات فارغ تماماً.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

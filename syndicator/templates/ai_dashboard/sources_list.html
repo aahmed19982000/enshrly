@@ -1,0 +1,73 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}مصادر الأخبار - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}مصادر الأخبار والمواقع المستهدفة{% endblock %}
+
+{% block content %}
+<div class="glass-panel p-6 rounded-2xl border border-slate-800">
+    <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+        <div>
+            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-rss text-teal-400 ml-2"></i>مصادر التغذية الإخبارية</h3>
+            <p class="text-xs text-slate-400 mt-1">المواقع والروابط التي يعتمد عليها النظام لجلب البيانات وصياغتها تلقائياً.</p>
+        </div>
+        <a href="{% url 'news_ai:source_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>إضافة مصدر جديد</span>
+        </a>
+    </div>
+
+    <!-- Sources Table -->
+    {% if sources %}
+    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+        <table class="w-full text-right border-collapse">
+            <thead>
+                <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
+                    <th scope="col" class="px-6 py-4 font-bold">اسم المصدر</th>
+                    <th scope="col" class="px-6 py-4 font-bold">رابط التغذية / الموقع</th>
+                    <th scope="col" class="px-6 py-4 font-bold">اللغة</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الحالة</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                {% for source in sources %}
+                <tr class="hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-6 py-4 font-semibold text-slate-100">{{ source.name }}</td>
+                    <td class="px-6 py-4 font-mono text-xs text-slate-400 max-w-xs truncate" title="{{ source.url }}">{{ source.url }}</td>
+                    <td class="px-6 py-4">
+                        {% if source.language == 'ar' %}
+                            <span class="text-xs text-slate-400"><i class="fa-solid fa-language ml-1 text-teal-500"></i>عربي</span>
+                        {% elif source.language == 'en' %}
+                            <span class="text-xs text-slate-400"><i class="fa-solid fa-globe ml-1 text-sky-500"></i>عالمي / إنجليزي</span>
+                        {% else %}
+                            <span class="text-xs text-slate-400">مختلط</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% if source.is_active %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full ml-1"></span>نشط</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700">متوقف</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center space-x-2 space-x-reverse">
+                            <a href="{% url 'news_ai:source_edit' source.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="تعديل"><i class="fa-solid fa-pen"></i></a>
+                            <a href="{% url 'news_ai:source_delete' source.pk %}" class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="حذف"><i class="fa-solid fa-trash-can"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-500 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+        <i class="fa-solid fa-rss text-5xl mb-4 block text-slate-600"></i>
+        <h4 class="text-lg font-bold text-slate-400">لا توجد مصادر مضافة حالياً</h4>
+        <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">ابدأ بإضافة أول مصدر تغذية RSS أو موقع إخباري عالمي/عربي للبدء في جلب الأخبار تلقائياً.</p>
+        <a href="{% url 'news_ai:source_add' %}" class="btn-glow inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl mt-6 transition duration-150">إضافة مصدر</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

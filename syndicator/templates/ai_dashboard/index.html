@@ -1,0 +1,184 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}لوحة القيادة - المغرب اليوم{% endblock %}
+{% block header_title %}لوحة القيادة{% endblock %}
+
+{% block content %}
+<!-- Overview Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+    
+    <!-- Stat 1: Active Sources -->
+    <div class="glass-card p-4 rounded-2xl flex items-center justify-between">
+        <div class="space-y-1">
+            <p class="text-xs font-medium text-slate-400">المصادر النشطة</p>
+            <h3 class="text-2xl font-bold text-white">{{ active_sources_count }} <span class="text-xs text-slate-500">/ {{ sources_count }}</span></h3>
+        </div>
+        <div class="w-10 h-10 bg-teal-500/10 rounded-xl flex items-center justify-center border border-teal-500/20">
+            <i class="fa-solid fa-rss text-lg text-teal-400"></i>
+        </div>
+    </div>
+
+    <!-- Stat 2: Total Success Imports -->
+    <div class="glass-card p-4 rounded-2xl flex items-center justify-between">
+        <div class="space-y-1">
+            <p class="text-xs font-medium text-slate-400">الأخبار المولدة بنجاح</p>
+            <h3 class="text-2xl font-bold text-emerald-400">{{ total_articles_generated }}</h3>
+        </div>
+        <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
+            <i class="fa-solid fa-square-check text-lg text-emerald-400"></i>
+        </div>
+    </div>
+
+    <!-- Stat 3: Failed attempts -->
+    <div class="glass-card p-4 rounded-2xl flex items-center justify-between">
+        <div class="space-y-1">
+            <p class="text-xs font-medium text-slate-400">محاولات فشلت</p>
+            <h3 class="text-2xl font-bold {% if total_failures > 0 %}text-rose-400{% else %}text-slate-400{% endif %}">{{ total_failures }}</h3>
+        </div>
+        <div class="w-10 h-10 {% if total_failures > 0 %}bg-rose-500/10 border-rose-500/20{% else %}bg-slate-500/10 border-slate-500/20{% endif %} rounded-xl flex items-center justify-center border">
+            <i class="fa-solid fa-triangle-exclamation text-lg {% if total_failures > 0 %}text-rose-400{% else %}text-slate-400{% endif %}"></i>
+        </div>
+    </div>
+
+    <!-- Stat 4: Daily Limit -->
+    <div class="glass-card p-4 rounded-2xl flex items-center justify-between">
+        <div class="space-y-1">
+            <p class="text-xs font-medium text-slate-400">الحد اليومي للأخبار</p>
+            <h3 class="text-2xl font-bold text-teal-400">{{ settings.articles_per_day }} <span class="text-xs text-slate-500">أخبار/يوم</span></h3>
+        </div>
+        <div class="w-10 h-10 bg-teal-500/10 rounded-xl flex items-center justify-center border border-teal-500/20">
+            <i class="fa-solid fa-clock text-lg text-teal-400"></i>
+        </div>
+    </div>
+
+    <!-- Stat 5: Total API Cost -->
+    <div class="glass-card p-4 rounded-2xl flex items-center justify-between">
+        <div class="space-y-1">
+            <p class="text-xs font-medium text-slate-400">إجمالي تكلفة الـ API</p>
+            <h3 class="text-2xl font-bold text-amber-400">${{ total_cost|floatformat:4 }}</h3>
+        </div>
+        <div class="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
+            <i class="fa-solid fa-coins text-lg text-amber-400"></i>
+        </div>
+    </div>
+
+</div>
+
+<!-- System Status Banner -->
+<div class="glass-card p-6 rounded-2xl mb-8 flex flex-col md:flex-row items-center justify-between gap-6 border-r-4 border-r-teal-500">
+    <div class="flex items-center space-x-4 space-x-reverse">
+        <div class="w-10 h-10 rounded-full {% if settings.is_active %}bg-teal-500/20 animate-pulse{% else %}bg-slate-800{% endif %} flex items-center justify-center">
+            <span class="w-3.5 h-3.5 rounded-full {% if settings.is_active %}bg-teal-400{% else %}bg-slate-500{% endif %}"></span>
+        </div>
+        <div>
+            <h4 class="font-bold text-white">حالة نظام التوليد والجدولة الآلية</h4>
+            <p class="text-sm text-slate-400">
+                {% if settings.is_active %}
+                    النظام نشط ويعمل حالياً. يتم تشغيل فحص المصادر وإعادة الصياغة تلقائياً كل 4 ساعات.
+                {% else %}
+                    النظام متوقف مؤقتاً. لن يتم توليد أو نشر أخبار بشكل تلقائي.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="text-sm text-slate-400 flex items-center space-x-2 space-x-reverse bg-slate-900/60 px-4 py-2.5 rounded-xl border border-slate-800">
+        <i class="fa-regular fa-calendar-check text-teal-400"></i>
+        <span>آخر تشغيل للنظام: <strong class="text-slate-200">{{ settings.last_run|default:"لم يشتغل بعد"|date:"Y-m-d H:i" }}</strong></span>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- Right side: Recent generated articles -->
+    <div class="lg:col-span-7 space-y-6">
+        <div class="glass-card p-6 rounded-2xl">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-newspaper text-teal-400 ml-2"></i>أحدث الأخبار المنشورة بواسطة الذكاء الاصطناعي</h3>
+            </div>
+            
+            {% if recent_articles %}
+            <div class="space-y-4">
+                {% for article in recent_articles %}
+                <div class="flex items-start space-x-4 space-x-reverse p-3 rounded-xl hover:bg-slate-800/40 transition duration-150 border border-transparent hover:border-slate-800">
+                    <!-- Article Cover -->
+                    <div class="w-20 h-14 bg-slate-800 rounded-lg overflow-hidden flex-shrink-0 border border-slate-700">
+                        {% if article.cover_image %}
+                            <img src="{{ article.cover_image.url }}" alt="{{ article.get_cover_image_alt }}" class="w-full h-full object-cover">
+                        {% else %}
+                            <div class="w-full h-full flex items-center justify-center bg-slate-950 text-slate-600 text-xs">لا توجد صورة</div>
+                        {% endif %}
+                    </div>
+                    <!-- Article Details -->
+                    <div class="flex-1 min-w-0">
+                        <span class="text-xs text-teal-400 font-semibold px-2 py-0.5 bg-teal-500/10 rounded-md">{{ article.category.name }}</span>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-1.5 truncate"><a href="{{ article.get_absolute_url }}" target="_blank" class="hover:text-teal-400 transition">{{ article.title }}</a></h4>
+                        <div class="flex items-center space-x-4 space-x-reverse mt-1 text-xs text-slate-500">
+                            <span><i class="fa-regular fa-clock ml-1"></i>{{ article.published_at|date:"Y-m-d H:i" }}</span>
+                            <span><i class="fa-regular fa-eye ml-1"></i>{{ article.views_count }} مشاهدة</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12 text-slate-500">
+                <i class="fa-regular fa-folder-open text-4xl mb-3 block"></i>
+                <p>لا توجد أخبار منشورة حتى الآن.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Left side: Recent import logs -->
+    <div class="lg:col-span-5 space-y-6">
+        <div class="glass-card p-6 rounded-2xl">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-list-check text-teal-400 ml-2"></i>سجل العمليات الأخير</h3>
+                <a href="{% url 'news_ai:logs' %}" class="text-xs text-teal-400 hover:underline">عرض الكل</a>
+            </div>
+            
+            {% if recent_logs %}
+            <div class="space-y-4">
+                {% for log in recent_logs %}
+                <div class="p-3 bg-slate-900/40 rounded-xl border {% if log.status == 'success' %}border-emerald-950/20{% else %}border-rose-950/20{% endif %} flex items-center justify-between">
+                    <div class="min-w-0 flex-1">
+                        <h4 class="text-xs font-semibold text-slate-300 truncate" title="{{ log.title|default:log.source_url }}">
+                            {% if log.status == 'success' %}
+                                {{ log.title }}
+                            {% else %}
+                                {{ log.source_url }}
+                            {% endif %}
+                        </h4>
+                        <p class="text-[10px] text-slate-500 mt-1 flex items-center space-x-2 space-x-reverse">
+                            <span><i class="fa-solid fa-globe ml-1"></i>{{ log.source.name }}</span>
+                            <span>•</span>
+                            <span>{{ log.created_at|date:"H:i - d/m" }}</span>
+                        </p>
+                        {% if log.status == 'failed' and log.error_message %}
+                            <p class="text-[10px] text-rose-400 mt-1 bg-rose-950/30 p-1.5 rounded border border-rose-950/50 break-words">{{ log.error_message }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="mr-4 flex flex-col items-end space-y-1">
+                        {% if log.status == 'success' %}
+                            <span class="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-lg border border-emerald-500/20 flex items-center"><i class="fa-solid fa-check ml-1"></i>نجح</span>
+                        {% else %}
+                            <span class="px-2 py-1 bg-rose-500/10 text-rose-400 text-[10px] font-bold rounded-lg border border-rose-500/20 flex items-center"><i class="fa-solid fa-xmark ml-1"></i>فشل</span>
+                        {% endif %}
+                        <span class="font-mono text-[9px] text-slate-400 bg-slate-800/40 px-1.5 py-0.5 rounded border border-slate-700/30">
+                            ${{ log.estimated_cost|floatformat:5 }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12 text-slate-500">
+                <i class="fa-regular fa-bell-slash text-4xl mb-3 block"></i>
+                <p>لا توجد سجلات عمليات حتى الآن.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

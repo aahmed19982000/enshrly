@@ -1,0 +1,81 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}مواقع ووردبريس المرتبطة - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}المواقع الخارجية المرتبطة (WordPress){% endblock %}
+
+{% block content %}
+<div class="glass-panel p-6 rounded-2xl border border-slate-800">
+    <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+        <div>
+            <h3 class="text-lg font-bold text-white"><i class="fa-brands fa-wordpress text-teal-400 ml-2"></i>ربط ونشر المحتوى إلى ووردبريس</h3>
+            <p class="text-xs text-slate-400 mt-1">المواقع الخارجية التي سيقوم النظام بإرسال ونشر الأخبار المولدة إليها تلقائياً عبر واجهة REST API.</p>
+        </div>
+        <a href="{% url 'news_ai:wp_site_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>إضافة موقع جديد</span>
+        </a>
+    </div>
+
+    <!-- Sites Table -->
+    {% if sites %}
+    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+        <table class="w-full text-right border-collapse">
+            <thead>
+                <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
+                    <th scope="col" class="px-6 py-4 font-bold">اسم الموقع</th>
+                    <th scope="col" class="px-6 py-4 font-bold">رابط الموقع الأصلي</th>
+                    <th scope="col" class="px-6 py-4 font-bold">مجموعة الدمج</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الحد اليومي</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">التكلفة الفعلية</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الحالة</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                {% for site in sites %}
+                <tr class="hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-6 py-4 font-semibold text-slate-100">{{ site.name }}</td>
+                    <td class="px-6 py-4 font-mono text-xs text-slate-400 max-w-xs truncate" title="{{ site.url }}">{{ site.url }}</td>
+                    <td class="px-6 py-4 text-xs text-slate-400">
+                        {% if site.merge_group %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-500/20"><i class="fa-solid fa-layer-group ml-1 text-[10px]"></i>{{ site.merge_group.name }}</span>
+                        {% else %}
+                            <span class="text-slate-600">مستقل</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center font-semibold text-teal-400">{{ site.daily_limit }} <span class="text-[10px] text-slate-500 font-normal">أخبار/يوم</span></td>
+                    <td class="px-6 py-4 text-center font-semibold text-emerald-400">${{ site.real_cost|default:0|floatformat:4 }}</td>
+                    <td class="px-6 py-4 text-center">
+                        {% if site.is_active %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full ml-1"></span>نشط</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700">متوقف</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center space-x-2 space-x-reverse">
+                            <form action="{% url 'news_ai:wp_site_trigger' site.pk %}" method="post" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="text-xs text-teal-400 hover:text-teal-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="توليد الآن لهذا الموقع"><i class="fa-solid fa-bolt"></i></button>
+                            </form>
+                            <a href="{% url 'news_ai:wp_site_articles' site.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="المقالات المنشورة"><i class="fa-solid fa-newspaper"></i></a>
+                            <a href="{% url 'news_ai:schedule_slots' site.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="الجدول الزمني"><i class="fa-solid fa-clock"></i></a>
+                            <a href="{% url 'news_ai:wp_site_edit' site.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="تعديل"><i class="fa-solid fa-pen"></i></a>
+                            <a href="{% url 'news_ai:wp_site_delete' site.pk %}" class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="حذف"><i class="fa-solid fa-trash-can"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-500 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+        <i class="fa-brands fa-wordpress text-5xl mb-4 block text-slate-600"></i>
+        <h4 class="text-lg font-bold text-slate-400">لا توجد مواقع ووردبريس مضافة</h4>
+        <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">يمكنك ربط هذا النظام بمواقع ووردبريس خارجية لإرسال الأخبار المصاغة تلقائياً إليها.</p>
+        <a href="{% url 'news_ai:wp_site_add' %}" class="btn-glow inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl mt-6 transition duration-150">إضافة موقع ووردبريس</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

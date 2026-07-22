@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}لوحة تحكم الذكاء الاصطناعي{% endblock %} - المغرب اليوم</title>
+    
+    <!-- Google Fonts (Cairo) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN for premium utilities) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            800: '#115e59',
+                            900: '#134e4a',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #f1f5f9;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(20, 184, 166, 0.4);
+            box-shadow: 0 10px 20px -10px rgba(20, 184, 166, 0.2);
+        }
+        .btn-glow {
+            transition: all 0.3s ease;
+        }
+        .btn-glow:hover {
+            box-shadow: 0 0 15px rgba(20, 184, 166, 0.4);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #14b8a6;
+        }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row min-h-screen">
+
+    <!-- Sidebar -->
+    <aside class="w-full lg:w-80 glass-panel border-l border-slate-800 flex flex-col p-6 space-y-8 z-10">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3 space-x-reverse">
+            <div class="p-2.5 bg-gradient-to-tr from-primary-600 to-teal-400 rounded-xl shadow-lg shadow-teal-500/20">
+                <i class="fa-solid fa-robot text-2xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white">بوابة الذكاء الاصطناعي</h1>
+                <span class="text-xs text-primary-500 font-semibold uppercase tracking-wider">نظام الأخبار التلقائي</span>
+            </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 flex flex-col space-y-2">
+            <a href="{% url 'news_ai:index' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if request.resolver_match.view_name == 'news_ai:index' %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-chart-line w-6 text-lg"></i>
+                <span>لوحة القيادة</span>
+            </a>
+            <a href="{% url 'news_ai:sources' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if 'sources' in request.resolver_match.view_name %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-rss w-6 text-lg"></i>
+                <span>مصادر الأخبار</span>
+            </a>
+            <a href="{% url 'news_ai:wp_sites' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if request.resolver_match.view_name == 'news_ai:wp_sites' or request.resolver_match.view_name == 'news_ai:wp_site_add' or request.resolver_match.view_name == 'news_ai:wp_site_edit' or request.resolver_match.view_name == 'news_ai:wp_site_delete' or request.resolver_match.view_name == 'news_ai:wp_site_articles' or request.resolver_match.view_name == 'news_ai:schedule_slots' %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-brands fa-wordpress w-6 text-lg"></i>
+                <span>مواقع ووردبريس</span>
+            </a>
+            <a href="{% url 'news_ai:wp_site_groups' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if 'wp_site_group' in request.resolver_match.view_name %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-layer-group w-6 text-lg"></i>
+                <span>مجموعات الدمج</span>
+            </a>
+            <a href="{% url 'news_ai:settings' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if request.resolver_match.view_name == 'news_ai:settings' %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-sliders w-6 text-lg"></i>
+                <span>الإعدادات العامة</span>
+            </a>
+            <a href="{% url 'news_ai:logs' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if request.resolver_match.view_name == 'news_ai:logs' %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-file-invoice w-6 text-lg"></i>
+                <span>سجل العمليات</span>
+            </a>
+        </nav>
+
+        <!-- User Info / Actions -->
+        <div class="pt-6 border-t border-slate-800 flex items-center justify-between">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold text-teal-400 border border-slate-600">
+                    {{ request.user.username|slice:":2"|upper }}
+                </div>
+                <div>
+                    <h4 class="text-sm font-semibold text-slate-200">{{ request.user.get_full_name|default:request.user.username }}</h4>
+                    <p class="text-xs text-slate-500">مدير النظام</p>
+                </div>
+            </div>
+            <a href="/" class="text-slate-500 hover:text-red-400 p-2 transition duration-150" title="الرجوع للموقع الأساسي">
+                <i class="fa-solid fa-arrow-right-from-bracket text-lg"></i>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col min-w-0">
+        <!-- Top bar -->
+        <header class="h-20 glass-panel border-b border-slate-800 flex items-center justify-between px-8 z-0">
+            <h2 class="text-xl font-bold text-white">{% block header_title %}لوحة القيادة{% endblock %}</h2>
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <!-- Trigger Button -->
+                <form action="{% url 'news_ai:trigger' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-glow px-4 py-2 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-2 space-x-reverse transition duration-200">
+                        <i class="fa-solid fa-bolt animate-pulse"></i>
+                        <span>شغّل التوليد الآن</span>
+                    </button>
+                </form>
+            </div>
+        </header>
+
+        <!-- Main Content Inner -->
+        <div class="flex-1 p-8 overflow-y-auto">
+            <!-- Messages -->
+            {% if messages %}
+            <div class="space-y-4 mb-6">
+                {% for message in messages %}
+                <div class="p-4 rounded-xl flex items-center space-x-3 space-x-reverse border {% if message.tags == 'success' %}bg-emerald-950/40 border-emerald-800 text-emerald-400{% elif message.tags == 'error' %}bg-rose-950/40 border-rose-800 text-rose-400{% else %}bg-blue-950/40 border-blue-800 text-blue-400{% endif %}">
+                    <i class="fa-solid {% if message.tags == 'success' %}fa-circle-check{% elif message.tags == 'error' %}fa-circle-exclamation{% else %}fa-circle-info{% endif %} text-lg"></i>
+                    <p class="text-sm font-medium">{{ message }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+</body>
+</html>

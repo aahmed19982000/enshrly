@@ -1,0 +1,183 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}الإعدادات العامة - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}الإعدادات العامة لمحرر الذكاء الاصطناعي{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="glass-panel p-8 rounded-2xl border border-slate-800">
+        <h3 class="text-lg font-bold text-white mb-6 border-b border-slate-800 pb-4"><i class="fa-solid fa-sliders text-teal-400 ml-2"></i>تهيئة النظام والربط بـ Gemini</h3>
+        
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Gemini API Key -->
+            <div class="space-y-2">
+                <label for="id_gemini_api_key" class="block text-sm font-semibold text-slate-300">مفتاح واجهة برمجة التطبيقات (Gemini API Key)</label>
+                <div class="relative rounded-xl shadow-sm">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-key text-slate-500"></i>
+                    </div>
+                    <input type="password" name="gemini_api_key" id="id_gemini_api_key" value="{{ form.gemini_api_key.value|default:'' }}" class="block w-full pr-10 pl-3 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 placeholder-slate-600 transition duration-150" placeholder="أدخل مفتاح Gemini API هنا...">
+                </div>
+                <p class="text-xs text-slate-500">يُستخدم هذا المفتاح للاتصال بنموذج Gemini 1.5 Flash لصياغة الأخبار وإعادة صياغتها تلقائياً.</p>
+            </div>
+
+            <!-- Django API Token (Read-only) -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-300">مفتاح الاتصال الخاص بالـ API (Django API Token)</label>
+                <div class="relative rounded-xl shadow-sm">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-shield-halved text-teal-500"></i>
+                    </div>
+                    <input type="text" readonly value="{{ form.instance.api_token }}" class="block w-full pr-10 pl-3 py-3 bg-slate-900/60 border border-slate-800 rounded-xl focus:outline-none text-slate-400 font-mono text-sm transition duration-150 cursor-default select-all">
+                </div>
+                <p class="text-xs text-slate-500">انسخ هذا المفتاح وضعه في لوحة تحكم ووردبريس (إضافة متحكم الـ AI) للربط الآمن بدلاً من استخدام اسم المستخدم وكلمة المرور.</p>
+            </div>
+
+            <!-- Telegram Bot configurations -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800">
+                <div class="space-y-2">
+                    <label for="id_telegram_bot_token" class="block text-sm font-semibold text-slate-300">رمز بوت تليجرام (Telegram Bot Token)</label>
+                    <div class="relative rounded-xl shadow-sm">
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="fa-brands fa-telegram text-sky-400"></i>
+                        </div>
+                        <input type="password" name="telegram_bot_token" id="id_telegram_bot_token" value="{{ form.telegram_bot_token.value|default:'' }}" class="block w-full pr-10 pl-3 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 placeholder-slate-650 transition duration-150" placeholder="Token من BotFather...">
+                    </div>
+                    <p class="text-xs text-slate-500">مفتاح توكن البوت لتشغيل واستقبال التقارير عبر تليجرام.</p>
+                </div>
+                
+                <div class="space-y-2">
+                    <label for="id_telegram_allowed_chats" class="block text-sm font-semibold text-slate-300">المحادثات المسموح لها بالتحكم</label>
+                    <input type="text" name="telegram_allowed_chats" id="id_telegram_allowed_chats" value="{{ form.telegram_allowed_chats.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="مثال: 12345678, -987654321">
+                    <p class="text-xs text-slate-500">أرقام معرفات الـ Chat IDs المسموح لها بتشغيل الأوامر (مفصولة بفاصلة).</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Articles Per Day -->
+                <div class="space-y-2">
+                    <label for="id_articles_per_day" class="block text-sm font-semibold text-slate-300">عدد الأخبار اليومي الإجمالي</label>
+                    <input type="number" name="articles_per_day" id="id_articles_per_day" value="{{ form.articles_per_day.value }}" min="1" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                    <p class="text-xs text-slate-500">الحد الأقصى لعدد الأخبار التي سينشرها النظام تلقائياً على مدار اليوم. يتحدّث تلقائياً عند تعديل حدود المواقع أدناه، ويمكنك أيضاً تعديله يدوياً في أي وقت.</p>
+                </div>
+
+                <!-- Max word count -->
+                <div class="space-y-2">
+                    <label for="id_max_words" class="block text-sm font-semibold text-slate-300">الحد الأقصى للكلمات في الخبر</label>
+                    <input type="number" name="max_words" id="id_max_words" value="{{ form.max_words.value }}" min="50" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                    <p class="text-xs text-slate-500 font-semibold text-amber-500/80">المقترح هو 500 كلمة للخبر الواحد.</p>
+                </div>
+            </div>
+
+            <!-- Daily cost cap (safety net) -->
+            <div class="space-y-2 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                <label for="id_daily_cost_limit_usd" class="block text-sm font-semibold text-amber-400"><i class="fa-solid fa-shield-halved ml-1.5"></i>الحد الأقصى اليومي لتكلفة الذكاء الاصطناعي (دولار)</label>
+                <div class="flex items-center gap-4">
+                    <input type="number" step="0.01" name="daily_cost_limit_usd" id="id_daily_cost_limit_usd" value="{{ form.daily_cost_limit_usd.value|default_if_none:'' }}" min="0" placeholder="بلا حد (اتركه فارغاً)" class="block w-full max-w-xs px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-slate-200 transition duration-150">
+                    <span class="text-xs text-slate-400 whitespace-nowrap">التكلفة الفعلية اليوم حتى الآن: <strong class="text-slate-200 font-mono">${{ today_total_cost|floatformat:4 }}</strong></span>
+                </div>
+                <p class="text-xs text-slate-500">عند وصول إجمالي تكلفة اليوم لهذا الرقم، يتوقف النظام تلقائياً عن أي توليد جديد بغض النظر عن السبب - حماية من أي خلل غير متوقع يستهلك الميزانية دون ملاحظة، حتى بداية اليوم التالي. لو عندك بوت تليجرام مفعّل أعلاه، هيوصلك تنبيه فور الوصول للحد.</p>
+            </div>
+
+            <!-- Active Checkbox toggle -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_is_active" class="block text-sm font-bold text-slate-200">تفعيل العمليات التلقائية بالكامل</label>
+                    <p class="text-xs text-slate-500">عند إلغاء التفعيل، سيتوقف النظام بالكامل عن جلب أي أخبار أو صياغتها تلقائياً.</p>
+                </div>
+            </div>
+
+            <!-- Publish to main site Checkbox toggle -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="publish_to_main_site" id="id_publish_to_main_site" {% if form.publish_to_main_site.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_publish_to_main_site" class="block text-sm font-bold text-slate-200">النشر على الموقع الأساسي</label>
+                    <p class="text-xs text-slate-500">عند إلغاء التفعيل، لن يتم نشر الأخبار المولدة على موقع المغرب العربي الأساسي (ستُنشر فقط على مواقع الووردبريس المتصلة المحددة).</p>
+                </div>
+            </div>
+
+            <!-- Default Authors (multi-select with rotation) -->
+            <div class="space-y-4 pt-6 border-t border-slate-800">
+                <h4 class="text-sm font-bold text-slate-300"><i class="fa-solid fa-users text-teal-400 ml-2"></i>الكتّاب الافتراضيون للأخبار المولّدة</h4>
+                <p class="text-xs text-slate-500">اختر كاتباً واحداً أو أكثر — عند اختيار أكثر من كاتب، يُنوَّع تلقائياً بينهم عشوائياً لكل خبر جديد. اتركه فارغاً لاستخدام حساب النظام الآلي.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    {% for user in staff_authors %}
+                    <label class="flex items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 cursor-pointer hover:border-teal-500/50 transition-colors">
+                        <input type="checkbox" name="default_authors" value="{{ user.id }}"
+                            {% if user.id in default_author_ids %}checked{% endif %}
+                            class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
+                        <span class="text-sm text-slate-300">{{ user.get_full_name|default:user.username }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="text-xs text-slate-500 italic col-span-2">لا يوجد مستخدمون بصلاحية Staff بعد.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Local Site Sources Selection -->
+            <div class="space-y-4 pt-6 border-t border-slate-800">
+                <h4 class="text-sm font-bold text-slate-300"><i class="fa-solid fa-globe text-teal-400 ml-2"></i>مصادر الأخبار المغذية لموقع المغرب العربي</h4>
+                <p class="text-xs text-slate-500">حدد المصادر التي تريد النشر منها على موقع المغرب العربي مباشرة. إذا تركت الكل بدون تحديد سيستخدم النظام جميع المصادر النشطة تلقائياً.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    {% for source in all_sources %}
+                    <label class="flex items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 cursor-pointer hover:border-teal-500/50 transition-colors">
+                        <input type="checkbox" name="local_sources" value="{{ source.id }}"
+                            {% if source.id in local_source_ids %}checked{% endif %}
+                            class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
+                        <span class="text-sm text-slate-300">{{ source.name }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="text-xs text-slate-500 italic col-span-2">لا توجد مصادر نشطة مضافة بعد. أضف مصادر أخبار أولاً من قسم "مصادر الأخبار".</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- WordPress Sites Limits -->
+            <div class="space-y-4 pt-6 border-t border-slate-800">
+                <h4 class="text-sm font-bold text-slate-300"><i class="fa-solid fa-earth-americas text-teal-400 ml-2"></i>الحدود اليومية لمواقع ووردبريس المتصلة</h4>
+                <p class="text-xs text-slate-500">حدد عدد الأخبار اليومية الأقصى المسموح بنشره تلقائياً لكل موقع على حدة:</p>
+                
+                <div class="space-y-3">
+                    {% for site in wp_sites %}
+                    <div class="flex items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-850">
+                        <div class="flex-1">
+                            <span class="text-sm font-semibold text-slate-200 block">{{ site.name }}</span>
+                            <span class="text-xs text-slate-500">{{ site.url }}</span>
+                        </div>
+                        <div class="w-32 mr-4">
+                            <input type="number" name="site_limit_{{ site.id }}" value="{{ site.daily_limit }}" min="0" class="site-limit-input block w-full px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 text-sm transition duration-150">
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-xs text-slate-500 italic">لا توجد مواقع ووردبريس نشطة متصلة حالياً.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex items-center justify-end space-x-3 space-x-reverse pt-4 border-t border-slate-800">
+                <a href="{% url 'news_ai:index' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">إلغاء</a>
+                <button type="submit" class="btn-glow px-6 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl transition duration-150">حفظ الإعدادات</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    // Keeps "عدد الأخبار اليومي الإجمالي" in sync with the sum of the
+    // per-site daily limits below it - only reacts to edits on the site
+    // inputs (never overwrites on page load), so a manually-typed total
+    // stays put until a site limit actually changes.
+    document.querySelectorAll('.site-limit-input').forEach(function (input) {
+        input.addEventListener('input', function () {
+            var total = 0;
+            document.querySelectorAll('.site-limit-input').forEach(function (el) {
+                total += parseInt(el.value, 10) || 0;
+            });
+            document.getElementById('id_articles_per_day').value = total;
+        });
+    });
+</script>
+{% endblock %}

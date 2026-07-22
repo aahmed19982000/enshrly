@@ -1,0 +1,384 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}{% if object %}تعديل موقع ووردبريس{% else %}ربط موقع جديد{% endif %} - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}{% if object %}تعديل إعدادات الموقع ({{ object.name }}){% else %}ربط موقع ووردبريس جديد{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="glass-panel p-8 rounded-2xl border border-slate-800">
+        <div class="flex items-center justify-between mb-6 border-b border-slate-800 pb-4">
+            <h3 class="text-lg font-bold text-white">
+                <i class="fa-brands fa-wordpress text-teal-400 ml-2"></i>
+                {% if object %}تعديل خيارات ربط ووردبريس{% else %}بيانات الربط مع موقع ووردبريس خارجي{% endif %}
+            </h3>
+            {% if object %}
+            <div class="flex items-center gap-4">
+                <form action="{% url 'news_ai:wp_site_trigger' object.pk %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-glow px-3 py-1.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition duration-200">
+                        <i class="fa-solid fa-bolt animate-pulse"></i>
+                        <span>توليد الآن لهذا الموقع</span>
+                    </button>
+                </form>
+                <a href="{% url 'news_ai:schedule_slots' object.pk %}" class="text-xs text-slate-400 hover:text-teal-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-clock"></i>
+                    <span>الجدول الزمني</span>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if has_schedule_slots %}
+        <div class="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
+            <i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5"></i>
+            <div class="flex-1">
+                <p class="text-sm font-bold text-amber-300">لهذا الموقع جدول زمني نشط</p>
+                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                    حقل "عدد المقالات لكل تشغيل" وكل خانات أنواع المحتوى أدناه (الذهب، الفضة، الدولار، والأسعار الرسمية اليومية)
+                    أصبحت بلا تأثير لهذا الموقع تحديداً — الجدول الزمني هو ما يتحكم الآن في الأنواع وعددها.
+                    "الحد الأقصى للنشر اليومي" يبقى الحقل الوحيد الفعّال هنا كسقف أمان إضافي.
+                </p>
+                <a href="{% url 'news_ai:schedule_slots' object.pk %}" class="inline-block text-xs text-teal-400 hover:text-teal-300 mt-2">إدارة الجدول الزمني ←</a>
+            </div>
+        </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Site Name -->
+                <div class="space-y-2">
+                    <label for="id_name" class="block text-sm font-semibold text-slate-300">اسم الموقع (العنوان)</label>
+                    <input type="text" name="name" id="id_name" required value="{{ form.name.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="مثال: موقع الأخبار التقنية">
+                    {% if form.name.errors %}
+                        <p class="text-xs text-rose-400">{{ form.name.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Site URL -->
+                <div class="space-y-2">
+                    <label for="id_url" class="block text-sm font-semibold text-slate-300">رابط الموقع (WordPress Root URL)</label>
+                    <input type="url" name="url" id="id_url" required value="{{ form.url.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="https://my-wordpress-site.com">
+                    {% if form.url.errors %}
+                        <p class="text-xs text-rose-400">{{ form.url.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Username -->
+                <div class="space-y-2">
+                    <label for="id_username" class="block text-sm font-semibold text-slate-300">اسم المستخدم (Username)</label>
+                    <input type="text" name="username" id="id_username" required value="{{ form.username.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="admin">
+                    {% if form.username.errors %}
+                        <p class="text-xs text-rose-400">{{ form.username.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Application Password -->
+                <div class="space-y-2">
+                    <label for="id_application_password" class="block text-sm font-semibold text-slate-300">كلمة مرور التطبيق (Application Password)</label>
+                    <input type="password" name="application_password" id="id_application_password" required value="{{ form.application_password.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="xxxx xxxx xxxx xxxx">
+                    <p class="text-[10px] text-slate-500">أنشئ كلمة مرور تطبيق آمنة من صفحة حسابك الشخصي في لوحة تحكم ووردبريس.</p>
+                    {% if form.application_password.errors %}
+                        <p class="text-xs text-rose-400">{{ form.application_password.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- WordPress Author IDs -->
+                <div class="space-y-2">
+                    <label for="id_wp_author_ids" class="block text-sm font-semibold text-slate-300">معرّفات الكتّاب في ووردبريس (Author IDs)</label>
+                    <input type="text" name="wp_author_ids" id="id_wp_author_ids" value="{{ form.wp_author_ids.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="مثال: 5, 8, 12">
+                    <p class="text-[10px] text-slate-500">افصل بين عدة معرّفات بفاصلة — سيُختار أحدهم عشوائياً لكل مقال جديد لتنويع الكاتب. اتركه فارغاً لينشر باسم مستخدم المصادقة أعلاه. لمعرفة رقم المعرّف: من ووردبريس ← المستخدمون ← مرّر فوق اسم الكاتب المطلوب وانظر الرقم في رابط "تعديل" (user_id).</p>
+                    {% if form.wp_author_ids.errors %}
+                        <p class="text-xs text-rose-400">{{ form.wp_author_ids.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- News Sources (M2M) -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-300">مصادر الأخبار المغذية لهذا الموقع</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800 max-h-48 overflow-y-auto">
+                    {% for source in form.fields.sources.queryset %}
+                    <label class="flex items-center space-x-2 space-x-reverse text-slate-300 text-xs cursor-pointer hover:text-white transition">
+                        <input type="checkbox" name="sources" value="{{ source.id }}" {% if source in form.initial.sources or source.id|slugify in form.sources.value %}checked{% endif %} class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2">
+                        <span>{{ source.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% if form.sources.errors %}
+                    <p class="text-xs text-rose-400">{{ form.sources.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Daily Limit -->
+                <div class="space-y-2">
+                    <label for="id_daily_limit" class="block text-sm font-semibold text-slate-300">الحد الأقصى للنشر اليومي</label>
+                    <input type="number" name="daily_limit" id="id_daily_limit" required value="{{ form.daily_limit.value|default:3 }}" min="1" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                </div>
+
+                <!-- Articles Per Run -->
+                <div class="space-y-2">
+                    <label for="id_articles_per_run" class="block text-sm font-semibold text-slate-300">عدد المقالات لكل تشغيل</label>
+                    <input type="number" name="articles_per_run" id="id_articles_per_run" required value="{{ form.articles_per_run.value|default:1 }}" min="1" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                    {% if has_schedule_slots %}
+                    <p class="text-[10px] text-amber-400">معطّل الأثر — يتحكم الجدول الزمني بدلاً منه لهذا الموقع.</p>
+                    {% else %}
+                    <p class="text-[10px] text-slate-500">أقصى عدد أخبار تُنشر لهذا الموقع في كل مرة تعمل فيها الدورة (يدوياً أو تلقائياً كل 4 ساعات).</p>
+                    {% endif %}
+                </div>
+
+                <!-- Category Mapping -->
+                <div class="space-y-2">
+                    <label for="id_category_mapping" class="block text-sm font-semibold text-slate-300">خريطة الأقسام (Category Mapping JSON)</label>
+                    <textarea name="category_mapping" id="id_category_mapping" rows="4" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs">{{ form.category_mapping.value|default:'{}' }}</textarea>
+                    <p class="text-[10px] text-slate-500">
+                        تنسيق JSON يربط أسماء الأقسام هنا بأرقام الأقسام في ووردبريس. قسم واحد فقط:
+                        <br><code class="text-teal-400">{"سياسة": 3, "رياضة": 5}</code>
+                        <br>أو قسم أساسي وأقسام فرعية إضافية معاً (يُحدَّد الأساسي في يوست SEO تلقائياً):
+                        <br><code class="text-teal-400">{"اقتصاد": {"primary": 5, "secondary": [12, 20]}}</code>
+                    </p>
+                    {% if form.category_mapping.errors %}
+                        <p class="text-xs text-rose-400">{{ form.category_mapping.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Active Checkbox -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value or not object %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_is_active" class="block text-sm font-bold text-slate-200">تفعيل إرسال المحتوى تلقائياً</label>
+                    <p class="text-xs text-slate-500">عند تفعيله، سيقوم النظام تلقائياً بنشر أي خبر يتم صياغته من المصادر المحددة إلى هذا الموقع.</p>
+                </div>
+            </div>
+
+            <!-- Merge Group (cost reduction) -->
+            <div class="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <div class="flex items-center justify-between">
+                    <label for="id_merge_group" class="block text-sm font-bold text-slate-200">مجموعة الدمج (لتقليل التكلفة)</label>
+                    <a href="{% url 'news_ai:wp_site_groups' %}" class="text-xs text-teal-400 hover:text-teal-300">إدارة المجموعات ←</a>
+                </div>
+                <select name="merge_group" id="id_merge_group" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                    <option value="">بدون دمج - يبقى الموقع مستقلاً بأخباره وأسلوبه الخاص</option>
+                    {% for group in form.fields.merge_group.queryset %}
+                    <option value="{{ group.id }}" {% if form.merge_group.value|stringformat:"s" == group.id|stringformat:"s" %}selected{% endif %}>{{ group.name }}{% if not group.is_active %} (متوقفة){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-[10px] text-slate-500">إذا انضم موقعان أو أكثر لنفس المجموعة النشطة، يُولَّد الخبر مرة واحدة (Master) ثم تُعاد صياغته بشكل أخف وأرخص لباقي أعضاء المجموعة بدلاً من توليد كامل ومستقل لكل موقع.</p>
+                {% if form.merge_group.errors %}
+                    <p class="text-xs text-rose-400">{{ form.merge_group.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Rich Formatting (SEO headings + tags) -->
+            <div class="space-y-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="use_rich_formatting" id="id_use_rich_formatting" {% if form.use_rich_formatting.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <div class="flex-1">
+                        <label for="id_use_rich_formatting" class="block text-sm font-bold text-slate-200">تنسيق غني بعناوين فرعية ملوّنة (SEO)</label>
+                        <p class="text-xs text-slate-500">عند التفعيل، يُقسَّم الخبر إلى عناوين فرعية H2/H3 ملوّنة بدلاً من فقرات فقط، مع إضافة وسوم (Tags) تلقائية لتحسين توافق السيو (Yoast).</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label for="id_heading_color" class="block text-sm font-semibold text-slate-300">لون العناوين الفرعية</label>
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="id_heading_color_picker" value="{{ form.heading_color.value|default:'#0066cc' }}" oninput="document.getElementById('id_heading_color').value = this.value" class="w-12 h-10 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer">
+                        <input type="text" name="heading_color" id="id_heading_color" value="{{ form.heading_color.value|default:'#0066cc' }}" oninput="document.getElementById('id_heading_color_picker').value = this.value" pattern="^#[0-9A-Fa-f]{6}$" class="block w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 font-mono text-xs transition duration-150" placeholder="#0066cc">
+                    </div>
+                    {% if form.heading_color.errors %}
+                        <p class="text-xs text-rose-400">{{ form.heading_color.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Internal Linking (SEO) -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="use_internal_links" id="id_use_internal_links" {% if form.use_internal_links.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_use_internal_links" class="block text-sm font-bold text-slate-200">إضافة روابط داخلية تلقائية (SEO)</label>
+                    <p class="text-xs text-slate-500">عند التفعيل، يحاول النظام تضمين رابط داخلي أو رابطين ضمن نص الخبر يشيران إلى مقالات حديثة أخرى منشورة على هذا الموقع نفسه.</p>
+                </div>
+            </div>
+
+            <!-- Live Gold Price Articles -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="generate_gold_price_articles" id="id_generate_gold_price_articles" {% if form.generate_gold_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_generate_gold_price_articles" class="block text-sm font-bold text-slate-200">توليد مقالات سعر الذهب الحية {% if has_schedule_slots %}<span class="text-[10px] font-normal text-amber-400">(معطّل الأثر — يتحكم الجدول الزمني)</span>{% endif %}</label>
+                    <p class="text-xs text-slate-500">عند التفعيل، يُنشئ النظام في كل دورة توليد مقالاً جديداً بسعر الذهب اللحظي (عيار 24، 21، 18) بالجنيه المصري، ويُنشر على هذا الموقع فقط.</p>
+                </div>
+            </div>
+
+            <!-- Live Silver Price Articles -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="generate_silver_price_articles" id="id_generate_silver_price_articles" {% if form.generate_silver_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_generate_silver_price_articles" class="block text-sm font-bold text-slate-200">توليد مقالات سعر الفضة الحية {% if has_schedule_slots %}<span class="text-[10px] font-normal text-amber-400">(معطّل الأثر — يتحكم الجدول الزمني)</span>{% endif %}</label>
+                    <p class="text-xs text-slate-500">عند التفعيل، يُنشئ النظام في كل دورة توليد مقالاً جديداً بسعر الفضة اللحظي بالجنيه المصري، ويُنشر على هذا الموقع فقط.</p>
+                </div>
+            </div>
+
+            <!-- Live Dollar Price Articles -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="generate_dollar_price_articles" id="id_generate_dollar_price_articles" {% if form.generate_dollar_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_generate_dollar_price_articles" class="block text-sm font-bold text-slate-200">توليد مقالات سعر الدولار الحية {% if has_schedule_slots %}<span class="text-[10px] font-normal text-amber-400">(معطّل الأثر — يتحكم الجدول الزمني)</span>{% endif %}</label>
+                    <p class="text-xs text-slate-500">عند التفعيل، يُنشئ النظام في كل دورة توليد مقالاً جديداً بسعر صرف الدولار اللحظي مقابل الجنيه المصري، ويُنشر على هذا الموقع فقط.</p>
+                </div>
+            </div>
+
+            <!-- Daily Official Commodity Price Articles -->
+            <div class="space-y-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <p class="text-xs font-bold text-slate-300">مقالات أسعار يومية (بيانات رسمية من مركز معلومات مجلس الوزراء - مرة واحدة يومياً) {% if has_schedule_slots %}<span class="font-normal text-amber-400">— معطّلة الأثر هنا، يتحكم الجدول الزمني بدلاً منها</span>{% endif %}</p>
+
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="generate_iron_price_articles" id="id_generate_iron_price_articles" {% if form.generate_iron_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <label for="id_generate_iron_price_articles" class="text-sm font-semibold text-slate-200">سعر الحديد (حديد عز)</label>
+                </div>
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="generate_cement_price_articles" id="id_generate_cement_price_articles" {% if form.generate_cement_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <label for="id_generate_cement_price_articles" class="text-sm font-semibold text-slate-200">سعر الإسمنت (الرمادي)</label>
+                </div>
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="generate_poultry_price_articles" id="id_generate_poultry_price_articles" {% if form.generate_poultry_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <label for="id_generate_poultry_price_articles" class="text-sm font-semibold text-slate-200">سعر الدواجن (الفراخ)</label>
+                </div>
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="generate_fish_price_articles" id="id_generate_fish_price_articles" {% if form.generate_fish_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <label for="id_generate_fish_price_articles" class="text-sm font-semibold text-slate-200">سعر السمك</label>
+                </div>
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="generate_vegetable_price_articles" id="id_generate_vegetable_price_articles" {% if form.generate_vegetable_price_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <label for="id_generate_vegetable_price_articles" class="text-sm font-semibold text-slate-200">أسعار الخضار (طماطم/بطاطس/بصل)</label>
+                </div>
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="generate_arab_currencies_articles" id="id_generate_arab_currencies_articles" {% if form.generate_arab_currencies_articles.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <label for="id_generate_arab_currencies_articles" class="text-sm font-semibold text-slate-200">أسعار العملات العربية والأجنبية (ريال سعودي/دينار كويتي/درهم إماراتي/يورو/إسترليني/فرنك سويسري)</label>
+                </div>
+            </div>
+
+            <!-- Explainer Style -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="use_explainer_style" id="id_use_explainer_style" {% if form.use_explainer_style.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_use_explainer_style" class="block text-sm font-bold text-slate-200">أسلوب تفسيري (Explainer) عند الحاجة</label>
+                    <p class="text-xs text-slate-500">عند التفعيل، يقرر الذكاء الاصطناعي تلقائياً استخدام أسلوب شرح بعناوين على شكل أسئلة (لماذا؟ هل؟ كيف؟) للأخبار الاقتصادية/التنظيمية (رسوم، ضرائب، قرارات) التي تحتاج تفصيلاً، بدلاً من الخبر القصير المعتاد.</p>
+                </div>
+            </div>
+
+            <!-- Fixed Site Tags -->
+            <div class="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <label for="id_site_tags" class="block text-sm font-bold text-slate-200">وسوم ثابتة لهذا الموقع</label>
+                <p class="text-xs text-slate-500">تُضاف تلقائياً لوسوم كل خبر يُنشر على هذا الموقع (بالإضافة للوسوم الخاصة بموضوع كل خبر). افصل بينها بفاصلة.</p>
+                <textarea name="site_tags" id="id_site_tags" rows="2" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 text-sm" placeholder="بانكرز توداي, موقع بانكرز توداي الاخباري">{{ form.site_tags.value|default:'' }}</textarea>
+                {% if form.site_tags.errors %}
+                    <p class="text-xs text-rose-400">{{ form.site_tags.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Social Share Image Generation -->
+            <div class="space-y-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="social_image_enabled" id="id_social_image_enabled" {% if form.social_image_enabled.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                    <div class="flex-1">
+                        <label for="id_social_image_enabled" class="block text-sm font-bold text-slate-200"><i class="fa-solid fa-image ml-1"></i>تفعيل توليد صور السوشال ميديا</label>
+                        <p class="text-xs text-slate-500">عند التفعيل، يُولَّد تلقائياً تصميم صورة (صورة الخبر + العنوان + لوجو الموقع وألوانه) عند نشر كل خبر جديد لهذا الموقع، مع إمكانية إعادة التوليد يدوياً لاحقاً من صفحة "المقالات المنشورة".</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Template Choice -->
+                    <div class="space-y-2">
+                        <label for="id_social_template" class="block text-sm font-semibold text-slate-300">قالب تصميم الصورة</label>
+                        <select name="social_template" id="id_social_template" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                            {% for value, label in form.fields.social_template.choices %}
+                            <option value="{{ value }}" {% if form.social_template.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Logo Upload -->
+                    <div class="space-y-2">
+                        <label for="id_social_logo" class="block text-sm font-semibold text-slate-300">لوجو الموقع</label>
+                        <input type="file" name="social_logo" id="id_social_logo" accept="image/*" class="block w-full text-xs text-slate-400 file:ml-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-teal-400 hover:file:bg-slate-700 bg-slate-900 border border-slate-800 rounded-xl transition duration-150">
+                        {% if object and object.social_logo %}
+                        <div class="flex items-center gap-2 mt-1">
+                            <img src="{{ object.social_logo.url }}" class="w-10 h-10 rounded-full bg-white object-contain border border-slate-800">
+                            <span class="text-[10px] text-slate-500">اللوجو الحالي — اختر ملفاً جديداً لاستبداله.</span>
+                        </div>
+                        {% else %}
+                        <p class="text-[10px] text-slate-500">يُفضَّل صورة PNG بخلفية شفافة.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Primary Color -->
+                    <div class="space-y-2">
+                        <label for="id_social_primary_color" class="block text-sm font-semibold text-slate-300">اللون الأساسي للتصميم</label>
+                        <div class="flex items-center gap-3">
+                            <input type="color" id="id_social_primary_color_picker" value="{{ form.social_primary_color.value|default:'#0d9488' }}" oninput="document.getElementById('id_social_primary_color').value = this.value" class="w-12 h-10 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer">
+                            <input type="text" name="social_primary_color" id="id_social_primary_color" value="{{ form.social_primary_color.value|default:'#0d9488' }}" oninput="document.getElementById('id_social_primary_color_picker').value = this.value" pattern="^#[0-9A-Fa-f]{6}$" class="block w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 font-mono text-xs transition duration-150">
+                        </div>
+                    </div>
+
+                    <!-- Secondary Color -->
+                    <div class="space-y-2">
+                        <label for="id_social_secondary_color" class="block text-sm font-semibold text-slate-300">اللون الثانوي للتصميم</label>
+                        <div class="flex items-center gap-3">
+                            <input type="color" id="id_social_secondary_color_picker" value="{{ form.social_secondary_color.value|default:'#0f172a' }}" oninput="document.getElementById('id_social_secondary_color').value = this.value" class="w-12 h-10 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer">
+                            <input type="text" name="social_secondary_color" id="id_social_secondary_color" value="{{ form.social_secondary_color.value|default:'#0f172a' }}" oninput="document.getElementById('id_social_secondary_color_picker').value = this.value" pattern="^#[0-9A-Fa-f]{6}$" class="block w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 font-mono text-xs transition duration-150">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-800 pt-4 space-y-4">
+                    <p class="text-xs font-bold text-slate-300"><i class="fa-brands fa-facebook text-blue-400 ml-1"></i>النشر التلقائي على فيسبوك (اختياري)</p>
+
+                    {% if facebook_connect_link %}
+                    <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-3">
+                        <p class="text-xs font-semibold text-blue-300">
+                            <i class="fa-solid fa-link ml-1"></i>
+                            رابط ربط ذاتي للعميل - أرسله للعميل ليربط صفحته بنفسه (يملأ الحقلين تحت تلقائياً بعد موافقته على فيسبوك، بدون أي تدخل يدوي):
+                        </p>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="fb-connect-link" value="{{ facebook_connect_link }}" readonly class="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 font-mono text-[10px]" onclick="this.select()">
+                            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('fb-connect-link').value); this.innerText='تم النسخ ✓'; setTimeout(()=>{this.innerText='نسخ'}, 2000)" class="shrink-0 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition">نسخ</button>
+                        </div>
+                        <p class="text-[10px] text-blue-300/70">الرابط صالح لمدة 30 يوماً، ويخص هذا الموقع فقط. لن يستطيع العميل رؤية أو تعديل أي إعداد آخر - فقط ربط صفحته.</p>
+                    </div>
+                    {% elif object %}
+                    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                        <p class="text-[10px] text-amber-300">لتفعيل رابط الربط الذاتي للعميل، أضف FACEBOOK_APP_ID و FACEBOOK_APP_SECRET في إعدادات الخادم أولاً.</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label for="id_facebook_page_id" class="block text-sm font-semibold text-slate-300">معرّف صفحة فيسبوك (Page ID)</label>
+                            <input type="text" name="facebook_page_id" id="id_facebook_page_id" value="{{ form.facebook_page_id.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="1234567890">
+                        </div>
+                        <div class="space-y-2">
+                            <label for="id_facebook_access_token" class="block text-sm font-semibold text-slate-300">توكن وصول الصفحة (Page Access Token)</label>
+                            <input type="password" name="facebook_access_token" id="id_facebook_access_token" value="{{ form.facebook_access_token.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="EAAxxxxxxxx...">
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-slate-500">تُملأ هذه الحقول تلقائياً بعد أن يربط العميل صفحته عبر الرابط أعلاه. يمكنك أيضاً تعبئتهما يدوياً إذا لزم الأمر (توكن وصول دائم - Long-Lived Page Access Token - خاص بهذه الصفحة تحديداً). اتركهما فارغين لتعطيل النشر التلقائي على فيسبوك مع إبقاء توليد الصورة فقط.</p>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex items-center justify-end space-x-3 space-x-reverse pt-4 border-t border-slate-800">
+                <a href="{% url 'news_ai:wp_sites' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">إلغاء</a>
+                <button type="submit" class="btn-glow px-6 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl transition duration-150">{% if object %}حفظ التعديلات{% else %}ربط الموقع{% endif %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}حذف ربط موقع ووردبريس - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}حذف ربط موقع ووردبريس{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="glass-panel p-8 rounded-2xl border border-slate-800 text-center space-y-6">
+        <div class="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/20 mx-auto">
+            <i class="fa-solid fa-trash text-3xl text-rose-400"></i>
+        </div>
+        
+        <div>
+            <h3 class="text-xl font-bold text-white">هل أنت متأكد من الحذف؟</h3>
+            <p class="text-sm text-slate-400 mt-2">أنت على وشك إلغاء ربط وحذف الموقع <strong>"{{ object.name }}"</strong>. لن يتم إرسال الأخبار إلى هذا الموقع الخارجي بعد الآن.</p>
+        </div>
+
+        <form method="post" class="flex items-center justify-center space-x-3 space-x-reverse pt-4 border-t border-slate-800">
+            {% csrf_token %}
+            <a href="{% url 'news_ai:wp_sites' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">تراجع</a>
+            <button type="submit" class="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl transition duration-150 shadow-lg shadow-rose-600/30">تأكيد الحذف</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}{% if object %}تعديل مجموعة دمج{% else %}إضافة مجموعة دمج جديدة{% endif %} - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}{% if object %}تعديل مجموعة الدمج ({{ object.name }}){% else %}إضافة مجموعة دمج جديدة{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="glass-panel p-8 rounded-2xl border border-slate-800">
+        <h3 class="text-lg font-bold text-white mb-6 border-b border-slate-800 pb-4">
+            <i class="fa-solid fa-layer-group text-teal-400 ml-2"></i>
+            {% if object %}تعديل تفاصيل مجموعة الدمج{% else %}إدخال بيانات مجموعة الدمج الجديدة{% endif %}
+        </h3>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <!-- Group Name -->
+            <div class="space-y-2">
+                <label for="id_name" class="block text-sm font-semibold text-slate-300">اسم المجموعة</label>
+                <input type="text" name="name" id="id_name" required value="{{ form.name.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="مثال: مواقع الأخبار الاقتصادية">
+                {% if form.name.errors %}
+                    <p class="text-xs text-rose-400">{{ form.name.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Active Checkbox -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value or not object %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_is_active" class="block text-sm font-bold text-slate-200">تفعيل الدمج لهذه المجموعة</label>
+                    <p class="text-xs text-slate-500 font-medium">عند التعطيل، تُعامل كل المواقع الأعضاء كمواقع مستقلة كالمعتاد (كل موقع بأخباره وأسلوبه الخاص).</p>
+                </div>
+            </div>
+
+            {% if object %}
+            <div class="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <p class="text-sm font-bold text-slate-200">المواقع الأعضاء ({{ object.sites.count }})</p>
+                {% if object.sites.exists %}
+                <ul class="text-xs text-slate-400 space-y-1 mt-2">
+                    {% for site in object.sites.all %}
+                    <li><i class="fa-brands fa-wordpress text-teal-400 ml-1"></i>{{ site.name }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-xs text-slate-500">لا توجد مواقع منضمّة لهذه المجموعة بعد. أضِف الموقع لهذه المجموعة من صفحة تعديل الموقع نفسه.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Form Actions -->
+            <div class="flex items-center justify-end space-x-3 space-x-reverse pt-4 border-t border-slate-800">
+                <a href="{% url 'news_ai:wp_site_groups' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">رجوع</a>
+                <button type="submit" class="btn-glow px-6 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl transition duration-150">{% if object %}حفظ التغييرات{% else %}إضافة المجموعة{% endif %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

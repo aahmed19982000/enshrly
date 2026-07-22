@@ -1,0 +1,109 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}الجدول الزمني - {{ wp_site.name }} - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}الجدول الزمني لموقع "{{ wp_site.name }}"{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between">
+        <a href="{% url 'news_ai:wp_site_edit' wp_site.pk %}" class="text-xs text-slate-400 hover:text-teal-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>رجوع إلى إعدادات الموقع</span>
+        </a>
+    </div>
+
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800">
+        <h3 class="text-sm font-bold text-white mb-2"><i class="fa-solid fa-clock text-teal-400 ml-2"></i>كيف يعمل الجدول الزمني</h3>
+        <p class="text-xs text-slate-400 leading-relaxed">
+            حدد فترات زمنية (بتوقيت القاهرة) لهذا الموقع تحديداً. كل فترة تُنشئ نوعاً واحداً أو أكثر من المحتوى في وقتها فقط
+            (مثال: "أسعار الخضار" و"الحديد" الساعة 7 صباحاً، و"الذهب" الساعة 12 ظهراً). عند اختيار "أخبار عامة (RSS/ترند)" ضمن
+            فترة، يحدد حقل "العدد" كم خبراً عادياً يُنشر في هذه الفترة تحديداً.
+            <br>
+            <span class="text-amber-400">ملاحظة:</span> إذا لم تُضِف أي فترة لهذا الموقع، يبقى يعمل بالسلوك الافتراضي القديم
+            (كل الأنواع المفعّلة من صفحة إعدادات الموقع، في كل تشغيل للدورة).
+        </p>
+    </div>
+
+    <!-- Existing Slots -->
+    <div class="space-y-4">
+        {% for slot in slots %}
+        <form method="post" action="{% url 'news_ai:schedule_slot_edit' wp_site.pk slot.pk %}" class="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
+            {% csrf_token %}
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-semibold text-slate-400">الوقت (توقيت القاهرة)</label>
+                    <input type="time" name="time_of_day" value="{{ slot.time_of_day|time:'H:i' }}" required class="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-semibold text-slate-400">عدد الأخبار العامة (إن وُجدت)</label>
+                    <input type="number" name="regular_news_count" min="1" value="{{ slot.regular_news_count }}" class="w-20 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+                <label class="flex items-center gap-2 text-xs font-semibold text-slate-400 cursor-pointer">
+                    <input type="checkbox" name="is_active" {% if slot.is_active %}checked{% endif %} class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500">
+                    مفعّلة
+                </label>
+                <div class="mr-auto flex items-center gap-2">
+                    <button type="submit" class="px-4 py-2 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-xs font-semibold rounded-lg transition">حفظ</button>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                {% for value, label in content_type_choices %}
+                <label class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 border border-slate-800 rounded-full text-xs text-slate-300 cursor-pointer hover:border-teal-500/50 transition">
+                    <input type="checkbox" name="content_types" value="{{ value }}" {% if value in slot.get_content_types_list %}checked{% endif %} class="w-3.5 h-3.5 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+
+            {% with last_runs=slot.get_last_run_summary %}
+            {% if last_runs %}
+            <p class="text-[10px] text-slate-500">
+                آخر تنفيذ فعلي:
+                {% for type_label, date in last_runs %}{{ type_label }} ({{ date }}){% if not forloop.last %}، {% endif %}{% endfor %}
+            </p>
+            {% endif %}
+            {% endwith %}
+        </form>
+        <form method="post" action="{% url 'news_ai:schedule_slot_delete' wp_site.pk slot.pk %}" onsubmit="return confirm('هل أنت متأكد من حذف هذه الفترة الزمنية؟');" class="-mt-3 mb-1 text-left">
+            {% csrf_token %}
+            <button type="submit" class="text-xs text-slate-500 hover:text-rose-400 transition">
+                <i class="fa-solid fa-trash-can ml-1"></i>حذف هذه الفترة
+            </button>
+        </form>
+        {% empty %}
+        <div class="text-center py-10 text-slate-500 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+            <i class="fa-solid fa-clock text-4xl mb-3 block text-slate-600"></i>
+            <p class="text-sm">لا توجد فترات زمنية مخصصة لهذا الموقع بعد. أضف فترة جديدة أدناه.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Add New Slot -->
+    <form method="post" action="{% url 'news_ai:schedule_slot_add' wp_site.pk %}" class="glass-panel p-5 rounded-2xl border border-dashed border-teal-500/30 space-y-4">
+        {% csrf_token %}
+        <h4 class="text-sm font-bold text-teal-400"><i class="fa-solid fa-plus ml-1"></i>إضافة فترة زمنية جديدة</h4>
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+                <label class="text-xs font-semibold text-slate-400">الوقت (توقيت القاهرة)</label>
+                <input type="time" name="time_of_day" required class="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-xs font-semibold text-slate-400">عدد الأخبار العامة (إن وُجدت)</label>
+                <input type="number" name="regular_news_count" min="1" value="1" class="w-20 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% for value, label in content_type_choices %}
+            <label class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 border border-slate-800 rounded-full text-xs text-slate-300 cursor-pointer hover:border-teal-500/50 transition">
+                <input type="checkbox" name="content_types" value="{{ value }}" class="w-3.5 h-3.5 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
+                {{ label }}
+            </label>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn-glow px-5 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl transition">إضافة الفترة</button>
+    </form>
+
+</div>
+{% endblock %}

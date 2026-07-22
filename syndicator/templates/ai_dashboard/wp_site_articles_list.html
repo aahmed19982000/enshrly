@@ -1,0 +1,97 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}المقالات المنشورة - {{ wp_site.name }} - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}المقالات المنشورة على موقع "{{ wp_site.name }}"{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between">
+        <a href="{% url 'news_ai:wp_sites' %}" class="text-xs text-slate-400 hover:text-teal-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>رجوع إلى مواقع ووردبريس</span>
+        </a>
+        <a href="{{ wp_site.url }}" target="_blank" class="text-xs text-slate-400 hover:text-teal-400 flex items-center gap-1.5">
+            <span>فتح الموقع</span>
+            <i class="fa-solid fa-arrow-up-left-from-square"></i>
+        </a>
+    </div>
+
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800">
+        {% if logs %}
+        <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+            <table class="w-full text-right border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
+                        <th scope="col" class="px-6 py-4 font-bold whitespace-nowrap">التاريخ والوقت</th>
+                        <th scope="col" class="px-6 py-4 font-bold">المقال والرابط</th>
+                        <th scope="col" class="px-6 py-4 font-bold text-center">صورة السوشال ميديا</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                    {% for log in logs %}
+                    <tr class="hover:bg-slate-800/30 transition duration-150">
+                        <td class="px-6 py-4 text-xs font-mono text-slate-400 whitespace-nowrap align-top">{{ log.created_at|date:"Y-m-d H:i" }}</td>
+                        <td class="px-6 py-4">
+                            <a href="{{ log.published_url }}" target="_blank" class="text-sm font-semibold text-teal-400 hover:underline">
+                                {% if log.title %}{{ log.title }}{% elif log.article %}{{ log.article.title }}{% else %}بدون عنوان{% endif %}
+                            </a>
+                            <div class="text-[10px] text-slate-500 font-mono mt-1 truncate" title="{{ log.published_url }}">{{ log.published_url }}</div>
+                        </td>
+                        <td class="px-6 py-4 text-center align-top">
+                            {% with social_post=log.social_post %}
+                            <div class="flex flex-col items-center gap-2">
+                                {% if social_post and social_post.generated_image %}
+                                <a href="{{ social_post.generated_image.url }}" target="_blank">
+                                    <img src="{{ social_post.generated_image.url }}" class="w-16 h-16 object-cover rounded-lg border border-slate-800">
+                                </a>
+                                {% if social_post.status == 'posted' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20"><i class="fa-brands fa-facebook ml-1"></i>نُشرت</span>
+                                {% elif social_post.status == 'failed' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20" title="{{ social_post.error_message }}">فشل النشر</span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">تم التوليد</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-[10px] text-slate-600">لا توجد صورة</span>
+                                {% endif %}
+                                {% if log.article %}
+                                <form method="post" action="{% url 'news_ai:regenerate_social_image' log.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-[10px] text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition"><i class="fa-solid fa-rotate ml-1"></i>{% if social_post %}إعادة التوليد{% else %}توليد الصورة{% endif %}</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <div class="flex items-center justify-between border-t border-slate-800 pt-6 mt-6">
+            <div class="text-xs text-slate-400">
+                صفحة <strong>{{ page_obj.number }}</strong> من أصل <strong>{{ paginator.num_pages }}</strong> صفحة.
+            </div>
+            <div class="flex space-x-2 space-x-reverse">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition">السابق</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition">التالي</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-16 text-slate-500">
+            <i class="fa-brands fa-wordpress text-5xl mb-4 block text-slate-600"></i>
+            <p>لا توجد مقالات منشورة على هذا الموقع بعد.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

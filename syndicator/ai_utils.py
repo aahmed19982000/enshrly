@@ -745,6 +745,12 @@ def _process_cover_image_bytes(raw_bytes, filename):
 
         img = Image.open(io.BytesIO(raw_bytes))
         width, height = img.size
+
+        # Reject logo-like small square images (e.g. site icons, avatars)
+        if width <= 256 and height <= 256 and abs(width - height) < 20:
+            logger.warning(f"Image skipped: looks like a small square site logo/icon ({width}x{height})")
+            return None
+
         # Crop bottom 10% (source watermarks) at full resolution first.
         cropped_img = img.crop((0, 0, width, int(height * 0.90)))
         # Cap dimensions to MAX_COVER_IMAGE_SIZE (shrink only).
@@ -799,6 +805,10 @@ def fetch_image_file(image_url):
     thumbnail), falling back to the given URL if that guess doesn't exist.
     """
     if not image_url:
+        return None
+
+    if any(hint in image_url.lower() for hint in _SKIP_IMAGE_HINTS):
+        logger.info(f"Skipping image containing logo or placeholder hint: {image_url}")
         return None
 
     headers = {

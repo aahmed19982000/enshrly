@@ -1,0 +1,43 @@
+﻿{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}{% if object %}تعديل مجموعة{% else %}إضافة مجموعة جديدة{% endif %} - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}{% if object %}تعديل المجموعة ({{ object.name }}){% else %}إضافة مجموعة جديدة{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="glass-panel p-8 rounded-2xl border border-slate-800">
+        <h3 class="text-lg font-bold text-white mb-6 border-b border-slate-800 pb-4">
+            <i class="fa-solid fa-folder text-teal-400 ml-2"></i>
+            {% if object %}تعديل تفاصيل المجموعة{% else %}إدخال بيانات المجموعة الجديدة{% endif %}
+        </h3>
+        
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Group Name -->
+            <div class="space-y-2">
+                <label for="id_name" class="block text-sm font-semibold text-slate-300">اسم المجموعة</label>
+                <input type="text" name="name" id="id_name" required value="{{ form.name.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="مثال: اقتصاد، رياضة، تكنولوجيا...">
+                {% if form.name.errors %}
+                    <p class="text-xs text-rose-400">{{ form.name.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Group Description -->
+            <div class="space-y-2">
+                <label for="id_description" class="block text-sm font-semibold text-slate-300">الوصف (اختياري)</label>
+                <textarea name="description" id="id_description" rows="4" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="اكتب وصفاً قصيراً لهذه المجموعة...">{{ form.description.value|default:'' }}</textarea>
+                {% if form.description.errors %}
+                    <p class="text-xs text-rose-400">{{ form.description.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex items-center justify-end space-x-3 space-x-reverse pt-4 border-t border-slate-800">
+                <a href="{% url 'news_ai:source_groups' %}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">رجوع</a>
+                <button type="submit" class="btn-glow px-6 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl transition duration-150">{% if object %}حفظ التغييرات{% else %}إضافة المجموعة{% endif %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -585,3 +585,40 @@ class AISettingsAPIView(APIView):
             "default_author_id": first_author.id if first_author else None,
             "categories": [cat.id for cat in settings_obj.categories.all()]
         })
+
+from .models import AISourceGroup
+
+class SourceGroupListView(StaffRequiredMixin, ListView):
+    model = AISourceGroup
+    template_name = 'ai_dashboard/source_groups_list.html'
+    context_object_name = 'groups'
+
+class SourceGroupCreateView(StaffRequiredMixin, CreateView):
+    model = AISourceGroup
+    fields = ['name', 'description']
+    template_name = 'ai_dashboard/source_group_form.html'
+    success_url = reverse_lazy('news_ai:source_groups')
+
+    def form_valid(self, form):
+        messages.success(self.request, f"??? ????? ???????? '{form.instance.name}' ?????.")
+        return super().form_valid(form)
+
+class SourceGroupUpdateView(StaffRequiredMixin, UpdateView):
+    model = AISourceGroup
+    fields = ['name', 'description']
+    template_name = 'ai_dashboard/source_group_form.html'
+    success_url = reverse_lazy('news_ai:source_groups')
+
+    def form_valid(self, form):
+        messages.success(self.request, f"?? ????? ???????? '{form.instance.name}' ?????.")
+        return super().form_valid(form)
+
+class SourceGroupDeleteView(StaffRequiredMixin, DeleteView):
+    model = AISourceGroup
+    template_name = 'ai_dashboard/source_group_confirm_delete.html'
+    success_url = reverse_lazy('news_ai:source_groups')
+
+    def delete(self, request, *args, **kwargs):
+        obj = self.get_object()
+        messages.success(self.request, f"?? ??? ???????? '{obj.name}' ?????.")
+        return super().delete(request, *args, **kwargs)

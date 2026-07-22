@@ -10,10 +10,16 @@
             <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-rss text-teal-400 ml-2"></i>مصادر التغذية الإخبارية</h3>
             <p class="text-xs text-slate-400 mt-1">المواقع والروابط التي يعتمد عليها النظام لجلب البيانات وصياغتها تلقائياً.</p>
         </div>
-        <a href="{% url 'news_ai:source_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
-            <i class="fa-solid fa-plus text-xs"></i>
-            <span>إضافة مصدر جديد</span>
-        </a>
+        <div class="flex items-center space-x-2 space-x-reverse">
+            <a href="{% url 'news_ai:source_groups' %}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-150">
+                <i class="fa-solid fa-folder text-xs ml-1.5"></i>
+                <span>إدارة المجموعات</span>
+            </a>
+            <a href="{% url 'news_ai:source_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>إضافة مصدر جديد</span>
+            </a>
+        </div>
     </div>
 
     <!-- Sources Table -->
@@ -23,6 +29,7 @@
             <thead>
                 <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
                     <th scope="col" class="px-6 py-4 font-bold">اسم المصدر</th>
+                    <th scope="col" class="px-6 py-4 font-bold">المجموعة</th>
                     <th scope="col" class="px-6 py-4 font-bold">رابط التغذية / الموقع</th>
                     <th scope="col" class="px-6 py-4 font-bold">اللغة</th>
                     <th scope="col" class="px-6 py-4 font-bold text-center">الحالة</th>
@@ -33,6 +40,13 @@
                 {% for source in sources %}
                 <tr class="hover:bg-slate-800/30 transition duration-150">
                     <td class="px-6 py-4 font-semibold text-slate-100">{{ source.name }}</td>
+                    <td class="px-6 py-4">
+                        {% if source.group %}
+                            <span class="px-2.5 py-1 bg-teal-500/10 text-teal-400 border border-teal-500/20 text-xs rounded-lg font-semibold">{{ source.group.name }}</span>
+                        {% else %}
+                            <span class="text-xs text-slate-500 italic">بدون مجموعة</span>
+                        {% endif %}
+                    </td>
                     <td class="px-6 py-4 font-mono text-xs text-slate-400 max-w-xs truncate" title="{{ source.url }}">{{ source.url }}</td>
                     <td class="px-6 py-4">
                         {% if source.language == 'ar' %}

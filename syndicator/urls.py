@@ -11,6 +11,11 @@ urlpatterns = [
     path('sources/add/', views_ai.SourceCreateView.as_view(), name='source_add'),
     path('sources/<int:pk>/edit/', views_ai.SourceUpdateView.as_view(), name='source_edit'),
     path('sources/<int:pk>/delete/', views_ai.SourceDeleteView.as_view(), name='source_delete'),
+    # Source Groups
+    path('sources/groups/', views_ai.SourceGroupListView.as_view(), name='source_groups'),
+    path('sources/groups/add/', views_ai.SourceGroupCreateView.as_view(), name='source_group_add'),
+    path('sources/groups/<int:pk>/edit/', views_ai.SourceGroupUpdateView.as_view(), name='source_group_edit'),
+    path('sources/groups/<int:pk>/delete/', views_ai.SourceGroupDeleteView.as_view(), name='source_group_delete'),
     path('logs/', views_ai.ImportLogListView.as_view(), name='logs'),
     path('logs/<int:pk>/republish/', views_ai.RepublishLogView.as_view(), name='log_republish'),
     path('logs/bulk-redistribute/', views_ai.BulkRedistributeLogsView.as_view(), name='logs_bulk_redistribute'),

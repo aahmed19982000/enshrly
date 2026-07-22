@@ -1,0 +1,32 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="container" style="max-width: 800px; padding: 4rem 1rem;">
+    <div class="pricing-card" style="text-align:center; border-color: #10B981;">
+        <h2 style="color: #10B981; margin-bottom: 1rem;">تم الدفع بنجاح! 🎉</h2>
+        <p style="color:var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">شكراً لاشتراكك في باقة {{ transaction.package.name }}. لقد تم إنشاء كود الربط الخاص بك وهو جاهز للاستخدام الآن.</p>
+        
+        <div style="background:rgba(0,0,0,0.3); padding: 2rem; border-radius: 15px; border: 1px dashed rgba(255,255,255,0.3); margin-bottom: 2rem;">
+            <h3 style="margin-top:0;">كود التفعيل الخاص بك (Token)</h3>
+            {% for token in tokens %}
+                <div style="background:var(--surface-color); padding: 1rem; border-radius:8px; margin-top:1rem; font-family:monospace; font-size: 1.2rem; letter-spacing:2px;">
+                    {{ token.token }}
+                </div>
+                <p style="color:var(--primary-light); margin-top:1rem; font-size: 0.9rem;">صالح لموقع واحد | حد النشر: {{ token.package_daily_limit }} مقال يومياً</p>
+            {% endfor %}
+        </div>
+
+        <div style="text-align:right; margin-bottom:2rem;">
+            <h4 style="color:var(--primary-light);">خطوات التشغيل:</h4>
+            <ol style="color:var(--text-color); line-height:2;">
+                <li>قم بتحميل إضافة الووردبريس (Enshrly Connector) من الزر بالأسفل.</li>
+                <li>ارفع الإضافة إلى موقع الووردبريس الخاص بك وقم بتفعيلها.</li>
+                <li>اذهب إلى إعدادات الإضافة في ووردبريس.</li>
+                <li>ضع رابط النظام وكود التفعيل الموجود بالأعلى، واضغط "حفظ".</li>
+                <li>استمتع بالنشر الآلي الحصري!</li>
+            </ol>
+        </div>
+
+        <a href="{% url 'accounts:dashboard' %}" class="btn-primary" style="padding: 1rem 2rem;">الذهاب للوحة التحكم</a>
+    </div>
+</div>
+{% endblock %}

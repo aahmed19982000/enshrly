@@ -1,0 +1,38 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="container" style="max-width: 600px; padding: 4rem 1rem;">
+    <div class="pricing-card" style="text-align:right;">
+        <h2 style="margin-bottom: 2rem;">إتمام الدفع</h2>
+        
+        <div style="background:rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem; border: 1px solid rgba(255,255,255,0.1);">
+            <h3 style="margin-top:0;">باقة: {{ package.name }}</h3>
+            <p style="font-size: 1.2rem; color: var(--primary-light);">السعر: ${{ package.price }}</p>
+            <p style="color:var(--text-muted);">نشر حتى {{ package.daily_limit }} مقال يومياً.</p>
+        </div>
+
+        <form method="post" action="{% url 'payments:checkout' package.id %}">
+            {% csrf_token %}
+            <h4 style="margin-bottom: 1rem;">اختر وسيلة الدفع</h4>
+            
+            <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom: 2rem;">
+                <label style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer;">
+                    <input type="radio" name="gateway" value="paypal" required>
+                    <span style="margin-right: 10px; font-weight:bold;">PayPal / بطاقة ائتمانية</span>
+                </label>
+                
+                <label style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer;">
+                    <input type="radio" name="gateway" value="crypto">
+                    <span style="margin-right: 10px; font-weight:bold;">عملات رقمية (USDT)</span>
+                </label>
+                
+                <label style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer;">
+                    <input type="radio" name="gateway" value="local">
+                    <span style="margin-right: 10px; font-weight:bold;">محافظ محلية (Vodafone Cash / فوري)</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-primary" style="width:100%; font-size:1.2rem; padding:1rem;">متابعة الدفع</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

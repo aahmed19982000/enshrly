@@ -1,0 +1,21 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="container" style="max-width: 500px; padding: 4rem 1rem;">
+    <div class="pricing-card" style="text-align:right;">
+        <h2 style="text-align:center; margin-bottom: 2rem;">تسجيل الدخول</h2>
+        <form method="post" action="{% url 'accounts:login' %}">
+            {% csrf_token %}
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted);">رقم الواتساب</label>
+                <input type="text" name="whatsapp" required style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;">
+            </div>
+            <div style="margin-bottom: 2rem;">
+                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted);">كلمة المرور</label>
+                <input type="password" name="password" required style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;">
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;">تسجيل الدخول</button>
+        </form>
+        <p class="text-center mt-4">ليس لديك حساب؟ <a href="{% url 'accounts:signup' %}" style="color:var(--primary-light);">إنشاء حساب جديد</a></p>
+    </div>
+</div>
+{% endblock %}

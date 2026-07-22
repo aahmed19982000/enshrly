@@ -3,7 +3,8 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('accounts/', include('django.contrib.auth.urls')),
-    path('ai-dashboard/', include('syndicator.urls')),
-    path('', include('syndicator.urls')),
+    path('auth/', include('accounts.urls')),
+    path('payments/', include('payments.urls')),
+    path('ai-dashboard/', include('syndicator.urls')), # syndicator.urls has app_name='news_ai'
+    path('', include('landing.urls')),
 ]

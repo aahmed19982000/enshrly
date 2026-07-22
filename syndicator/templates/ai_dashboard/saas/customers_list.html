@@ -1,0 +1,47 @@
+{% extends 'ai_dashboard/base.html' %}
+{% block header_title %}العملاء المسجلين{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <p class="text-slate-400">قائمة العملاء الذين سجلوا في النظام مع حالة الواتساب الخاصة بهم.</p>
+</div>
+
+<div class="glass-panel p-6">
+    <div class="overflow-x-auto">
+        <table class="w-full text-right text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
+                <tr>
+                    <th class="px-4 py-3 rounded-tr-lg">اسم العميل</th>
+                    <th class="px-4 py-3">رقم الواتساب</th>
+                    <th class="px-4 py-3">تاريخ التسجيل</th>
+                    <th class="px-4 py-3 rounded-tl-lg">توثيق الواتساب</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers %}
+                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-4 py-4 font-bold text-white">{{ customer.user.first_name|default:"بدون اسم" }}</td>
+                    <td class="px-4 py-4 font-mono text-slate-300" dir="ltr">{{ customer.whatsapp_number }}</td>
+                    <td class="px-4 py-4">{{ customer.user.date_joined|date:"Y-m-d H:i" }}</td>
+                    <td class="px-4 py-4">
+                        {% if customer.is_whatsapp_verified %}
+                        <span class="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs flex items-center inline-flex">
+                            <i class="fa-brands fa-whatsapp ml-2"></i> موثق
+                        </span>
+                        {% else %}
+                        <span class="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs flex items-center inline-flex">
+                            <i class="fa-solid fa-xmark ml-2"></i> غير موثق
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-4 py-8 text-center text-slate-500">لا يوجد عملاء مسجلين حتى الآن.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

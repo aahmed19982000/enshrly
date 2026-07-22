@@ -122,6 +122,27 @@
                 <i class="fa-solid fa-key w-6 text-lg"></i>
                 <span>أكواد ربط ووردبريس</span>
             </a>
+
+            <!-- SaaS Management Section -->
+            <div class="mt-8 mb-2 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">نظام العملاء (SaaS)</div>
+            
+            <a href="{% url 'news_ai:saas_packages' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if 'saas_package' in request.resolver_match.view_name %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-tags w-6 text-lg"></i>
+                <span>باقات الأسعار</span>
+            </a>
+            
+            <a href="{% url 'news_ai:saas_customers' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if 'saas_customers' in request.resolver_match.view_name %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-users w-6 text-lg"></i>
+                <span>العملاء المسجلين</span>
+            </a>
+            
+            <a href="{% url 'news_ai:saas_transactions' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if 'saas_transaction' in request.resolver_match.view_name %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
+                <i class="fa-solid fa-money-check-dollar w-6 text-lg"></i>
+                <span>المعاملات المالية</span>
+            </a>
+
+            <div class="mt-8 mb-2 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">النظام والعمليات</div>
+
             <a href="{% url 'news_ai:settings' %}" class="flex items-center px-4 py-3 rounded-xl transition duration-200 {% if request.resolver_match.view_name == 'news_ai:settings' %}bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/30{% else %}text-slate-400 hover:bg-slate-800 hover:text-slate-100{% endif %}">
                 <i class="fa-solid fa-sliders w-6 text-lg"></i>
                 <span>الإعدادات العامة</span>

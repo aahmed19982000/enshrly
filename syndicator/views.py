@@ -743,6 +743,7 @@ def wp_connect_api_view(request):
             url=site_url,
             username=username,
             application_password=application_password,
+            daily_limit=token_obj.package_daily_limit,
             is_active=True
         )
 

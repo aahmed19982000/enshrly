@@ -1,0 +1,16 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="container" style="max-width: 500px; padding: 4rem 1rem;">
+    <div class="pricing-card" style="text-align:center;">
+        <h2 style="margin-bottom: 1rem;">تفعيل الواتساب</h2>
+        <p style="color:var(--text-muted); margin-bottom: 2rem;">لقد أرسلنا كوداً مكوناً من 4 أرقام إلى رقم الواتساب الخاص بك. يرجى إدخاله هنا لتفعيل حسابك.</p>
+        <form method="post" action="{% url 'accounts:verify_otp' %}">
+            {% csrf_token %}
+            <div style="margin-bottom: 2rem;">
+                <input type="text" name="otp_code" required maxlength="6" style="width:200px; padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white; font-size: 1.5rem; text-align:center; letter-spacing: 5px;">
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;">تأكيد الكود</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

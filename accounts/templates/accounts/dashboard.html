@@ -1,0 +1,73 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="container" style="padding: 2rem 1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 3rem;">
+        <div>
+            <h1 style="margin: 0;">لوحة التحكم</h1>
+            <p style="color:var(--text-muted); margin: 0.5rem 0 0 0;">مرحباً بك، {{ user.first_name }}!</p>
+        </div>
+        <a href="{% url 'payments:packages' %}" class="btn-primary">شراء كود إضافي</a>
+    </div>
+
+    <div class="pricing-grid">
+        <!-- قسم الإحصائيات -->
+        <div class="pricing-card" style="text-align:right; display:flex; flex-direction:column; justify-content:center;">
+            <h3 style="margin-top:0; color:var(--text-muted);">إحصائيات حسابك</h3>
+            <div style="font-size: 2rem; font-weight:bold; color:var(--primary-light);">{{ tokens|length }}</div>
+            <p>إجمالي الأكواد (Tokens)</p>
+            
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 1rem 0;">
+            
+            <a href="https://example.com/enshrly-connector.zip" class="btn-primary" style="text-align:center; margin-top:1rem;" download>تحميل إضافة الووردبريس (ZIP)</a>
+            <p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin-top:0.5rem;">الإصدار الأخير</p>
+        </div>
+
+        <!-- قائمة الأكواد -->
+        <div class="pricing-card" style="grid-column: span 2; text-align:right;">
+            <h3 style="margin-top:0;">أكواد الربط الخاصة بك</h3>
+            
+            {% if tokens %}
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; margin-top:1rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.2); color:var(--text-muted);">
+                                <th style="text-align:right; padding:1rem;">الكود (Token)</th>
+                                <th style="text-align:right; padding:1rem;">الحد اليومي</th>
+                                <th style="text-align:right; padding:1rem;">الحالة</th>
+                                <th style="text-align:right; padding:1rem;">الموقع المرتبط</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for token in tokens %}
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                    <td style="padding:1rem; font-family:monospace; color:var(--primary-light);">{{ token.token }}</td>
+                                    <td style="padding:1rem;">{{ token.package_daily_limit }} مقال</td>
+                                    <td style="padding:1rem;">
+                                        {% if token.is_used %}
+                                            <span style="background:rgba(16, 185, 129, 0.2); color:#10B981; padding:0.2rem 0.5rem; border-radius:4px; font-size:0.8rem;">نشط</span>
+                                        {% else %}
+                                            <span style="background:rgba(245, 158, 11, 0.2); color:#F59E0B; padding:0.2rem 0.5rem; border-radius:4px; font-size:0.8rem;">في الانتظار</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="padding:1rem; color:var(--text-muted);">
+                                        {% if token.is_used and token.wp_site %}
+                                            <a href="{{ token.wp_site.url }}" target="_blank" style="color:var(--text-color); text-decoration:underline;">{{ token.wp_site.name }}</a>
+                                        {% else %}
+                                            لم يتم الربط بعد
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div style="text-align:center; padding: 3rem 1rem; color:var(--text-muted);">
+                    <p>ليس لديك أي أكواد ربط حالياً.</p>
+                    <a href="{% url 'payments:packages' %}" style="color:var(--primary-light); text-decoration:underline;">اشترك الآن للحصول على كود</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

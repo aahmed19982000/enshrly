@@ -29,6 +29,9 @@ INSTALLED_APPS = [
     'django_celery_beat',
     # App
     'syndicator',
+    'accounts',
+    'payments',
+    'landing',
 ]
 
 MIDDLEWARE = [

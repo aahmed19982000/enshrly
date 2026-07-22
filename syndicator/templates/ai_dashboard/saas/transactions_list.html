@@ -1,0 +1,70 @@
+{% extends 'ai_dashboard/base.html' %}
+{% block header_title %}المعاملات المالية والدفع{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <p class="text-slate-400">سجل بجميع عمليات الدفع وشراء الباقات التي تمت على المنصة، مع إمكانية تأكيد الدفع اليدوي.</p>
+</div>
+
+<div class="glass-panel p-6">
+    <div class="overflow-x-auto">
+        <table class="w-full text-right text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
+                <tr>
+                    <th class="px-4 py-3 rounded-tr-lg">المعرف</th>
+                    <th class="px-4 py-3">العميل</th>
+                    <th class="px-4 py-3">الباقة</th>
+                    <th class="px-4 py-3">القيمة</th>
+                    <th class="px-4 py-3">وسيلة الدفع</th>
+                    <th class="px-4 py-3">التاريخ</th>
+                    <th class="px-4 py-3 text-center">الحالة</th>
+                    <th class="px-4 py-3 rounded-tl-lg text-center">إجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-4 py-4 font-mono text-xs text-slate-500" dir="ltr">{{ tx.id|stringformat:"s"|slice:":8" }}...</td>
+                    <td class="px-4 py-4 font-bold text-white">{{ tx.user.first_name }}</td>
+                    <td class="px-4 py-4">{{ tx.package.name }}</td>
+                    <td class="px-4 py-4 text-emerald-400 font-mono">${{ tx.amount }}</td>
+                    <td class="px-4 py-4">
+                        {% if tx.payment_method == 'paypal' %}
+                            <span class="text-blue-400"><i class="fa-brands fa-paypal mr-1"></i> بايبال / بطاقة</span>
+                        {% elif tx.payment_method == 'crypto' %}
+                            <span class="text-orange-400"><i class="fa-brands fa-bitcoin mr-1"></i> كريبتو</span>
+                        {% else %}
+                            <span class="text-purple-400"><i class="fa-solid fa-money-bill-transfer mr-1"></i> محلي</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-4" dir="ltr">{{ tx.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="px-4 py-4 text-center">
+                        {% if tx.status == 'completed' %}
+                            <span class="bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded text-xs">مكتمل</span>
+                        {% else %}
+                            <span class="bg-amber-500/20 text-amber-400 px-2 py-1 rounded text-xs">قيد الانتظار</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        {% if tx.status != 'completed' %}
+                        <form action="{% url 'news_ai:saas_transaction_confirm' tx.id %}" method="post" class="inline" onsubmit="return confirm('هل أنت متأكد من استلام الأموال وتفعيل الباقة لهذا العميل؟ سيتم إنشاء كود ربط ووردبريس له فوراً.');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-emerald-400 hover:text-emerald-300 bg-emerald-400/10 hover:bg-emerald-400/20 px-3 py-1.5 rounded-lg transition duration-150" title="تأكيد الدفع يدوياً وتوليد كود">
+                                <i class="fa-solid fa-check-double"></i> تأكيد
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-slate-600 text-xs">لا يوجد إجراء</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-4 py-8 text-center text-slate-500">لا توجد أي معاملات مالية حتى الآن.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

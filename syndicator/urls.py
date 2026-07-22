@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views as views_ai
+from . import saas_admin_views
 
 app_name = 'news_ai'
 
@@ -43,6 +44,15 @@ urlpatterns = [
     path('wp-tokens/', views_ai.WPConnectionTokenListView.as_view(), name='wp_tokens'),
     path('wp-tokens/add/', views_ai.WPConnectionTokenCreateView.as_view(), name='wp_token_add'),
     path('wp-tokens/<int:pk>/delete/', views_ai.WPConnectionTokenDeleteView.as_view(), name='wp_token_delete'),
+    
+    # SaaS Management
+    path('saas/packages/', saas_admin_views.PackageListView.as_view(), name='saas_packages'),
+    path('saas/packages/add/', saas_admin_views.PackageCreateView.as_view(), name='saas_package_add'),
+    path('saas/packages/<int:pk>/edit/', saas_admin_views.PackageUpdateView.as_view(), name='saas_package_edit'),
+    path('saas/packages/<int:pk>/delete/', saas_admin_views.PackageDeleteView.as_view(), name='saas_package_delete'),
+    path('saas/customers/', saas_admin_views.CustomerListView.as_view(), name='saas_customers'),
+    path('saas/transactions/', saas_admin_views.TransactionListView.as_view(), name='saas_transactions'),
+    path('saas/transactions/<int:pk>/confirm/', saas_admin_views.ConfirmTransactionView.as_view(), name='saas_transaction_confirm'),
     
     # API endpoints for WP plugin
     path('api/wp-plugin-data/', views_ai.wp_plugin_data_api_view, name='wp_plugin_data_api'),

@@ -1,0 +1,29 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="pricing-section" id="pricing" style="margin-top: 50px;">
+    <div class="pricing-header">
+        <h2>أهلاً بك {{ user.first_name }}! اختر الباقة المناسبة لموقعك</h2>
+        <p style="color:var(--text-muted);">باقات مرنة تناسب جميع أحجام المواقع الإخبارية</p>
+    </div>
+    
+    <div class="pricing-grid">
+        {% for pkg in packages %}
+            <div class="pricing-card">
+                <div class="package-name">{{ pkg.name }}</div>
+                <div class="package-price">${{ pkg.price }}<span>/شهرياً</span></div>
+                <p style="color:var(--primary-light); font-weight:bold;">نشر حتى {{ pkg.daily_limit }} مقال يومياً</p>
+                <ul class="package-features">
+                    {% for feature in pkg.features.splitlines %}
+                        {% if feature %}
+                            <li>{{ feature }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+                <a href="{% url 'payments:checkout' pkg.id %}" class="btn-primary btn-buy">اشترك الآن</a>
+            </div>
+        {% empty %}
+            <p class="text-center" style="grid-column: 1/-1;">لا توجد باقات متاحة حالياً.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

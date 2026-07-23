@@ -35,6 +35,18 @@
                 <p class="text-xs text-slate-500">انسخ هذا المفتاح وضعه في لوحة تحكم ووردبريس (إضافة متحكم الـ AI) للربط الآمن بدلاً من استخدام اسم المستخدم وكلمة المرور.</p>
             </div>
 
+            <!-- Wallet Number for Payments -->
+            <div class="space-y-2">
+                <label for="id_wallet_number" class="block text-sm font-semibold text-slate-300">رقم المحفظة لاستقبال التحويلات (Vodafone Cash)</label>
+                <div class="relative rounded-xl shadow-sm">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-mobile-screen-button text-teal-500"></i>
+                    </div>
+                    <input type="text" name="wallet_number" id="id_wallet_number" value="{{ form.wallet_number.value|default:'' }}" class="block w-full pr-10 pl-3 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="مثال: 201099437596">
+                </div>
+                <p class="text-xs text-slate-500 font-semibold text-teal-500/80">هذا هو الرقم الذي سيظهر للمشتركين لتحويل الأموال إليه عند الدفع بالجنيه المصري.</p>
+            </div>
+
             <!-- Telegram Bot configurations -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800">
                 <div class="space-y-2">

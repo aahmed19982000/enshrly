@@ -92,3 +92,69 @@ def redistribute_and_republish_logs_task(self, log_ids, site_counts):
         logger.error(f"Bulk redistribute task failed: {exc}")
         raise self.retry(exc=exc)
 
+@shared_task
+def check_expiring_subscriptions_daily():
+    """
+    Daily periodic task to find tokens expiring in 3 days, or expired today,
+    and send them WhatsApp renewal notifications.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import WPConnectionToken
+    from django.contrib.auth.models import User
+    from accounts.utils import send_whatsapp_renewal_reminder
+
+    today = timezone.now().date()
+    
+    # helper to find user
+    def get_user_for_token(client_name):
+        clean_name = client_name.replace("(Free Trial)", "").replace("(Trial)", "").strip()
+        user = User.objects.filter(first_name=clean_name).first()
+        if not user:
+            user = User.objects.filter(username=clean_name).first()
+        return user
+
+    # 1. Check for tokens expiring in exactly 3 days
+    three_days_later = today + timedelta(days=3)
+    expiring_tokens = WPConnectionToken.objects.filter(
+        is_used=True,
+        expires_at__date=three_days_later
+    )
+    
+    for token in expiring_tokens:
+        user = get_user_for_token(token.client_name)
+        if user and hasattr(user, 'customer_profile'):
+            profile = user.customer_profile
+            is_trial = "trial" in token.client_name.lower()
+            site_name = token.wp_site.name if token.wp_site else "موقعك"
+            send_whatsapp_renewal_reminder(
+                phone_number=profile.whatsapp_number,
+                client_name=user.first_name or user.username,
+                site_name=site_name,
+                days_left=3,
+                is_trial=is_trial
+            )
+
+    # 2. Check for tokens expired today
+    expired_tokens = WPConnectionToken.objects.filter(
+        is_used=True,
+        expires_at__date=today
+    )
+    
+    for token in expired_tokens:
+        user = get_user_for_token(token.client_name)
+        if user and hasattr(user, 'customer_profile'):
+            profile = user.customer_profile
+            is_trial = "trial" in token.client_name.lower()
+            site_name = token.wp_site.name if token.wp_site else "موقعك"
+            send_whatsapp_renewal_reminder(
+                phone_number=profile.whatsapp_number,
+                client_name=user.first_name or user.username,
+                site_name=site_name,
+                days_left=0,
+                is_trial=is_trial
+            )
+
+    return "Renewal checks completed."
+
+

@@ -2,10 +2,77 @@
 {% block header_title %}المعاملات المالية والدفع{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <p class="text-slate-400">سجل بجميع عمليات الدفع وشراء الباقات التي تمت على المنصة، مع إمكانية تأكيد الدفع اليدوي.</p>
+<!-- Stats Cards Summary -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+        <div>
+            <span class="text-xs text-slate-400 block mb-1">إجمالي العمليات</span>
+            <span class="text-2xl font-bold text-white font-mono">{{ total_count }}</span>
+        </div>
+        <div class="p-3 bg-slate-800 rounded-xl">
+            <i class="fa-solid fa-list-check text-slate-400 text-xl"></i>
+        </div>
+    </div>
+
+    <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+        <div>
+            <span class="text-xs text-slate-400 block mb-1">العمليات المكتملة</span>
+            <span class="text-2xl font-bold text-emerald-400 font-mono">{{ completed_count }}</span>
+        </div>
+        <div class="p-3 bg-emerald-500/10 rounded-xl">
+            <i class="fa-solid fa-circle-check text-emerald-400 text-xl"></i>
+        </div>
+    </div>
+
+    <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+        <div>
+            <span class="text-xs text-slate-400 block mb-1">عمليات الانتظار</span>
+            <span class="text-2xl font-bold text-amber-400 font-mono">{{ pending_count }}</span>
+        </div>
+        <div class="p-3 bg-amber-500/10 rounded-xl">
+            <i class="fa-solid fa-hourglass-half text-amber-400 text-xl"></i>
+        </div>
+    </div>
+
+    <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+        <div>
+            <span class="text-xs text-slate-400 block mb-1">إجمالي الأرباح المستلمة</span>
+            <span class="text-sm font-bold text-emerald-300 block font-mono">{{ total_egp }} EGP</span>
+            <span class="text-sm font-bold text-sky-300 block font-mono">${{ total_usd }} USD</span>
+        </div>
+        <div class="p-3 bg-teal-500/10 rounded-xl">
+            <i class="fa-solid fa-wallet text-teal-400 text-xl"></i>
+        </div>
+    </div>
 </div>
 
+<!-- Filters & Search -->
+<div class="glass-panel p-4 rounded-xl mb-6 border border-slate-800 flex flex-wrap gap-4 items-center justify-between">
+    <div class="flex items-center gap-4 flex-wrap">
+        <div>
+            <label class="block text-xs text-slate-400 mb-1">فلترة حسب الحالة:</label>
+            <select id="statusFilter" class="bg-slate-900 border border-slate-800 text-slate-350 text-xs rounded-lg px-3 py-2 focus:ring-teal-500 focus:border-teal-500">
+                <option value="all">الكل</option>
+                <option value="completed">مكتمل</option>
+                <option value="pending">قيد الانتظار</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-slate-400 mb-1">بوابة الدفع:</label>
+            <select id="gatewayFilter" class="bg-slate-900 border border-slate-800 text-slate-350 text-xs rounded-lg px-3 py-2 focus:ring-teal-500 focus:border-teal-500">
+                <option value="all">الكل</option>
+                <option value="paypal">بايبال</option>
+                <option value="crypto">كريبتو (USDT)</option>
+                <option value="local">محفظة محلية</option>
+            </select>
+        </div>
+    </div>
+    <div class="text-xs text-slate-500 italic">
+        * انقر على أي معاملة لعرض بيانات العميل كاملة والتواصل معه.
+    </div>
+</div>
+
+<!-- Transactions Table -->
 <div class="glass-panel p-6">
     <div class="overflow-x-auto">
         <table class="w-full text-right text-sm text-slate-300">
@@ -21,20 +88,36 @@
                     <th class="px-4 py-3 rounded-tl-lg text-center">إجراءات</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="transactionsBody">
                 {% for tx in transactions %}
-                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition duration-150">
-                    <td class="px-4 py-4 font-mono text-xs text-slate-500" dir="ltr">{{ tx.id|stringformat:"s"|slice:":8" }}...</td>
-                    <td class="px-4 py-4 font-bold text-white">{{ tx.user.first_name }}</td>
+                <tr class="transaction-row border-b border-slate-800 hover:bg-slate-800/40 transition duration-150 cursor-pointer"
+                    data-status="{{ tx.status }}"
+                    data-gateway="{{ tx.gateway }}"
+                    data-id="{{ tx.id }}"
+                    data-txid="{{ tx.transaction_id }}"
+                    data-verifiedid="{{ tx.verified_transaction_id|default:'غير محدد' }}"
+                    data-customer-name="{{ tx.customer.user.get_full_name|default:tx.customer.user.username }}"
+                    data-customer-username="{{ tx.customer.user.username }}"
+                    data-customer-whatsapp="{{ tx.customer.whatsapp_number }}"
+                    data-package-name="{{ tx.package.name }}"
+                    data-package-limit="{{ tx.package.daily_limit }}"
+                    data-amount="{{ tx.amount }}"
+                    data-currency="{{ tx.currency }}"
+                    data-date="{{ tx.created_at|date:'Y-m-d H:i:s' }}"
+                    data-sender-phone="{{ tx.sender_phone|default:'غير محدد' }}"
+                    onclick="openDetailModal(this)">
+                    
+                    <td class="px-4 py-4 font-mono text-xs text-slate-500" dir="ltr">{{ tx.transaction_id|slice:":8" }}...</td>
+                    <td class="px-4 py-4 font-bold text-white">{{ tx.customer.user.first_name|default:tx.customer.user.username }}</td>
                     <td class="px-4 py-4">{{ tx.package.name }}</td>
-                    <td class="px-4 py-4 text-emerald-400 font-mono">${{ tx.amount }}</td>
+                    <td class="px-4 py-4 text-emerald-400 font-mono">{{ tx.amount }} {{ tx.currency }}</td>
                     <td class="px-4 py-4">
-                        {% if tx.payment_method == 'paypal' %}
-                            <span class="text-blue-400"><i class="fa-brands fa-paypal mr-1"></i> بايبال / بطاقة</span>
-                        {% elif tx.payment_method == 'crypto' %}
-                            <span class="text-orange-400"><i class="fa-brands fa-bitcoin mr-1"></i> كريبتو</span>
+                        {% if tx.gateway == 'paypal' %}
+                            <span class="text-blue-400"><i class="fa-brands fa-paypal mr-1"></i> بايبال</span>
+                        {% elif tx.gateway == 'crypto' %}
+                            <span class="text-orange-400"><i class="fa-brands fa-bitcoin mr-1"></i> كريبتو (USDT)</span>
                         {% else %}
-                            <span class="text-purple-400"><i class="fa-solid fa-money-bill-transfer mr-1"></i> محلي</span>
+                            <span class="text-purple-400"><i class="fa-solid fa-mobile-screen-button mr-1"></i> محلي (كاش)</span>
                         {% endif %}
                     </td>
                     <td class="px-4 py-4" dir="ltr">{{ tx.created_at|date:"Y-m-d H:i" }}</td>
@@ -45,16 +128,16 @@
                             <span class="bg-amber-500/20 text-amber-400 px-2 py-1 rounded text-xs">قيد الانتظار</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-4 text-center">
+                    <td class="px-4 py-4 text-center" onclick="event.stopPropagation();">
                         {% if tx.status != 'completed' %}
                         <form action="{% url 'news_ai:saas_transaction_confirm' tx.id %}" method="post" class="inline" onsubmit="return confirm('هل أنت متأكد من استلام الأموال وتفعيل الباقة لهذا العميل؟ سيتم إنشاء كود ربط ووردبريس له فوراً.');">
                             {% csrf_token %}
                             <button type="submit" class="text-emerald-400 hover:text-emerald-300 bg-emerald-400/10 hover:bg-emerald-400/20 px-3 py-1.5 rounded-lg transition duration-150" title="تأكيد الدفع يدوياً وتوليد كود">
-                                <i class="fa-solid fa-check-double"></i> تأكيد
+                                <i class="fa-solid fa-check-double"></i> تأكيد الدفع
                             </button>
                         </form>
                         {% else %}
-                        <span class="text-slate-600 text-xs">لا يوجد إجراء</span>
+                        <span class="text-slate-600 text-xs">مؤكد ومفعل</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -67,4 +150,196 @@
         </table>
     </div>
 </div>
+
+<!-- Details Modal -->
+<div id="detailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="glass-panel w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl overflow-hidden text-right">
+        <!-- Modal Header -->
+        <div class="bg-slate-900 px-6 py-4 border-b border-slate-800 flex justify-between items-center flex-row-reverse">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-teal-400"></i>
+                <span>تفاصيل المعاملة والعميل</span>
+            </h3>
+            <button onclick="closeDetailModal()" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+            <!-- Customer Section -->
+            <div class="space-y-3">
+                <h4 class="text-xs font-bold text-teal-400 uppercase tracking-wider border-b border-slate-800 pb-1">بيانات العميل</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-slate-500 text-xs block">الاسم بالكامل:</span>
+                        <strong id="modalCustName" class="text-white text-sm"></strong>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 text-xs block">اسم المستخدم (المعرف):</span>
+                        <strong id="modalCustUser" class="text-white text-sm font-mono"></strong>
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <span class="text-slate-500 text-xs block mb-1">رقم الواتساب للتواصل:</span>
+                    <div class="flex items-center gap-3">
+                        <strong id="modalCustWhatsapp" class="text-white text-sm font-mono"></strong>
+                        <a id="modalWhatsappBtn" href="#" target="_blank" class="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors">
+                            <i class="fa-brands fa-whatsapp text-sm"></i>
+                            <span>راسل واتساب</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction Details -->
+            <div class="space-y-3 pt-2">
+                <h4 class="text-xs font-bold text-teal-400 uppercase tracking-wider border-b border-slate-800 pb-1">تفاصيل الفاتورة والدفع</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-slate-500 text-xs block">معرف الفاتورة (System ID):</span>
+                        <span id="modalTxId" class="text-slate-300 font-mono text-xs block break-all"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 text-xs block">معرف التحويل المستلم (Verified ID):</span>
+                        <span id="modalVerifiedId" class="text-slate-300 font-mono text-xs block break-all"></span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-slate-500 text-xs block">القيمة والعملة:</span>
+                        <strong id="modalAmount" class="text-emerald-400 font-mono"></strong>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 text-xs block">بوابة الدفع المستخدمة:</span>
+                        <span id="modalGateway" class="text-slate-300 text-sm"></span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-slate-500 text-xs block">تاريخ الإنشاء:</span>
+                        <span id="modalDate" class="text-slate-300 text-xs font-mono"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 text-xs block">الحالة الحالية:</span>
+                        <span id="modalStatus" class="inline-block px-2 py-0.5 rounded text-xs font-semibold"></span>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-slate-500 text-xs block">رقم المحفظة التي تم التحويل منها:</span>
+                    <strong id="modalSenderPhone" class="text-slate-300 font-mono text-sm"></strong>
+                </div>
+            </div>
+
+            <!-- Package Details -->
+            <div class="space-y-3 pt-2">
+                <h4 class="text-xs font-bold text-teal-400 uppercase tracking-wider border-b border-slate-800 pb-1">تفاصيل الباقة المشترك فيها</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-slate-500 text-xs block">اسم الباقة:</span>
+                        <strong id="modalPkgName" class="text-white text-sm"></strong>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 text-xs block">الحد الأقصى للنشر اليومي:</span>
+                        <strong id="modalPkgLimit" class="text-slate-300 text-sm"></strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal Footer -->
+        <div class="bg-slate-900 px-6 py-4 border-t border-slate-800 flex justify-end">
+            <button onclick="closeDetailModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">إغلاق النافذة</button>
+        </div>
+    </div>
+</div>
+
+<!-- Client-side Filtering & Modal JavaScript -->
+<script>
+    // Filters logic
+    const statusFilter = document.getElementById('statusFilter');
+    const gatewayFilter = document.getElementById('gatewayFilter');
+    const rows = document.querySelectorAll('.transaction-row');
+
+    function filterTable() {
+        const selectedStatus = statusFilter.value;
+        const selectedGateway = gatewayFilter.value;
+
+        rows.forEach(row => {
+            const statusMatch = (selectedStatus === 'all' || row.dataset.status === selectedStatus);
+            const gatewayMatch = (selectedGateway === 'all' || row.dataset.gateway === selectedGateway);
+
+            if (statusMatch && gatewayMatch) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    statusFilter.addEventListener('change', filterTable);
+    gatewayFilter.addEventListener('change', filterTable);
+
+    // Modal popup logic
+    const modal = document.getElementById('detailModal');
+    
+    function openDetailModal(row) {
+        // Customer Profile
+        document.getElementById('modalCustName').innerText = row.dataset.customerName;
+        document.getElementById('modalCustUser').innerText = row.dataset.customerUsername;
+        document.getElementById('modalCustWhatsapp').innerText = row.dataset.customerWhatsapp;
+        
+        // WhatsApp Direct Chat URL generator
+        const rawPhone = row.dataset.customerWhatsapp.replace(/\+/g, '').replace(/\s/g, '').replace(/[^0-9]/g, '');
+        // Append prefix if not present (assuming Egypt '2' if starts with '01')
+        let finalPhone = rawPhone;
+        if (finalPhone.startsWith('01')) {
+            finalPhone = '2' + finalPhone;
+        }
+        document.getElementById('modalWhatsappBtn').href = `https://wa.me/${finalPhone}`;
+        
+        // Transaction Info
+        document.getElementById('modalTxId').innerText = row.dataset.txid;
+        document.getElementById('modalVerifiedId').innerText = row.dataset.verifiedid;
+        document.getElementById('modalAmount').innerText = `${row.dataset.amount} ${row.dataset.currency}`;
+        document.getElementById('modalDate').innerText = row.dataset.date;
+        document.getElementById('modalSenderPhone').innerText = row.dataset.senderPhone;
+        
+        // Gateway translation
+        const gw = row.dataset.gateway;
+        let gwText = 'محلي (كاش)';
+        if (gw === 'paypal') gwText = 'بايبال';
+        if (gw === 'crypto') gwText = 'عملات رقمية (USDT)';
+        document.getElementById('modalGateway').innerText = gwText;
+        
+        // Status badge customization
+        const status = row.dataset.status;
+        const statusEl = document.getElementById('modalStatus');
+        if (status === 'completed') {
+            statusEl.innerText = 'مكتمل';
+            statusEl.className = 'inline-block px-2.5 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-800/30';
+        } else {
+            statusEl.innerText = 'قيد الانتظار';
+            statusEl.className = 'inline-block px-2.5 py-0.5 rounded text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-800/30';
+        }
+        
+        // Package Details
+        document.getElementById('modalPkgName').innerText = row.dataset.packageName;
+        document.getElementById('modalPkgLimit').innerText = `${row.dataset.packageLimit} أخبار يومياً`;
+
+        // Show Modal
+        modal.classList.remove('hidden');
+    }
+
+    function closeDetailModal() {
+        modal.classList.add('hidden');
+    }
+
+    // Close when clicking backdrop
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeDetailModal();
+        }
+    });
+</script>
 {% endblock %}

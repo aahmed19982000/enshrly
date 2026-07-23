@@ -1,0 +1,18 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="container" style="max-width: 600px; padding: 4rem 1rem; text-align: center;">
+    <div class="pricing-card" style="border-color: var(--primary-light);">
+        <h2 style="color: var(--primary-light); margin-bottom: 1.5rem;">إقران تطبيق الموبايل 📱</h2>
+        <p style="color: var(--text-color); margin-bottom: 2rem;">افتح تطبيق الموبايل، واختر "فحص الـ QR" لربطه بالنظام تلقائياً.</p>
+        
+        <div style="background: white; padding: 1.5rem; border-radius: 12px; display: inline-block; margin-bottom: 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+            <img src="data:image/png;base64,{{ qr_base64 }}" alt="Pairing QR Code" style="display: block; max-width: 100%; height: auto;">
+        </div>
+
+        <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: right; font-family: monospace; font-size: 0.95rem;">
+            <p style="margin: 0 0 0.5rem 0; color: var(--primary-light); font-weight: bold;">رابط السيرفر المكتشف:</p>
+            <code style="word-break: break-all; color: white;">{{ server_url }}</code>
+        </div>
+    </div>
+</div>
+{% endblock %}

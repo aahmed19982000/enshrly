@@ -6,11 +6,21 @@
         <p style="color:var(--text-muted);">باقات مرنة تناسب جميع أحجام المواقع الإخبارية</p>
     </div>
     
+    {% if not has_used_trial %}
+    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 1.5rem; text-align: center; max-width: 600px; margin: 0 auto 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <h3 style="color: #10b981; margin: 0 0 0.5rem 0; font-size: 1.3rem;">🎁 فترة تجريبية مجانية متوفرة لك!</h3>
+        <p style="color: var(--text-color); font-size: 0.95rem; margin: 0 0 1.2rem 0;">جرب نظام النشر التلقائي مجاناً لمدة 7 أيام (بحد أقصى 3 مقالات يومياً) دون الحاجة لبطاقة ائتمان.</p>
+        <a href="{% url 'payments:free_trial' %}" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; padding: 0.8rem 2rem; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">ابدأ تجربتك المجانية الآن</a>
+    </div>
+    {% endif %}
+
     <div class="pricing-grid">
         {% for pkg in packages %}
             <div class="pricing-card">
                 <div class="package-name">{{ pkg.name }}</div>
-                <div class="package-price">${{ pkg.price }}<span>/شهرياً</span></div>
+                <div class="package-price">
+                    ${{ pkg.price }} <span style="font-size:1.1rem; color:var(--text-muted); font-weight:normal;">/ أو {{ pkg.price_egp }} ج.م</span> <span>/شهرياً</span>
+                </div>
                 <p style="color:var(--primary-light); font-weight:bold;">نشر حتى {{ pkg.daily_limit }} مقال يومياً</p>
                 <ul class="package-features">
                     {% for feature in pkg.features.splitlines %}

@@ -1305,7 +1305,7 @@ def sites_due_for_type(content_type, legacy_bool_field, ai_settings=None, last_a
     if last_at_field is not None and ai_settings is not None:
         legacy_gate_open = _is_due(getattr(ai_settings, last_at_field), min_hours)
 
-    sites_qs = WordPressSite.objects.filter(is_active=True)
+    sites_qs = WordPressSite.objects.filter(is_active=True).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
     if force_site_id:
         sites_qs = sites_qs.filter(id=force_site_id)
 
@@ -2126,7 +2126,7 @@ def redistribute_and_republish_logs(log_ids, site_counts):
     # serializer) always turns dict keys into strings.
     site_counts = {int(sid): count for sid, count in site_counts.items()}
     wanted_site_ids = [sid for sid, count in site_counts.items() if count and int(count) > 0]
-    sites_by_id = {s.id: s for s in WordPressSite.objects.filter(id__in=wanted_site_ids, is_active=True)}
+    sites_by_id = {s.id: s for s in WordPressSite.objects.filter(id__in=wanted_site_ids, is_active=True).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))}
     results = {'published': 0, 'failed': 0, 'skipped': 0}
     if not sites_by_id:
         results['skipped'] = len(log_ids)
@@ -3266,7 +3266,7 @@ def run_ai_generation_cycle(target_site_id=None):
     # no slots keep the legacy fixed articles_per_run cap on every cycle run.
     regular_news_caps = {}
     regular_due_slots = {}
-    _regular_cap_sites = WordPressSite.objects.filter(is_active=True)
+    _regular_cap_sites = WordPressSite.objects.filter(is_active=True).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
     if target_site_id:
         _regular_cap_sites = _regular_cap_sites.filter(id=target_site_id)
     for _site in _regular_cap_sites:
@@ -3308,7 +3308,7 @@ def run_ai_generation_cycle(target_site_id=None):
             continue
             
         # Get WordPress sites mapped to this source
-        _wp_sites_qs = WordPressSite.objects.filter(is_active=True, sources=source)
+        _wp_sites_qs = WordPressSite.objects.filter(is_active=True, sources=source).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
         if target_site_id:
             _wp_sites_qs = _wp_sites_qs.filter(id=target_site_id)
         wp_sites = list(_wp_sites_qs)

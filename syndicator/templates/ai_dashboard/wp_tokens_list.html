@@ -8,13 +8,47 @@
     <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
         <div>
             <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-key text-teal-400 ml-2"></i>إدارة أكواد الربط</h3>
-            <p class="text-xs text-slate-400 mt-1">قم بإنشاء كود ربط وإرساله للعميل ليضعه في الإضافة الخاصة به، ليتم تسجيل موقعه آلياً.</p>
+            <p class="text-xs text-slate-400 mt-1">قم بتوليد وتعديل أكواد الربط ومتابعة صلاحية التفعيل وحد النشر اليومي للمشتركين.</p>
         </div>
         <a href="{% url 'news_ai:wp_token_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
             <i class="fa-solid fa-plus text-xs"></i>
             <span>توليد كود جديد</span>
         </a>
     </div>
+
+    <!-- فلاتر التصفية والبحث -->
+    <form method="get" class="flex flex-wrap items-center gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800 mb-6">
+        <!-- البحث بالاسم أو الكود -->
+        <div class="flex-1 min-w-[200px]">
+            <div class="relative">
+                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
+                <input type="text" name="q" value="{{ q }}" placeholder="البحث باسم العميل أو الكود..." class="block w-full pr-10 pl-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+            </div>
+        </div>
+        
+        <!-- فلتر حالة الاستخدام -->
+        <div class="min-w-[150px]">
+            <select name="status" class="block w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="">كل حالات الاستخدام</option>
+                <option value="used" {% if status_filter == 'used' %}selected{% endif %}>مستخدم</option>
+                <option value="unused" {% if status_filter == 'unused' %}selected{% endif %}>متاح (غير مستخدم)</option>
+            </select>
+        </div>
+
+        <!-- فلتر حالة الصلاحية -->
+        <div class="min-w-[150px]">
+            <select name="expiry" class="block w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="">كل حالات الصلاحية</option>
+                <option value="active" {% if expiry_filter == 'active' %}selected{% endif %}>نشط (غير منتهي)</option>
+                <option value="expired" {% if expiry_filter == 'expired' %}selected{% endif %}>منتهي الصلاحية</option>
+            </select>
+        </div>
+
+        <button type="submit" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm rounded-lg transition duration-150">تصفية</button>
+        <a href="{% url 'news_ai:wp_tokens' %}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-sm font-semibold rounded-lg transition duration-150">إعادة تعيين</a>
+    </form>
 
     <!-- Tokens Table -->
     {% if tokens %}
@@ -24,17 +58,38 @@
                 <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
                     <th scope="col" class="px-6 py-4 font-bold">اسم العميل</th>
                     <th scope="col" class="px-6 py-4 font-bold">كود الربط (Token)</th>
-                    <th scope="col" class="px-6 py-4 font-bold">تاريخ الإنشاء</th>
-                    <th scope="col" class="px-6 py-4 font-bold text-center">الحالة</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">الحد اليومي</th>
+                    <th scope="col" class="px-6 py-4 font-bold">تاريخ الانتهاء</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">حالة الاستخدام</th>
                     <th scope="col" class="px-6 py-4 font-bold text-center">الإجراءات</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
                 {% for token in tokens %}
                 <tr class="hover:bg-slate-800/30 transition duration-150">
-                    <td class="px-6 py-4 font-semibold text-slate-100">{{ token.client_name }}</td>
-                    <td class="px-6 py-4 font-mono text-xs text-teal-400 max-w-xs truncate select-all">{{ token.token }}</td>
-                    <td class="px-6 py-4 text-xs text-slate-400">{{ token.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="px-6 py-4 font-semibold text-slate-100">
+                        <a href="{% url 'news_ai:wp_token_edit' token.pk %}" class="hover:underline hover:text-teal-400">
+                            {{ token.client_name }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-teal-400 max-w-xs truncate select-all">
+                        <a href="{% url 'news_ai:wp_token_edit' token.pk %}" class="hover:underline hover:text-teal-300">
+                            {{ token.token }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-center text-xs text-slate-300">
+                        {{ token.package_daily_limit }} مقالات/يوم
+                    </td>
+                    <td class="px-6 py-4 text-xs">
+                        {% if token.expires_at %}
+                            <span class="{% if token.is_expired %}text-rose-400 font-bold{% else %}text-slate-300{% endif %}">
+                                {{ token.expires_at|date:"Y-m-d H:i" }}
+                                {% if token.is_expired %} (منتهي){% endif %}
+                            </span>
+                        {% else %}
+                            <span class="text-slate-500">غير محدود</span>
+                        {% endif %}
+                    </td>
                     <td class="px-6 py-4 text-center">
                         {% if token.is_used %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -46,6 +101,7 @@
                     </td>
                     <td class="px-6 py-4 text-center">
                         <div class="flex items-center justify-center space-x-2 space-x-reverse">
+                            <a href="{% url 'news_ai:wp_token_edit' token.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="تعديل وتفاصيل"><i class="fa-solid fa-pen-to-square"></i></a>
                             <a href="{% url 'news_ai:wp_token_delete' token.pk %}" class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="حذف"><i class="fa-solid fa-trash-can"></i></a>
                         </div>
                     </td>
@@ -56,10 +112,10 @@
     </div>
     {% else %}
     <div class="text-center py-16 text-slate-500 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
-        <i class="fa-solid fa-key text-5xl mb-4 block text-slate-600"></i>
-        <h4 class="text-lg font-bold text-slate-400">لا توجد أكواد ربط</h4>
-        <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">قم بتوليد كود ربط وإرساله للعميل لتسهيل تسجيل موقعه.</p>
-        <a href="{% url 'news_ai:wp_token_add' %}" class="btn-glow inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl mt-6 transition duration-150">توليد كود جديد</a>
+        <i class="fa-solid fa-magnifying-glass text-5xl mb-4 block text-slate-600"></i>
+        <h4 class="text-lg font-bold text-slate-400">لم يتم العثور على أي نتائج</h4>
+        <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">جرب كتابة مصطلح بحث آخر أو إعادة ضبط فلاتر التصفية.</p>
+        <a href="{% url 'news_ai:wp_tokens' %}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-sm font-semibold rounded-lg mt-4 inline-block transition">إعادة ضبط البحث</a>
     </div>
     {% endif %}
 </div>

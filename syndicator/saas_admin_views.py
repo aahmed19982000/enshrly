@@ -44,12 +44,23 @@ class CustomerListView(StaffRequiredMixin, ListView):
     context_object_name = 'customers'
     ordering = ['-user__date_joined']
 
-# --- Transactions Management ---
 class TransactionListView(StaffRequiredMixin, ListView):
     model = Transaction
     template_name = 'ai_dashboard/saas/transactions_list.html'
     context_object_name = 'transactions'
     ordering = ['-created_at']
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        all_tx = Transaction.objects.all()
+        context['total_count'] = all_tx.count()
+        context['completed_count'] = all_tx.filter(status='completed').count()
+        context['pending_count'] = all_tx.filter(status='pending').count()
+        
+        from django.db.models import Sum
+        context['total_egp'] = all_tx.filter(status='completed', currency='EGP').aggregate(Sum('amount'))['amount__sum'] or 0
+        context['total_usd'] = all_tx.filter(status='completed', currency='USD').aggregate(Sum('amount'))['amount__sum'] or 0
+        return context
 
 class ConfirmTransactionView(StaffRequiredMixin, View):
     """ Allows manual confirmation of a pending transaction and issues a WP Token. """
@@ -63,8 +74,8 @@ class ConfirmTransactionView(StaffRequiredMixin, View):
             token_str = str(uuid.uuid4())
             WPConnectionToken.objects.create(
                 token=token_str,
-                client_name=transaction.user.first_name or transaction.user.username,
+                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                 package_daily_limit=transaction.package.daily_limit,
             )
-            messages.success(request, f"تم تأكيد المعاملة بنجاح وإنشاء كود الربط للعميل {transaction.user.first_name}.")
+            messages.success(request, f"تم تأكيد المعاملة بنجاح وإنشاء كود الربط للعميل {transaction.customer.user.first_name}.")
         return redirect('news_ai:saas_transactions')

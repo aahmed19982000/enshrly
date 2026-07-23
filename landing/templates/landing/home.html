@@ -58,7 +58,9 @@
         {% for pkg in packages %}
             <div class="pricing-card">
                 <div class="package-name">{{ pkg.name }}</div>
-                <div class="package-price">${{ pkg.price }}<span>/شهرياً</span></div>
+                <div class="package-price">
+                    ${{ pkg.price }} <span style="font-size:1.1rem; color:var(--text-muted); font-weight:normal;">/ أو {{ pkg.price_egp }} ج.م</span> <span>/شهرياً</span>
+                </div>
                 <p style="color:var(--primary-light); font-weight:bold;">نشر حتى {{ pkg.daily_limit }} مقال يومياً</p>
                 <ul class="package-features">
                     {% for feature in pkg.features.splitlines %}

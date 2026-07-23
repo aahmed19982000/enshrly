@@ -51,7 +51,7 @@ class DashboardIndexView(StaffRequiredMixin, TemplateView):
 
 class SettingsUpdateView(StaffRequiredMixin, UpdateView):
     model = AISettings
-    fields = ['gemini_api_key', 'telegram_bot_token', 'telegram_allowed_chats', 'articles_per_day', 'max_words', 'is_active', 'publish_to_main_site', 'daily_cost_limit_usd']
+    fields = ['gemini_api_key', 'telegram_bot_token', 'telegram_allowed_chats', 'wallet_number', 'articles_per_day', 'max_words', 'is_active', 'publish_to_main_site', 'daily_cost_limit_usd']
     template_name = 'ai_dashboard/settings.html'
     success_url = reverse_lazy('news_ai:index')
 
@@ -636,15 +636,73 @@ class WPConnectionTokenListView(StaffRequiredMixin, ListView):
     template_name = 'ai_dashboard/wp_tokens_list.html'
     context_object_name = 'tokens'
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        from django.utils import timezone
+        from django.db.models import Q
+        
+        # Search
+        q = self.request.GET.get('q', '').strip()
+        if q:
+            queryset = queryset.filter(Q(client_name__icontains=q) | Q(token__icontains=q))
+            
+        # Status filter
+        status = self.request.GET.get('status', '').strip()
+        if status == 'used':
+            queryset = queryset.filter(is_used=True)
+        elif status == 'unused':
+            queryset = queryset.filter(is_used=False)
+            
+        # Expiry filter
+        expiry = self.request.GET.get('expiry', '').strip()
+        now = timezone.now()
+        if expiry == 'expired':
+            queryset = queryset.filter(expires_at__lt=now)
+        elif expiry == 'active':
+            queryset = queryset.filter(Q(expires_at__gte=now) | Q(expires_at__isnull=True))
+            
+        return queryset.select_related('wp_site').order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from django.utils import timezone
+        context['q'] = self.request.GET.get('q', '')
+        context['status_filter'] = self.request.GET.get('status', '')
+        context['expiry_filter'] = self.request.GET.get('expiry', '')
+        
+        now = timezone.now()
+        for token in context['tokens']:
+            token.is_expired = token.expires_at is not None and token.expires_at < now
+            
+        return context
+
+
 class WPConnectionTokenCreateView(StaffRequiredMixin, CreateView):
     model = WPConnectionToken
-    fields = ['client_name']
+    fields = ['client_name', 'package_daily_limit', 'expires_at']
     template_name = 'ai_dashboard/wp_token_form.html'
     success_url = reverse_lazy('news_ai:wp_tokens')
 
     def form_valid(self, form):
         messages.success(self.request, f"تم إنشاء كود ربط جديد للعميل '{form.instance.client_name}'.")
         return super().form_valid(form)
+
+
+class WPConnectionTokenUpdateView(StaffRequiredMixin, UpdateView):
+    model = WPConnectionToken
+    fields = ['client_name', 'package_daily_limit', 'is_used', 'wp_site', 'expires_at']
+    template_name = 'ai_dashboard/wp_token_form.html'
+    success_url = reverse_lazy('news_ai:wp_tokens')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_edit'] = True
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"تم تحديث كود الربط للعميل '{form.instance.client_name}' بنجاح.")
+        return super().form_valid(form)
+
 
 class WPConnectionTokenDeleteView(StaffRequiredMixin, DeleteView):
     model = WPConnectionToken
@@ -680,6 +738,10 @@ def wp_connect_api_view(request):
         token_obj = WPConnectionToken.objects.filter(token=token_str).first()
         if not token_obj:
             return JsonResponse({'status': 'error', 'message': 'Invalid token.'}, status=403)
+            
+        from django.utils import timezone
+        if token_obj.expires_at and timezone.now() > token_obj.expires_at:
+            return JsonResponse({'status': 'error', 'message': 'Token has expired.'}, status=403)
         
         settings_data = data.get('settings', {})
 
@@ -744,7 +806,8 @@ def wp_connect_api_view(request):
             username=username,
             application_password=application_password,
             daily_limit=token_obj.package_daily_limit,
-            is_active=True
+            is_active=True,
+            expires_at=token_obj.expires_at
         )
 
         # Apply settings

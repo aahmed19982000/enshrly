@@ -144,3 +144,29 @@ CELERY_TASK_ALWAYS_EAGER = True
 
 LOGIN_REDIRECT_URL = '/ai-dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# إعدادات إرسال رسائل الواتساب عبر Infobip
+INFOBIP_API_KEY = "342685fbcc1443ad48030552d1bc55a5-9c424797-939d-4193-a33d-0ebe0bcb4649"
+INFOBIP_BASE_URL = "https://l2wvnw.api.infobip.com"
+INFOBIP_SENDER = "201099437596"  # رقم الواتساب المعتمد المرسل لديهم
+
+# إعدادات استقبال وتأكيد مدفوعات المحافظ الإلكترونية
+WALLET_API_KEY = "enshrly_wallet_secret_token_2026"
+WALLET_NUMBER = "201099437596"  # رقم فودافون كاش الخاص بالإدارة لاستلام الأموال
+
+# إعدادات بوابة الدفع PayPal
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "BAAXNuYKO3tXHVroFwYNOs9qhkQ6vzvCRq4fWJMcV4DQRH-dokEht49LqsdZfu2_-_BiJ_NBw0aekSbE3k")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "EIm18HKYeMy2Zj9AG-KAEUk3wso3DB9Y2mi6_EH_Sh8uKAekQXE6_CUYIujVJkaKaHrc66WB3tuxV-h0")
+PAYPAL_MODE = os.environ.get("PAYPAL_MODE", "live")  # live أو sandbox
+
+# إعدادات بوابة الدفع Paymob (البطاقات البنكية المصرية)
+PAYMOB_API_KEY = os.environ.get("PAYMOB_API_KEY", "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2TVRJd016VTJPQ3dpYm1GdFpTSTZJbWx1YVhScFlXd2lmUS5GQjh0Q09MYzZiWXN1U24tTHE1REpUUUFNZTNfbEFQbklsZTh5SXNZOERRQ3hQYm9PeHFzc3BUYmlWcGJOeDFFRlRQc1ZBQ3VOcGI1a1ZtdkJ1U0U5UQ==")
+PAYMOB_HMAC_KEY = os.environ.get("PAYMOB_HMAC_KEY", "B7CA9CE2BA9F576F12EE90EA2A9BDCCA")
+PAYMOB_CARD_INTEGRATION_ID = os.environ.get("PAYMOB_CARD_INTEGRATION_ID", "5792603")
+PAYMOB_IFRAME_ID = os.environ.get("PAYMOB_IFRAME_ID", "1063704")  # معرف إطار الدفع الافتراضي، يمكن تعديله لاحقاً
+
+
+
+
+
+

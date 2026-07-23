@@ -1,13 +1,23 @@
 {% extends 'ai_dashboard/base.html' %}
 
-{% block title %}توليد كود ربط ووردبريس - بوابة الذكاء الاصطناعي{% endblock %}
-{% block header_title %}توليد كود ربط ووردبريس{% endblock %}
+{% block title %}
+    {% if is_edit %}تعديل تفاصيل كود الربط{% else %}توليد كود ربط ووردبريس جديد{% endif %} - بوابة الذكاء الاصطناعي
+{% endblock %}
+
+{% block header_title %}
+    {% if is_edit %}تعديل كود الربط للعميل ({{ object.client_name }}){% else %}توليد كود ربط جديد{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="glass-panel p-6 rounded-2xl border border-slate-800 max-w-2xl mx-auto">
     <div class="mb-6 border-b border-slate-800 pb-4">
-        <h3 class="text-xl font-bold text-white"><i class="fa-solid fa-key text-teal-400 ml-2"></i>توليد كود ربط جديد</h3>
-        <p class="text-sm text-slate-400 mt-2">أدخل اسم العميل أو اسم الموقع ليتم توليد كود ربط فريد (Token) خاص به.</p>
+        <h3 class="text-xl font-bold text-white">
+            <i class="fa-solid fa-key text-teal-400 ml-2"></i>
+            {% if is_edit %}إدارة تفاصيل وتحديث كود الربط{% else %}توليد كود ربط جديد للعميل{% endif %}
+        </h3>
+        <p class="text-sm text-slate-400 mt-2">
+            {% if is_edit %}يمكنك تعديل بيانات العميل، الحد اليومي للنشر، حالة الربط، أو تمديد فترة صلاحية الكود من هنا.{% else %}أدخل بيانات العميل وتفاصيل كود الربط ليتم توليده تلقائياً.{% endif %}
+        </p>
     </div>
 
     <form method="post" class="space-y-6">
@@ -24,30 +34,59 @@
         </div>
         {% endif %}
 
-        <div>
-            <label for="{{ form.client_name.id_for_label }}" class="block text-sm font-semibold text-slate-300 mb-2">
-                {{ form.client_name.label }}
-                {% if form.client_name.field.required %}<span class="text-rose-500">*</span>{% endif %}
+        {% if is_edit %}
+        <!-- عرض الكود غير قابل للتعديل (للقراءة فقط) -->
+        <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">الكود (Token)</label>
+            <div class="block w-full px-4 py-3 bg-slate-900/60 border border-slate-800 rounded-xl text-teal-400 font-mono text-sm select-all">
+                {{ object.token }}
+            </div>
+            <p class="text-xs text-slate-500"><i class="fa-solid fa-triangle-exclamation ml-1 text-amber-500"></i>الكود يتم توليده تلقائياً بشكل فريد ولا يمكن تعديله لأسباب تتعلق بالأمان.</p>
+        </div>
+        {% endif %}
+
+        {% for field in form %}
+        <div class="space-y-2">
+            <label for="{{ field.id_for_label }}" class="block text-sm font-semibold text-slate-300">
+                {{ field.label }}
+                {% if field.field.required %}<span class="text-rose-500">*</span>{% endif %}
             </label>
-            <input type="text" name="{{ form.client_name.name }}" id="{{ form.client_name.id_for_label }}" 
-                   class="w-full bg-slate-900/50 border {% if form.client_name.errors %}border-rose-500/50 focus:border-rose-500 focus:ring-rose-500/20{% else %}border-slate-700 focus:border-teal-500 focus:ring-teal-500/20{% endif %} text-slate-100 rounded-xl px-4 py-3 outline-none transition focus:ring-4"
-                   placeholder="مثال: موقع أخبار مصر"
-                   {% if form.client_name.value %}value="{{ form.client_name.value }}"{% endif %}
-                   {% if form.client_name.field.required %}required{% endif %}>
             
-            {% if form.client_name.help_text %}
-            <p class="mt-2 text-xs text-slate-500"><i class="fa-solid fa-circle-info ml-1"></i>{{ form.client_name.help_text }}</p>
+            {% if field.field.widget.input_type == 'checkbox' %}
+                <div class="flex items-center bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+                    <input type="checkbox" name="{{ field.name }}" id="{{ field.id_for_label }}" {% if field.value %}checked{% endif %} class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2">
+                    <span class="mr-3 text-sm text-slate-400">{{ field.help_text|default:"تفعيل هذا الخيار بشكل مباشر" }}</span>
+                </div>
+            {% elif field.name == 'wp_site' %}
+                <select name="wp_site" id="id_wp_site" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                    <option value="">---------</option>
+                    {% for choice in field.field.choices %}
+                        <option value="{{ choice.0 }}" {% if field.value|stringformat:"s" == choice.0|stringformat:"s" %}selected{% endif %}>{{ choice.1 }}</option>
+                    {% endfor %}
+                </select>
+                {% if field.help_text %}
+                    <p class="text-xs text-slate-500"><i class="fa-solid fa-circle-info ml-1"></i>{{ field.help_text }}</p>
+                {% endif %}
+            {% elif field.name == 'expires_at' %}
+                <input type="text" name="expires_at" id="id_expires_at" value="{{ field.value|date:'Y-m-d H:i:s'|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="YYYY-MM-DD HH:MM:SS">
+                <p class="text-xs text-slate-500"><i class="fa-solid fa-circle-info ml-1"></i>تاريخ الانتهاء بالتنسيق: YYYY-MM-DD HH:MM:SS (مثال: 2026-08-23 23:59:59). اتركه فارغاً ليكون الكود غير محدود المدة.</p>
+            {% else %}
+                <input type="{{ field.field.widget.input_type|default:'text' }}" name="{{ field.name }}" id="{{ field.id_for_label }}" value="{{ field.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" {% if field.field.required %}required{% endif %}>
+                {% if field.help_text %}
+                    <p class="text-xs text-slate-500"><i class="fa-solid fa-circle-info ml-1"></i>{{ field.help_text }}</p>
+                {% endif %}
             {% endif %}
             
-            {% if form.client_name.errors %}
-            <p class="mt-2 text-sm text-rose-400"><i class="fa-solid fa-triangle-exclamation ml-1"></i>{{ form.client_name.errors.0 }}</p>
+            {% if field.errors %}
+                <p class="text-xs text-rose-400"><i class="fa-solid fa-triangle-exclamation ml-1"></i>{{ field.errors.0 }}</p>
             {% endif %}
         </div>
+        {% endfor %}
 
         <div class="pt-6 border-t border-slate-800 flex items-center justify-end space-x-3 space-x-reverse">
             <a href="{% url 'news_ai:wp_tokens' %}" class="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition duration-150">إلغاء</a>
             <button type="submit" class="btn-glow px-6 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center transition duration-200 shadow-lg shadow-teal-500/20">
-                <i class="fa-solid fa-check ml-2"></i>حفظ وتوليد الكود
+                <i class="fa-solid fa-check ml-2"></i>{% if is_edit %}حفظ التعديلات{% else %}حفظ وتوليد الكود{% endif %}
             </button>
         </div>
     </form>

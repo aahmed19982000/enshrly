@@ -43,6 +43,7 @@ urlpatterns = [
     # WP Connection Tokens
     path('wp-tokens/', views_ai.WPConnectionTokenListView.as_view(), name='wp_tokens'),
     path('wp-tokens/add/', views_ai.WPConnectionTokenCreateView.as_view(), name='wp_token_add'),
+    path('wp-tokens/<int:pk>/edit/', views_ai.WPConnectionTokenUpdateView.as_view(), name='wp_token_edit'),
     path('wp-tokens/<int:pk>/delete/', views_ai.WPConnectionTokenDeleteView.as_view(), name='wp_token_delete'),
     
     # SaaS Management

@@ -290,6 +290,7 @@ class AISettings(models.Model):
     api_token = models.CharField(max_length=255, default=generate_api_token, unique=True, help_text="مفتاح الأمان للربط الآمن بالووردبريس (Django API Token).")
     telegram_bot_token = EncryptedCharField(max_length=500, blank=True, null=True, help_text="رمز توكن بوت تليجرام (Telegram Bot Token) للتحكم بالنظام.")
     telegram_allowed_chats = models.TextField(blank=True, null=True, help_text="معرفات محادثات تليجرام المسموحة، مفصولة بفاصلة (مثال: 1234567, 9876543).")
+    wallet_number = models.CharField(max_length=50, default="201099437596", verbose_name="رقم المحفظة لاستقبال التحويلات", help_text="رقم الهاتف (فودافون كاش) الذي سيحول إليه العملاء قيمة الاشتراك.")
     articles_per_day = models.PositiveIntegerField(default=3, help_text="Number of articles to publish daily.")
     max_words = models.PositiveIntegerField(default=500, help_text="Max word count per article.")
     is_active = models.BooleanField(default=True, help_text="Toggle AI news fetching on or off.")
@@ -469,6 +470,7 @@ class WordPressSite(models.Model):
     daily_limit = models.PositiveIntegerField(default=3, verbose_name="الحد الأقصى للنشر اليومي")
     articles_per_run = models.PositiveIntegerField(default=1, verbose_name="عدد المقالات لكل تشغيل", help_text="أقصى عدد أخبار تُنشر لهذا الموقع في كل مرة تعمل فيها الدورة (يدوياً أو تلقائياً كل 4 ساعات)، بالإضافة إلى الحد الأقصى اليومي الإجمالي أعلاه.")
     is_active = models.BooleanField(default=True, verbose_name="نشط")
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ انتهاء الصلاحية/الاشتراك")
     merge_group = models.ForeignKey(WordPressSiteGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='sites', verbose_name="مجموعة الدمج", help_text="إذا انضم موقعان أو أكثر من نفس المجموعة النشطة لنفس الخبر، يُولَّد الخبر مرة واحدة (Master) ثم تُعاد صياغته بشكل أخف وأرخص لباقي أعضاء المجموعة بدلاً من توليد كامل ومستقل لكل موقع، لتقليل التكلفة. اتركه فارغاً ليبقى الموقع مستقلاً بالكامل بأسلوبه الخاص.")
     sources = models.ManyToManyField(AISource, related_name='wp_sites', verbose_name="مصادر الأخبار المرتبطة", blank=True)
     source_groups = models.ManyToManyField(AISourceGroup, related_name='wp_sites', verbose_name="مجموعات المصادر المرتبطة", blank=True)
@@ -630,6 +632,7 @@ class WPConnectionToken(models.Model):
     package_daily_limit = models.PositiveIntegerField(default=3, verbose_name="الحد اليومي للباقة المشتراة")
     is_used = models.BooleanField(default=False, verbose_name="تم الاستخدام؟")
     wp_site = models.ForeignKey(WordPressSite, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="الموقع المرتبط", help_text="سيتم ملؤه تلقائياً بعد نجاح الربط")
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ انتهاء صلاحية الكود")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

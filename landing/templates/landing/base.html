@@ -1,249 +1,81 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}خدمة النشر الآلي الذكية{% endblock %}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #4F46E5;
-            --primary-light: #818CF8;
-            --secondary: #EC4899;
-            --bg-color: #0F172A;
-            --surface-color: #1E293B;
-            --text-color: #F8FAFC;
-            --text-muted: #94A3B8;
-        }
-
-        body {
-            font-family: 'Tajawal', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* Glassmorphism Navbar */
-        nav {
-            position: fixed;
-            top: 0; width: 100%;
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            z-index: 1000;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        .nav-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 800;
-            background: linear-gradient(to right, var(--primary-light), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-decoration: none;
-        }
-        .nav-links a {
-            color: var(--text-color);
-            text-decoration: none;
-            margin-right: 1.5rem;
-            font-weight: 500;
-            transition: color 0.3s ease;
-        }
-        .nav-links a:hover {
-            color: var(--primary-light);
-        }
-        .btn-primary {
-            background: linear-gradient(45deg, var(--primary), var(--secondary));
-            color: white !important;
-            padding: 0.6rem 1.5rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 700;
-            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: none;
-            cursor: pointer;
-            display: inline-block;
-        }
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(236, 72, 153, 0.6);
-        }
-
-        /* Messages */
-        .messages {
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 1001;
-        }
-        .message {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 1rem 1.5rem;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            animation: slideIn 0.3s ease;
-        }
-        .message.success { border-left: 4px solid #10B981; }
-        .message.error { border-left: 4px solid #EF4444; }
-        
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        /* Container */
-        .container {
-            max-width: 1200px;
-            margin: 100px auto 40px;
-            padding: 0 2rem;
-        }
-
-        /* Utils */
-        .text-center { text-align: center; }
-        .mt-4 { margin-top: 2rem; }
-        .mb-4 { margin-bottom: 2rem; }
-
-        /* Pricing Section */
-        .pricing-section {
-            padding: 4rem 1rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .pricing-header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-        .pricing-header h2 {
-            font-size: 2.5rem;
-        }
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 2rem;
-        }
-        .pricing-card {
-            background: rgba(30, 41, 59, 0.5);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px;
-            padding: 2.5rem 2rem;
-            text-align: center;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .pricing-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-            border-color: rgba(255,255,255,0.2);
-        }
-        .pricing-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 4px;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .pricing-card:hover::before { opacity: 1; }
-        
-        .package-name {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-        .package-price {
-            font-size: 3rem;
-            font-weight: 800;
-            margin-bottom: 0.5rem;
-            color: white;
-        }
-        .package-price span {
-            font-size: 1rem;
-            color: var(--text-muted);
-        }
-        .package-features {
-            list-style: none;
-            padding: 0;
-            margin: 2rem 0;
-            text-align: right;
-        }
-        .package-features li {
-            margin-bottom: 0.8rem;
-            color: var(--text-muted);
-            position: relative;
-            padding-right: 1.5rem;
-        }
-        .package-features li::before {
-            content: '✓';
-            position: absolute;
-            right: 0;
-            color: #10B981;
-            font-weight: bold;
-        }
-        .btn-buy {
-            display: block;
-            width: 100%;
-            text-align: center;
-            margin-top: auto;
-        }
-    </style>
+    <title>{% block title %}إنشرلي — نشر أخبار السوق باسمك{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/enshrly.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
 
-    <nav>
-        <div class="nav-container">
-            <a href="{% url 'landing:home' %}" class="logo">Enshrly AI</a>
-            <div class="nav-links">
-                {% if user.is_authenticated %}
-                    <a href="{% url 'payments:packages' %}">الباقات</a>
-                    {% if user.customer_profile %}
-                        <a href="{% url 'accounts:dashboard' %}" style="color:var(--text-muted);">لوحة التحكم</a>
-                    {% endif %}
-                    <form action="{% url 'accounts:logout' %}" method="post" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-family:inherit; font-weight:500;">تسجيل الخروج</button>
-                    </form>
-                {% else %}
-                    <a href="{% url 'accounts:login' %}">تسجيل الدخول</a>
-                    <a href="{% url 'accounts:signup' %}" class="btn-primary">ابدأ مجاناً</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <div class="messages">
-        {% if messages %}
-            {% for message in messages %}
-                <div class="message {{ message.tags }}">{{ message }}</div>
-            {% endfor %}
+<nav class="site-nav">
+    <a href="{% url 'landing:home' %}" class="wordmark">إنشرلي</a>
+    <div class="site-nav-links">
+        {% if user.is_authenticated %}
+            <a href="{% url 'payments:packages' %}">الباقات</a>
+            {% if user.customer_profile %}
+                <a href="{% url 'accounts:dashboard' %}">لوحة التحكم</a>
+            {% endif %}
+            <form action="{% url 'accounts:logout' %}" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost">تسجيل الخروج</button>
+            </form>
+        {% else %}
+            <a href="{% url 'accounts:login' %}">تسجيل الدخول</a>
+            <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-sm">ابدأ مجاناً</a>
         {% endif %}
     </div>
+</nav>
 
-    {% block content %}
-    {% endblock %}
+<div class="messages">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+</div>
 
-    <script>
-        // Auto-hide messages after 5 seconds
-        setTimeout(() => {
-            const msgs = document.querySelectorAll('.message');
-            msgs.forEach(m => {
-                m.style.opacity = '0';
-                setTimeout(() => m.remove(), 300);
-            });
-        }, 5000);
-    </script>
+{% block content %}
+{% endblock %}
+
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <div class="footer-columns">
+            <div class="footer-col">
+                <span class="footer-wordmark">إنشرلي</span>
+                <p class="footer-blurb">صحفي مقيم في موقعك، يكتب باسمك وينشر نيابة عنك</p>
+            </div>
+            <div class="footer-col">
+                <span class="footer-heading">الشركة</span>
+                <a href="{% url 'pages:about' %}">من نحن</a>
+                <a href="{% url 'payments:packages' %}">الباقات</a>
+                <a href="{% url 'pages:contact' %}">تواصل معنا</a>
+            </div>
+            <div class="footer-col">
+                <span class="footer-heading">قانوني</span>
+                <a href="{% url 'pages:terms' %}">شروط الاستخدام</a>
+                <a href="{% url 'pages:privacy' %}">سياسة الخصوصية</a>
+                <a href="{% url 'pages:refund' %}">سياسة الاسترجاع</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>© {% now "Y" %} إنشرلي — جميع الحقوق محفوظة</span>
+        </div>
+    </div>
+</footer>
+
+<script>
+    setTimeout(() => {
+        document.querySelectorAll('.message').forEach((m) => {
+            m.style.opacity = '0';
+            setTimeout(() => m.remove(), 300);
+        });
+    }, 5000);
+</script>
 </body>
 </html>

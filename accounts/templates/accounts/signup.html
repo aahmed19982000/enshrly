@@ -1,25 +1,25 @@
 {% extends 'landing/base.html' %}
 {% block content %}
-<div class="container" style="max-width: 500px; padding: 4rem 1rem;">
-    <div class="pricing-card" style="text-align:right;">
-        <h2 style="text-align:center; margin-bottom: 2rem;">إنشاء حساب جديد</h2>
-        <form method="post" action="{% url 'accounts:signup' %}">
+<div class="container" style="max-width: 460px; padding: 4rem 1rem;">
+    <div class="panel panel-accent">
+        <h2 class="text-center" style="margin-bottom: 0.5rem;">إنشاء حساب جديد</h2>
+        <form method="post" action="{% url 'accounts:signup' %}" style="display: flex; flex-direction: column; gap: 1.25rem;">
             {% csrf_token %}
-            <div style="margin-bottom: 1.5rem;">
-                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted);">الاسم بالكامل</label>
-                <input type="text" name="name" required style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;">
+            <div class="field">
+                <label>الاسم بالكامل</label>
+                <input type="text" name="name" required>
             </div>
-            <div style="margin-bottom: 1.5rem;">
-                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted);">رقم الواتساب (متضمن كود الدولة مثل 2010...)</label>
-                <input type="text" name="whatsapp" required style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;" placeholder="مثال: 201xxxxxxxxx">
+            <div class="field">
+                <label>رقم الواتساب (متضمن كود الدولة مثل 2010...)</label>
+                <input type="text" name="whatsapp" placeholder="مثال: 201xxxxxxxxx" required>
             </div>
-            <div style="margin-bottom: 2rem;">
-                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted);">كلمة المرور</label>
-                <input type="password" name="password" required style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); color:white;">
+            <div class="field">
+                <label>كلمة المرور</label>
+                <input type="password" name="password" required>
             </div>
-            <button type="submit" class="btn-primary" style="width:100%;">تسجيل الحساب</button>
+            <button type="submit" class="btn btn-primary btn-block">تسجيل الحساب</button>
         </form>
-        <p class="text-center mt-4">لديك حساب بالفعل؟ <a href="{% url 'accounts:login' %}" style="color:var(--primary-light);">سجل دخول</a></p>
+        <p class="text-center" style="margin-top: 1rem; color: var(--muted);">لديك حساب بالفعل؟ <a href="{% url 'accounts:login' %}">سجل دخول</a></p>
     </div>
 </div>
 {% endblock %}

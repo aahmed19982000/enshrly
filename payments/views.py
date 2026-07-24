@@ -66,6 +66,7 @@ def start_free_trial(request):
 
     # Create WP Connection Token with expiration
     WPConnectionToken.objects.create(
+        customer=profile,
         client_name=f"{profile.user.first_name or profile.user.username} (Free Trial)",
         package_daily_limit=3,
         expires_at=timezone.now() + timedelta(days=7)
@@ -219,11 +220,12 @@ def confirm_paypal_payment(request):
             token_str = str(uuid.uuid4())
             WPConnectionToken.objects.create(
                 token=token_str,
+                customer=profile,
                 client_name=request.user.first_name or request.user.username,
                 package_daily_limit=transaction.package.daily_limit,
                 expires_at=timezone.now() + timedelta(days=30),
             )
-            
+
             # Send WhatsApp confirmation
             send_whatsapp_payment_success(
                 phone_number=transaction.customer.whatsapp_number,
@@ -231,7 +233,7 @@ def confirm_paypal_payment(request):
                 package_name=transaction.package.name,
                 token_code=token_str
             )
-            
+
             from django.urls import reverse
             success_url = reverse('payments:payment_success', kwargs={'transaction_id': transaction.transaction_id})
             return JsonResponse({"success": True, "redirect_url": success_url})
@@ -354,11 +356,12 @@ def mobile_post_transaction(request):
     token_str = str(uuid.uuid4())
     WPConnectionToken.objects.create(
         token=token_str,
+        customer=matched_tx.customer,
         client_name=matched_tx.customer.user.first_name,
         package_daily_limit=matched_tx.package.daily_limit,
         expires_at=timezone.now() + timedelta(days=30),
     )
-    
+
     # Send WhatsApp confirmation
     send_whatsapp_payment_success(
         phone_number=matched_tx.customer.whatsapp_number,
@@ -389,34 +392,50 @@ def payment_success_view(request, transaction_id):
         token_str = str(uuid.uuid4())
         token_obj = WPConnectionToken.objects.create(
             token=token_str,
+            customer=transaction.customer,
             client_name=request.user.first_name,
             package_daily_limit=transaction.package.daily_limit,
             expires_at=timezone.now() + timedelta(days=30),
         )
-        
+
         # Send WhatsApp confirmation
         send_whatsapp_payment_success(
             phone_number=transaction.customer.whatsapp_number,
             client_name=request.user.first_name or request.user.username,
             package_name=transaction.package.name,
             token_code=token_str
-        ) 
+        )
 
     # Find the user's un-used tokens to display
-    tokens = WPConnectionToken.objects.filter(client_name=request.user.first_name, is_used=False)
+    tokens = WPConnectionToken.objects.filter(customer=transaction.customer, is_used=False)
 
     return render(request, 'payments/success.html', {'transaction': transaction, 'tokens': tokens})
 
 @csrf_exempt
 def confirm_pairing(request):
     """
-    Mock pairing endpoint for the mobile app QR code login.
+    Pairing endpoint for the mobile app: exchanges the pairing token embedded in
+    the QR code (pair_qr_view) for the real WALLET_API_KEY. Only a caller who
+    actually scanned that QR code (or otherwise knows the token) can complete
+    the exchange — this must never hand back the key unconditionally.
     """
+    if request.method != 'POST':
+        return JsonResponse({"success": False, "message": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    pair_token = data.get('pair_token')
+    expected_token = getattr(settings, 'PAIRING_TOKEN', '')
+    if not expected_token or not pair_token or not hmac.compare_digest(pair_token, expected_token):
+        return JsonResponse({"success": False, "message": "Invalid or missing pairing token"}, status=401)
+
     return JsonResponse({
         "success": True,
         "data": {
-            "api_key": getattr(settings, 'WALLET_API_KEY', 'enshrly_wallet_secret_token_2026'),
-            "secret_key": "dummy_secret",
+            "api_key": getattr(settings, 'WALLET_API_KEY', ''),
             "merchant_name": "enshrly_admin"
         }
     })
@@ -440,7 +459,7 @@ def pair_qr_view(request):
         
     server_url = f"http://{local_ip}:8000/payments/api/v1/payments"
     payload = {
-        "pair_token": "enshrly_pairing_token_2026",
+        "pair_token": getattr(settings, 'PAIRING_TOKEN', ''),
         "server_url": server_url
     }
     payload_str = json.dumps(payload)
@@ -526,11 +545,12 @@ def confirm_payment_api(request):
     token_str = str(uuid.uuid4())
     WPConnectionToken.objects.create(
         token=token_str,
+        customer=matched_tx.customer,
         client_name=matched_tx.customer.user.first_name,
         package_daily_limit=matched_tx.package.daily_limit,
         expires_at=timezone.now() + timedelta(days=30),
     )
-    
+
     # Send WhatsApp confirmation
     send_whatsapp_payment_success(
         phone_number=matched_tx.customer.whatsapp_number,
@@ -640,43 +660,30 @@ def paymob_checkout_view(request, transaction_id):
 
 @login_required
 def paymob_callback_view(request):
-    success = request.GET.get('success')
+    """
+    Browser return URL after the Paymob iframe redirect. This is NOT a trusted
+    signal (query params come straight from the user's browser, unsigned) —
+    only the signed server-to-server webhook (paymob_webhook_view) is allowed
+    to mark a transaction as completed. This view just routes the user to the
+    right waiting/success screen based on the transaction's current,
+    webhook-verified status, and never trusts request.GET for that decision.
+    """
+    profile = getattr(request.user, 'customer_profile', None)
     merchant_order_id = request.GET.get('merchant_order_id')
-    paymob_tx_id = request.GET.get('id')
-    
-    if success == 'true' and merchant_order_id:
-        try:
-            transaction = Transaction.objects.get(transaction_id=merchant_order_id, status='pending')
-            transaction.status = 'completed'
-            transaction.gateway_transaction_id = paymob_tx_id
-            transaction.verified_transaction_id = f"PAYMOB-{paymob_tx_id}"
-            transaction.save()
-            
-            token_str = str(uuid.uuid4())
-            WPConnectionToken.objects.create(
-                token=token_str,
-                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=30),
-            )
-            
-            send_whatsapp_payment_success(
-                phone_number=transaction.customer.whatsapp_number,
-                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                package_name=transaction.package.name,
-                token_code=token_str
-            )
-            
-            return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
-        except Transaction.DoesNotExist:
-            try:
-                transaction = Transaction.objects.get(transaction_id=merchant_order_id, status='completed')
-                return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
-            except Transaction.DoesNotExist:
-                pass
-                
-    messages.error(request, "لم تكتمل عملية الدفع أو تم إلغاؤها.")
-    return redirect('payments:packages')
+
+    transaction = None
+    if merchant_order_id and profile:
+        transaction = Transaction.objects.filter(transaction_id=merchant_order_id, customer=profile).first()
+
+    if not transaction:
+        messages.error(request, "لم تكتمل عملية الدفع أو تم إلغاؤها.")
+        return redirect('payments:packages')
+
+    if transaction.status == 'completed':
+        return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
+
+    # Still pending on our side — wait for the verified webhook to land.
+    return redirect('payments:checkout_pending', transaction_id=transaction.transaction_id)
 
 import hmac
 import hashlib
@@ -693,52 +700,57 @@ def paymob_webhook_view(request):
         
     hmac_received = request.GET.get('hmac')
     obj = data.get('obj', {})
-    
+
     hmac_key = getattr(settings, 'PAYMOB_HMAC_KEY', '')
-    if hmac_key and hmac_received:
-        amount_cents = obj.get('amount_cents')
-        created_at = obj.get('created_at')
-        currency = obj.get('currency')
-        error_occured = obj.get('error_occured')
-        has_parent_transaction = obj.get('has_parent_transaction')
-        obj_id = obj.get('id')
-        integration_id = obj.get('integration_id')
-        is_3d_secure = obj.get('is_3d_secure')
-        is_auth = obj.get('is_auth')
-        is_capture = obj.get('is_capture')
-        is_voided = obj.get('is_voided')
-        is_refunded = obj.get('is_refunded')
-        owner = obj.get('owner')
-        pending = obj.get('pending')
-        
-        source_data = obj.get('source_data', {})
-        pan = source_data.get('pan', '')
-        sub_type = source_data.get('sub_type', '')
-        source_type = source_data.get('type', '')
-        success = obj.get('success')
-        
-        # Sort and concatenate strings for signature validation
-        str_to_sign = (
-            f"{amount_cents}{created_at}{currency}{error_occured}"
-            f"{has_parent_transaction}{obj_id}{integration_id}{is_3d_secure}"
-            f"{is_auth}{is_capture}{is_voided}{is_refunded}{owner}{pending}"
-            f"{pan}{sub_type}{source_type}{success}"
-        )
-        
-        calculated_hmac = hmac.new(
-            hmac_key.encode('utf-8'),
-            str_to_sign.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if calculated_hmac != hmac_received:
-            return JsonResponse({"success": False, "message": "Invalid HMAC signature"}, status=401)
-            
+    if not hmac_key:
+        # Misconfiguration should never silently downgrade to "trust the payload" —
+        # reject instead so payment confirmation never runs unsigned.
+        return JsonResponse({"success": False, "message": "Server HMAC key not configured"}, status=500)
+    if not hmac_received:
+        return JsonResponse({"success": False, "message": "Missing HMAC signature"}, status=401)
+
+    amount_cents = obj.get('amount_cents')
+    created_at = obj.get('created_at')
+    currency = obj.get('currency')
+    error_occured = obj.get('error_occured')
+    has_parent_transaction = obj.get('has_parent_transaction')
+    obj_id = obj.get('id')
+    integration_id = obj.get('integration_id')
+    is_3d_secure = obj.get('is_3d_secure')
+    is_auth = obj.get('is_auth')
+    is_capture = obj.get('is_capture')
+    is_voided = obj.get('is_voided')
+    is_refunded = obj.get('is_refunded')
+    owner = obj.get('owner')
+    pending = obj.get('pending')
+
+    source_data = obj.get('source_data', {})
+    pan = source_data.get('pan', '')
+    sub_type = source_data.get('sub_type', '')
+    source_type = source_data.get('type', '')
     success = obj.get('success')
+
+    # Sort and concatenate strings for signature validation
+    str_to_sign = (
+        f"{amount_cents}{created_at}{currency}{error_occured}"
+        f"{has_parent_transaction}{obj_id}{integration_id}{is_3d_secure}"
+        f"{is_auth}{is_capture}{is_voided}{is_refunded}{owner}{pending}"
+        f"{pan}{sub_type}{source_type}{success}"
+    )
+
+    calculated_hmac = hmac.new(
+        hmac_key.encode('utf-8'),
+        str_to_sign.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(calculated_hmac, hmac_received):
+        return JsonResponse({"success": False, "message": "Invalid HMAC signature"}, status=401)
+
     order = obj.get('order', {})
     merchant_order_id = order.get('merchant_order_id')
     paymob_tx_id = obj.get('id')
-    
+
     if success is True and merchant_order_id:
         try:
             transaction = Transaction.objects.get(transaction_id=merchant_order_id, status='pending')
@@ -746,15 +758,16 @@ def paymob_webhook_view(request):
             transaction.gateway_transaction_id = paymob_tx_id
             transaction.verified_transaction_id = f"PAYMOB-{paymob_tx_id}"
             transaction.save()
-            
+
             token_str = str(uuid.uuid4())
             WPConnectionToken.objects.create(
                 token=token_str,
+                customer=transaction.customer,
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                 package_daily_limit=transaction.package.daily_limit,
                 expires_at=timezone.now() + timedelta(days=30),
             )
-            
+
             send_whatsapp_payment_success(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
@@ -763,7 +776,7 @@ def paymob_webhook_view(request):
             )
         except Transaction.DoesNotExist:
             pass
-            
+
     return JsonResponse({"success": True})
 
 

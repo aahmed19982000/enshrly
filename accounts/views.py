@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
 from django.contrib import messages
 from .models import CustomerProfile, WhatsAppOTP
-from .utils import send_whatsapp_otp
+from .utils import send_whatsapp_otp, get_client_ip, check_rate_limit
 from django.contrib.auth.decorators import login_required
 
 def signup_view(request):
@@ -11,6 +11,18 @@ def signup_view(request):
         name = request.POST.get('name')
         whatsapp = request.POST.get('whatsapp')
         password = request.POST.get('password')
+
+        # Throttle signups: caps how many WhatsApp OTP messages one visitor can
+        # trigger (per IP) and how many times one phone number can be targeted
+        # (per number) — signup is unauthenticated and otherwise lets anyone
+        # send unsolicited "OTP" WhatsApp messages to any number for free.
+        client_ip = get_client_ip(request)
+        if check_rate_limit(f'signup:ip:{client_ip}', limit=5, window_seconds=3600):
+            messages.error(request, "عدد محاولات كبير جداً من جهازك، حاول مرة أخرى بعد قليل.")
+            return redirect('accounts:signup')
+        if whatsapp and check_rate_limit(f'signup:phone:{whatsapp}', limit=3, window_seconds=3600):
+            messages.error(request, "تم إرسال عدد كافٍ من رسائل التفعيل لهذا الرقم، حاول مرة أخرى لاحقاً.")
+            return redirect('accounts:signup')
 
         if User.objects.filter(username=whatsapp).exists():
             messages.error(request, "رقم الواتساب مسجل مسبقاً.")
@@ -44,6 +56,12 @@ def verify_otp_view(request):
         return redirect('accounts:dashboard')
 
     if request.method == 'POST':
+        # A 4-digit code is only 10,000 combinations — without this, it's
+        # brute-forceable well within its 10-minute validity window.
+        if check_rate_limit(f'otp_verify:{profile.id}', limit=5, window_seconds=600):
+            messages.error(request, "تجاوزت عدد المحاولات المسموح، يرجى الانتظار قليلاً ثم إعادة المحاولة.")
+            return render(request, 'accounts/verify_otp.html')
+
         code = request.POST.get('otp_code')
         otp = profile.otps.filter(otp_code=code, is_used=False).last()
 
@@ -63,6 +81,15 @@ def login_view(request):
     if request.method == 'POST':
         whatsapp = request.POST.get('whatsapp')
         password = request.POST.get('password')
+
+        # Throttle password guessing per (IP, phone number) pair — a wrong
+        # password only counts against this specific target, so it can't be
+        # used to lock a victim out by spamming failed attempts against them.
+        client_ip = get_client_ip(request)
+        if check_rate_limit(f'login:{client_ip}:{whatsapp}', limit=5, window_seconds=600):
+            messages.error(request, "عدد محاولات كبير جداً، يرجى الانتظار قليلاً ثم إعادة المحاولة.")
+            return render(request, 'accounts/login.html')
+
         user = authenticate(request, username=whatsapp, password=password)
         if user is not None:
             login(request, user)
@@ -82,8 +109,9 @@ from django.utils import timezone
 def dashboard_view(request):
     profile = getattr(request.user, 'customer_profile', None)
     
-    # Get user's tokens
-    tokens = WPConnectionToken.objects.filter(client_name=request.user.first_name).order_by('-created_at')
+    # Get user's tokens (ownership is via the customer FK, not client_name — two
+    # customers can share a first name, and client_name is a display label only)
+    tokens = WPConnectionToken.objects.filter(customer=profile).order_by('-created_at')
     
     # Extract connected sites and calculate stats
     sites_stats = []

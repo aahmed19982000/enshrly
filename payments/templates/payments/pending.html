@@ -1,59 +1,53 @@
 {% extends 'landing/base.html' %}
 {% block content %}
-<div class="container" style="max-width: 650px; padding: 4rem 1rem;">
-    <div class="pricing-card" style="text-align:center; border-color: var(--secondary);">
-        <h2 style="color: var(--primary-light); margin-bottom: 1.5rem;">بانتظار إتمام الدفع... ⏳</h2>
-        
-        <p style="color:var(--text-color); font-size: 1.15rem; margin-bottom: 2rem; line-height: 1.6;">
-            يرجى تحويل قيمة الاشتراك للمحفظة الإلكترونية الخاصة بالإدارة، وسيقوم النظام بتأكيد عمليتك تلقائياً فور استلام التحويل.
-        </p>
+<div class="page-shell-body" style="max-width: 460px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">{% if transaction.gateway == 'local' %}بانتظار تأكيد التحويل{% else %}بانتظار تأكيد الدفع{% endif %}</h1>
 
-        <!-- تفاصيل الفاتورة -->
-        <div style="background:rgba(0,0,0,0.3); padding: 2rem; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 2rem; text-align: right;">
-            <h3 style="margin-top:0; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem; color: var(--primary-light);">تفاصيل التحويل المطلوب</h3>
-            
-            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 1.1rem;">
-                <span style="color:var(--text-muted);">الباقة المختارة:</span>
-                <span style="font-weight: bold;">{{ transaction.package.name }}</span>
-            </div>
-            
-            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 1.1rem;">
-                <span style="color:var(--text-muted);">المبلغ المطلوب:</span>
-                <span style="font-weight: bold; color: var(--secondary); font-size: 1.25rem;">{{ transaction.amount }} {{ transaction.currency }}</span>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 1.1rem;">
-                <span style="color:var(--text-muted);">رقم محفظة الإدارة (التحويل إليه):</span>
-                <span style="font-weight: bold; font-family: monospace; font-size: 1.2rem; letter-spacing: 1px; color: var(--primary-light);">{{ wallet_number }}</span>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 1.1rem;">
-                <span style="color:var(--text-muted);">رقم محفظتك (المُحوَّل منه):</span>
-                <span style="font-weight: bold; font-family: monospace;">{{ transaction.sender_phone }}</span>
-            </div>
+    <div class="panel panel-accent">
+        <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--muted); font-size: 0.9rem;">الباقة</span>
+            <span style="font-weight: 600; color: var(--text);">{{ transaction.package.name }}</span>
         </div>
-
-        <!-- حالة الانتظار والحركة الدائرية -->
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 2rem;">
-            <div class="spinner" style="width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top: 5px solid var(--primary-light); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <p id="status-text" style="color:var(--text-muted); font-size: 1rem;">نحن بانتظار استلام التحويل الآن وتأكيده من خلال تطبيق الموبايل...</p>
+        <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--rule);">
+            <span style="color: var(--muted); font-size: 0.9rem;">المبلغ</span>
+            <span style="font-weight: 600; color: var(--text);">{{ transaction.amount }} {{ transaction.currency }}</span>
         </div>
+        {% if transaction.gateway == 'local' %}
+        <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--rule);">
+            <span style="color: var(--muted); font-size: 0.9rem;">رقم محفظة الاستقبال</span>
+            <span style="font-weight: 600; color: var(--text); font-family: var(--font-mono);">{{ wallet_number }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--rule);">
+            <span style="color: var(--muted); font-size: 0.9rem;">رقم محفظتك (المُرسِل)</span>
+            <span style="font-weight: 600; color: var(--text); font-family: var(--font-mono);">{{ transaction.sender_phone }}</span>
+        </div>
+        {% endif %}
+    </div>
 
-        <a href="{% url 'payments:packages' %}" style="color:var(--text-muted); text-decoration: underline; font-size: 0.9rem;">إلغاء العملية والعودة للباقات</a>
+    <div class="panel" style="align-items: center;">
+        <div class="spinner"></div>
+        {% if transaction.gateway == 'local' %}
+        <p id="status-text" style="color: var(--muted); font-size: 0.9rem; margin: 0;">نتحقق من التحويل تلقائياً — انتظرت <span id="seconds-count">0</span> ثانية</p>
+        {% else %}
+        <p id="status-text" style="color: var(--muted); font-size: 0.9rem; margin: 0;">جارٍ تأكيد الدفع مع بوابة الدفع — انتظرت <span id="seconds-count">0</span> ثانية</p>
+        {% endif %}
+    </div>
+
+    <div class="text-center">
+        <a href="{% url 'payments:packages' %}" style="color: var(--muted); font-size: 0.9rem;">إلغاء العملية والعودة للباقات</a>
     </div>
 </div>
 
-<style>
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-</style>
-
 <script>
     const transactionId = "{{ transaction.transaction_id }}";
-    
-    // فحص حالة المعاملة دورياً كل 3 ثوانٍ
+    let seconds = 0;
+    const secondsEl = document.getElementById('seconds-count');
+
+    setInterval(() => {
+        seconds += 1;
+        if (secondsEl) secondsEl.innerText = seconds;
+    }, 1000);
+
     const interval = setInterval(async () => {
         try {
             const response = await fetch(`/payments/checkout/status/${transactionId}/`);
@@ -63,7 +57,7 @@
                     clearInterval(interval);
                     document.getElementById('status-text').innerText = "تم تأكيد الدفع بنجاح! يتم تحويلك الآن...";
                     setTimeout(() => {
-                        window.location.reload(); // ستقوم الـ View بالتحويل التلقائي لصفحة النجاح
+                        window.location.reload();
                     }, 1000);
                 }
             }

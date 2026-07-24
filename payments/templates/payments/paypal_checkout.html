@@ -1,36 +1,32 @@
 {% extends 'landing/base.html' %}
 {% block content %}
-<div class="container" style="max-width: 600px; padding: 4rem 1rem;">
-    <div class="pricing-card" style="text-align:right;">
-        <h2 style="margin-bottom: 2rem;">الدفع عبر PayPal</h2>
-        
-        <div style="background:rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem; border: 1px solid rgba(255,255,255,0.1);">
-            <h3 style="margin-top:0;">باقة: {{ package.name }}</h3>
-            <p style="font-size: 1.5rem; color: var(--primary-light); font-weight: bold; margin: 0.5rem 0;">المبلغ المطلوب: ${{ transaction.amount }} USD</p>
-            <p style="color:var(--text-muted); margin: 0;">الحد اليومي للنشر: {{ package.daily_limit }} مقال</p>
+<div class="page-shell-body" style="max-width: 440px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">الدفع عبر PayPal</h1>
+
+    <div class="panel panel-accent">
+        <span class="card-title">ملخص الطلب</span>
+        <div style="display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: var(--text);">{{ package.name }}</span>
+            <span style="font-family: var(--font-display); font-weight: 700; color: var(--gold);">${{ transaction.amount }} USD</span>
+        </div>
+        <span style="color: var(--muted); font-size: 0.85rem;">الحد اليومي للنشر: {{ package.daily_limit }} مقال</span>
+    </div>
+
+    <div class="panel" style="align-items: center;">
+        <div id="paypal-button-container" style="width: 100%;"></div>
+
+        <div id="loading-indicator" style="display: none; text-align: center;">
+            <div class="spinner" style="margin-bottom: 1rem;"></div>
+            <p style="margin: 0; font-weight: 700; color: var(--text);">جارٍ تأكيد عملية الدفع وتوليد الكود الخاص بك… يرجى عدم إغلاق الصفحة.</p>
         </div>
 
-        <div id="paypal-button-container" style="margin-top: 2rem;"></div>
-        
-        <div id="loading-indicator" style="display:none; text-align:center; margin-top:1.5rem; background:rgba(255,255,255,0.05); padding:1.5rem; border-radius:8px;">
-            <div style="display:inline-block; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-radius: 50%; border-top-color: var(--primary-light); animation: spin 1s ease-in-out infinite; margin-bottom:1rem;"></div>
-            <p style="margin:0; font-weight:bold; color:var(--text-color);">جاري تأكيد عملية الدفع وتوليد الكود الخاص بك... يرجى عدم إغلاق الصفحة.</p>
-        </div>
+        <div id="error-message" style="display: none; width: 100%; background: var(--rust-tint); border: 1px solid var(--rule); color: var(--rust); padding: 0.9rem 1.1rem; border-radius: var(--radius-sm); text-align: center;"></div>
+    </div>
 
-        <div id="error-message" style="display:none; margin-top:1.5rem; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.3); color:#F87171; padding:1rem; border-radius:8px;">
-        </div>
-
-        <div style="text-align:center; margin-top:2rem;">
-            <a href="{% url 'payments:packages' %}" style="color:var(--text-muted); text-decoration:none; font-size:0.9rem;">← إلغاء والعودة للباقات</a>
-        </div>
+    <div class="text-center">
+        <a href="{% url 'payments:packages' %}" style="color: var(--muted); font-size: 0.9rem;">← إلغاء والعودة للباقات</a>
     </div>
 </div>
-
-<style>
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-</style>
 
 <!-- استدعاء SDK الخاص بباي بال -->
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD&disable-funding=card,credit"></script>
@@ -49,12 +45,10 @@ paypal.Buttons({
     },
     onApprove: function(data, actions) {
         return actions.order.capture().then(function(details) {
-            // إظهار مؤشر التحميل وإخفاء الأزرار
             document.getElementById('paypal-button-container').style.display = 'none';
             document.getElementById('loading-indicator').style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
 
-            // إرسال البيانات للخلفية لتأكيد التحقق
             fetch("{% url 'payments:confirm_paypal_payment' %}", {
                 method: "POST",
                 headers: {
@@ -69,10 +63,8 @@ paypal.Buttons({
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // التوجيه إلى صفحة النجاح
                     window.location.href = data.redirect_url;
                 } else {
-                    // إظهار رسالة الخطأ
                     document.getElementById('paypal-button-container').style.display = 'block';
                     document.getElementById('loading-indicator').style.display = 'none';
                     const errorDiv = document.getElementById('error-message');

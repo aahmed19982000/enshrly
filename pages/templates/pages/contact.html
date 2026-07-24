@@ -1,0 +1,38 @@
+<!-- Draft copy — legal pages (privacy/terms/refund) must be reviewed by a lawyer before publishing. -->
+{% extends 'landing/base.html' %}
+{% block title %}تواصل معنا{% endblock %}
+{% block content %}
+<div class="content-page">
+    <div class="content-page-inner">
+        <h1>تواصل معنا</h1>
+        <p class="page-meta">فريقنا التحريري جاهز للرد على استفساراتك</p>
+
+        <p>لأي استفسار عن الباقات، النشر على موقعك، أو أي مساعدة أخرى، راسلنا مباشرة عبر النموذج التالي:</p>
+
+        <form method="post" action="{% url 'pages:contact' %}" style="display: flex; flex-direction: column; gap: 1.25rem; margin: 1.5rem 0 2.5rem;">
+            {% csrf_token %}
+            <div class="field">
+                <label for="id_name">الاسم</label>
+                <input type="text" name="name" id="id_name" required>
+            </div>
+            <div class="field">
+                <label for="id_contact_info">رقم الواتساب أو البريد الإلكتروني</label>
+                <input type="text" name="contact_info" id="id_contact_info" placeholder="01xxxxxxxxx أو you@example.com" required>
+            </div>
+            <div class="field">
+                <label for="id_message">رسالتك</label>
+                <textarea name="message" id="id_message" rows="5" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">إرسال الرسالة</button>
+        </form>
+
+        <p>يمكنك أيضاً التواصل معنا مباشرة:</p>
+        <ul>
+            <li><strong>الواتساب:</strong> [رقم الواتساب — يُستكمل]</li>
+            <li><strong>البريد الإلكتروني:</strong> [البريد الإلكتروني — يُستكمل]</li>
+        </ul>
+
+        <p>موقعك يستحق صحفياً مقيماً يكتب باسمك وينشر نيابة عنك — ونحن هنا لنجعل ذلك ممكناً من أول رسالة.</p>
+    </div>
+</div>
+{% endblock %}

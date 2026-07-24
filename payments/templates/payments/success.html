@@ -1,32 +1,42 @@
 {% extends 'landing/base.html' %}
 {% block content %}
-<div class="container" style="max-width: 800px; padding: 4rem 1rem;">
-    <div class="pricing-card" style="text-align:center; border-color: #10B981;">
-        <h2 style="color: #10B981; margin-bottom: 1rem;">تم الدفع بنجاح! 🎉</h2>
-        <p style="color:var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">شكراً لاشتراكك في باقة {{ transaction.package.name }}. لقد تم إنشاء كود الربط الخاص بك وهو جاهز للاستخدام الآن.</p>
-        
-        <div style="background:rgba(0,0,0,0.3); padding: 2rem; border-radius: 15px; border: 1px dashed rgba(255,255,255,0.3); margin-bottom: 2rem;">
-            <h3 style="margin-top:0;">كود التفعيل الخاص بك (Token)</h3>
-            {% for token in tokens %}
-                <div style="background:var(--surface-color); padding: 1rem; border-radius:8px; margin-top:1rem; font-family:monospace; font-size: 1.2rem; letter-spacing:2px;">
-                    {{ token.token }}
-                </div>
-                <p style="color:var(--primary-light); margin-top:1rem; font-size: 0.9rem;">صالح لموقع واحد | حد النشر: {{ token.package_daily_limit }} مقال يومياً</p>
-            {% endfor %}
-        </div>
-
-        <div style="text-align:right; margin-bottom:2rem;">
-            <h4 style="color:var(--primary-light);">خطوات التشغيل:</h4>
-            <ol style="color:var(--text-color); line-height:2;">
-                <li>قم بتحميل إضافة الووردبريس (Enshrly Connector) من الزر بالأسفل.</li>
-                <li>ارفع الإضافة إلى موقع الووردبريس الخاص بك وقم بتفعيلها.</li>
-                <li>اذهب إلى إعدادات الإضافة في ووردبريس.</li>
-                <li>ضع رابط النظام وكود التفعيل الموجود بالأعلى، واضغط "حفظ".</li>
-                <li>استمتع بالنشر الآلي الحصري!</li>
-            </ol>
-        </div>
-
-        <a href="{% url 'accounts:dashboard' %}" class="btn-primary" style="padding: 1rem 2rem;">الذهاب للوحة التحكم</a>
+<div class="page-shell-body" style="max-width: 520px; margin: 0 auto; padding: 3rem 1rem;">
+    <div class="text-center">
+        <h1 style="margin-bottom: 0.5rem;">تم الدفع بنجاح</h1>
+        <span style="color: var(--moss); font-weight: 600;">اشتراكك في باقة {{ transaction.package.name }} أصبح فعّالاً — شكراً لثقتك بنا</span>
     </div>
+
+    <div class="panel panel-accent">
+        <span class="card-title">كود التفعيل</span>
+        {% for token in tokens %}
+            <div class="mono-block mono-block-lg">{{ token.token }}</div>
+            <span style="color: var(--gold); font-size: 0.9rem;">صالح لموقع واحد | حد النشر: {{ token.package_daily_limit }} مقال يومياً</span>
+        {% endfor %}
+    </div>
+
+    <div class="panel" style="gap: 1.25rem;">
+        <div class="step-number">
+            <span class="n">١</span>
+            <div><div class="t">حمّل إضافة الووردبريس</div><div class="d">ملف ZIP جاهز للرفع على موقعك.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٢</span>
+            <div><div class="t">ثبّت الإضافة</div><div class="d">من لوحة ووردبريس: الإضافات ← إضافة جديدة ← رفع.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٣</span>
+            <div><div class="t">أدخل كود التفعيل</div><div class="d">الصق الكود أعلاه في إعدادات الإضافة.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٤</span>
+            <div><div class="t">اختر المصادر</div><div class="d">حدد الأقسام التي يهمك تغطيتها.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٥</span>
+            <div><div class="t">ابدأ النشر</div><div class="d">سيبدأ النشر تلقائياً باسمك على مدار الساعة.</div></div>
+        </div>
+    </div>
+
+    <a href="{% url 'accounts:dashboard' %}" class="btn btn-primary btn-block btn-lg">الذهاب للوحة التحكم</a>
 </div>
 {% endblock %}

@@ -1,14 +1,42 @@
-import os
+import environ
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-@jpjci660fly+yozge(d1&m8c#i2kdze&*h^_3l%'
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+env = environ.Env()
+# Loads BASE_DIR/.env into os.environ if the file exists — it's gitignored and
+# holds real local values; nothing here should ever hardcode a real secret again.
+environ.Env.read_env(str(BASE_DIR / '.env'))
 
-# Encryption Key for Fernet
-FIELD_ENCRYPTION_KEY = '5q3zduDPj233xFGBU_U5zY41OsqhA-kGOEgnb3PAwTg='
+# SECURITY WARNING: keep the secret key used in production secret!
+# No real key ships in source anymore — set DJANGO_SECRET_KEY in `.env` (see
+# .env.example). The fallback below is an obviously-fake dev-only placeholder.
+SECRET_KEY = env('DJANGO_SECRET_KEY', default='django-insecure-CHANGE-ME-in-your-local-.env-file')
+
+# SECURITY WARNING: don't run with DEBUG turned on in production!
+# Defaults to True so local development keeps working out of the box — set
+# DJANGO_DEBUG=False in `.env` for any real deployment (DEBUG=True lets any
+# unhandled error page dump this whole settings module, secrets included).
+DEBUG = env.bool('DJANGO_DEBUG', default=True)
+
+# Defaults to '*' for local dev convenience; set DJANGO_ALLOWED_HOSTS to a
+# comma-separated list of real hostnames for any deployment.
+ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['*'])
+
+# Fernet key encrypting WordPressSite.application_password in the DB. Must be
+# set in `.env` — there is no safe hardcoded fallback for this one. Do NOT
+# rotate an existing value without re-encrypting already-stored rows first.
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default='')
+
+# Production hardening — all default to safe values for real HTTPS deployments,
+# but stay off while DEBUG is on so plain http://localhost development keeps working.
+# Override via `.env` for a deployment that's DEBUG=False but not yet on HTTPS.
+SECURE_SSL_REDIRECT = env.bool('DJANGO_SECURE_SSL_REDIRECT', default=not DEBUG)
+SESSION_COOKIE_SECURE = env.bool('DJANGO_SESSION_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool('DJANGO_CSRF_COOKIE_SECURE', default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int('DJANGO_SECURE_HSTS_SECONDS', default=0 if DEBUG else 31536000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
 
 INSTALLED_APPS = [
     'modeltranslation',  # Must be before admin
@@ -32,6 +60,7 @@ INSTALLED_APPS = [
     'accounts',
     'payments',
     'landing',
+    'pages',
 ]
 
 MIDDLEWARE = [
@@ -145,25 +174,29 @@ CELERY_TASK_ALWAYS_EAGER = True
 LOGIN_REDIRECT_URL = '/ai-dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-# إعدادات إرسال رسائل الواتساب عبر Infobip
-INFOBIP_API_KEY = "342685fbcc1443ad48030552d1bc55a5-9c424797-939d-4193-a33d-0ebe0bcb4649"
-INFOBIP_BASE_URL = "https://l2wvnw.api.infobip.com"
-INFOBIP_SENDER = "201099437596"  # رقم الواتساب المعتمد المرسل لديهم
+# إعدادات إرسال رسائل الواتساب عبر Infobip — القيم الحقيقية في .env (غير متتبَّع بـ git)
+INFOBIP_API_KEY = env('INFOBIP_API_KEY', default='')
+INFOBIP_BASE_URL = env('INFOBIP_BASE_URL', default='')
+INFOBIP_SENDER = env('INFOBIP_SENDER', default='')  # رقم الواتساب المعتمد المرسل لديهم
 
 # إعدادات استقبال وتأكيد مدفوعات المحافظ الإلكترونية
-WALLET_API_KEY = "enshrly_wallet_secret_token_2026"
-WALLET_NUMBER = "201099437596"  # رقم فودافون كاش الخاص بالإدارة لاستلام الأموال
+WALLET_API_KEY = env('WALLET_API_KEY', default='')
+WALLET_NUMBER = env('WALLET_NUMBER', default='')  # رقم فودافون كاش الخاص بالإدارة لاستلام الأموال
+
+# رمز الإقران المُضمَّن في كود QR — يجب تقديمه في confirm_pairing قبل تسليم
+# WALLET_API_KEY لتطبيق الموبايل (بدلاً من تسليمه لأي طلب بلا تحقق)
+PAIRING_TOKEN = env('PAIRING_TOKEN', default='')
 
 # إعدادات بوابة الدفع PayPal
-PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "BAAXNuYKO3tXHVroFwYNOs9qhkQ6vzvCRq4fWJMcV4DQRH-dokEht49LqsdZfu2_-_BiJ_NBw0aekSbE3k")
-PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "EIm18HKYeMy2Zj9AG-KAEUk3wso3DB9Y2mi6_EH_Sh8uKAekQXE6_CUYIujVJkaKaHrc66WB3tuxV-h0")
-PAYPAL_MODE = os.environ.get("PAYPAL_MODE", "live")  # live أو sandbox
+PAYPAL_CLIENT_ID = env('PAYPAL_CLIENT_ID', default='')
+PAYPAL_CLIENT_SECRET = env('PAYPAL_CLIENT_SECRET', default='')
+PAYPAL_MODE = env('PAYPAL_MODE', default='live')  # live أو sandbox
 
 # إعدادات بوابة الدفع Paymob (البطاقات البنكية المصرية)
-PAYMOB_API_KEY = os.environ.get("PAYMOB_API_KEY", "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2TVRJd016VTJPQ3dpYm1GdFpTSTZJbWx1YVhScFlXd2lmUS5GQjh0Q09MYzZiWXN1U24tTHE1REpUUUFNZTNfbEFQbklsZTh5SXNZOERRQ3hQYm9PeHFzc3BUYmlWcGJOeDFFRlRQc1ZBQ3VOcGI1a1ZtdkJ1U0U5UQ==")
-PAYMOB_HMAC_KEY = os.environ.get("PAYMOB_HMAC_KEY", "B7CA9CE2BA9F576F12EE90EA2A9BDCCA")
-PAYMOB_CARD_INTEGRATION_ID = os.environ.get("PAYMOB_CARD_INTEGRATION_ID", "5792603")
-PAYMOB_IFRAME_ID = os.environ.get("PAYMOB_IFRAME_ID", "1063704")  # معرف إطار الدفع الافتراضي، يمكن تعديله لاحقاً
+PAYMOB_API_KEY = env('PAYMOB_API_KEY', default='')
+PAYMOB_HMAC_KEY = env('PAYMOB_HMAC_KEY', default='')
+PAYMOB_CARD_INTEGRATION_ID = env('PAYMOB_CARD_INTEGRATION_ID', default='5792603')
+PAYMOB_IFRAME_ID = env('PAYMOB_IFRAME_ID', default='1063704')  # معرف إطار الدفع الافتراضي، يمكن تعديله لاحقاً
 
 
 

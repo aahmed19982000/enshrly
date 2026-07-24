@@ -2,81 +2,166 @@
 
 {% block extra_css %}
 <style>
-    /* Hero Section */
-    .hero {
-        text-align: center;
-        padding: 6rem 1rem 4rem;
-        position: relative;
-        overflow: hidden;
+    .hero { text-align: center; padding: 5rem 1.5rem 4rem; }
+    .hero h1 { font-size: var(--text-display-1); color: var(--text); font-weight: 700; line-height: var(--lh-tight); margin: 0 0 1.2rem; }
+    .hero h1 .accent { color: var(--gold); }
+    .hero p { font-size: 1.15rem; color: var(--muted); max-width: 600px; margin: 0 auto 2rem; }
+
+    .byline-section { padding: 3rem 1.5rem 1rem; }
+    .byline-section-inner { max-width: 1180px; margin: 0 auto; }
+    .byline-section-title { font-family: var(--font-display); font-size: 1.5rem; color: var(--text); text-align: center; margin: 0 0 1.5rem; }
+    .byline-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    @media (max-width: 720px) { .byline-grid { grid-template-columns: 1fr; } }
+    .byline-card {
+        background: var(--surface);
+        border: 1px solid var(--rule-strong);
+        border-top: 3px solid var(--gold);
+        border-radius: var(--radius-md);
+        padding: 1.5rem;
+        text-align: start;
     }
-    .hero::before {
-        content: '';
-        position: absolute;
-        top: -50%; left: -50%; width: 200%; height: 200%;
-        background: radial-gradient(circle, rgba(79, 70, 229, 0.15) 0%, rgba(15, 23, 42, 0) 50%);
-        z-index: -1;
-        animation: pulse 10s infinite alternate;
+    .byline-card .headline { font-family: var(--font-display); font-size: 1rem; color: var(--text); margin: 0 0 0.4rem; font-weight: 600; line-height: var(--lh-tight); }
+    .byline-card .meta { font-size: 0.85rem; color: var(--gold); font-weight: 600; }
+
+    .video-section { padding: 1rem 1.5rem 3rem; max-width: 800px; margin: 0 auto; }
+    .video-eyebrow { text-align: center; margin-bottom: 1.25rem; }
+    .video-eyebrow span { font-weight: 700; color: var(--gold); font-size: 0.9rem; }
+    .video-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; }
+    .video-frame video { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface); }
+    .video-play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .video-play-circle { width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--rule-strong); display: flex; align-items: center; justify-content: center; }
+    .video-play-triangle { width: 0; height: 0; border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-inline-start: 18px solid var(--gold); margin-inline-start: 4px; }
+    .video-caption { border-top: 2px solid var(--gold); margin-top: 1rem; padding-top: 0.6rem; text-align: center; }
+    .video-caption span { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+    .process-steps { padding: 3rem 1.5rem; max-width: 1000px; margin: 0 auto; }
+    .process-steps .grid-auto { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); text-align: center; }
+    .process-steps .n { font-family: var(--font-display); font-size: 2.2rem; font-weight: 700; color: var(--gold); }
+    .process-steps .t { font-family: var(--font-body); font-weight: 700; color: var(--text); font-size: 1.05rem; margin: 0.4rem 0 0.3rem; }
+    .process-steps .d { color: var(--muted); font-size: 0.9rem; }
+
+    .pricing-section { padding: 3rem 1.5rem 5rem; max-width: 1100px; margin: 0 auto; }
+    .pricing-header { text-align: center; margin-bottom: 2.5rem; }
+    .pricing-header h2 { font-size: 2rem; color: var(--text); margin: 0 0 0.5rem; }
+    .pricing-header p { color: var(--muted); margin: 0; }
+    /* Grid auto-placement direction is unreliable under dir="rtl" across
+       browsers; force ltr on the track order and flip each card's own
+       content back to rtl so cheapest lands rightmost, deterministically. */
+    .pricing-grid { direction: ltr; }
+    .pricing-card {
+        direction: rtl;
+        background: var(--surface);
+        border: 1px solid rgba(33, 28, 20, 0.28);
+        border-radius: var(--radius-md);
+        padding: 2rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
     }
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        100% { transform: scale(1.1); }
+    .pricing-card .package-name { font-weight: 700; font-size: 1.2rem; color: var(--text); }
+    .pricing-card .package-price { display: flex; flex-direction: column; gap: 0.15rem; }
+    .pricing-card .package-price .amount { font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+    .pricing-card .package-price .sub { font-size: 0.9rem; color: var(--muted); font-family: var(--font-body); font-weight: normal; white-space: nowrap; }
+    .pricing-card .daily-limit-row {
+        color: var(--rust);
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 0.6rem 0;
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
     }
-    .hero h1 {
-        font-size: 3.5rem;
-        font-weight: 800;
-        margin-bottom: 1rem;
-        line-height: 1.2;
-    }
-    .hero h1 span {
-        background: linear-gradient(to right, var(--primary-light), var(--secondary));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    .hero p {
-        font-size: 1.25rem;
-        color: var(--text-muted);
-        max-width: 600px;
-        margin: 0 auto 2rem;
-    }
+    .pricing-card .btn { margin-top: auto; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="hero">
-    <h1>النشر الآلي <span>بالذكاء الاصطناعي</span> لموقعك</h1>
-    <p>اربط موقع الووردبريس الخاص بك بنظامنا، ودع الذكاء الاصطناعي يكتب وينشر الأخبار والمقالات الحصرية بشكل آلي تماماً وعلى مدار الساعة.</p>
-    <a href="{% url 'accounts:signup' %}" class="btn-primary" style="padding: 1rem 2.5rem; font-size: 1.2rem;">ابدأ تجربتك الآن</a>
+    <h1>يكتب باسمك، وينشر <span class="accent">بدون ما تلمس لوحة المفاتيح</span></h1>
+    <p>اربط موقع الووردبريس الخاص بك بفريقنا التحريري، وسنكتب وننشر أخبار السوق الحصرية بجدولة دقيقة على مدار الساعة.</p>
+    <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-lg">ابدأ تجربتك الآن</a>
+</div>
+
+<div class="byline-section">
+    <div class="byline-section-inner">
+        <h2 class="byline-section-title">آخر ما نُشر باسمك</h2>
+        <div class="byline-grid">
+            <div class="byline-card">
+                <div class="headline">افتتاح مصنع أسمنت جديد بالمنطقة الصناعية</div>
+                <div class="meta">بقلمك — نُشر قبل ٤ دقائق</div>
+            </div>
+            <div class="byline-card">
+                <div class="headline">أسعار الذهب اليوم في السوق المحلي</div>
+                <div class="meta">بقلمك — نُشر قبل ١٨ دقيقة</div>
+            </div>
+            <div class="byline-card">
+                <div class="headline">تحديث أسعار العملات العربية اليوم</div>
+                <div class="meta">بقلمك — نُشر قبل ٤٧ دقيقة</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="process-steps">
+    <div class="grid-auto">
+        <div>
+            <div class="n">١</div>
+            <div class="t">اختر تركيزك</div>
+            <div class="d">حدد الأقسام والمصادر التي يهمك تغطيتها.</div>
+        </div>
+        <div>
+            <div class="n">٢</div>
+            <div class="t">نكتب باسمك</div>
+            <div class="d">نصيغ المقال ونربطه ببيانك ككاتب.</div>
+        </div>
+        <div>
+            <div class="n">٣</div>
+            <div class="t">ننشر فوراً</div>
+            <div class="d">يظهر المقال على موقعك بلا أي خطوة إضافية منك.</div>
+        </div>
+    </div>
+</div>
+
+<div class="video-section">
+    <div class="video-eyebrow"><span>شوف الفكرة عملياً</span></div>
+    <div class="video-frame">
+        <video controls muted preload="none"></video>
+        <div class="video-play-overlay">
+            <div class="video-play-circle">
+                <div class="video-play-triangle"></div>
+            </div>
+        </div>
+    </div>
+    <div class="video-caption"><span>شاهد كيف يُنشر مقال باسمك خلال دقائق</span></div>
 </div>
 
 <div class="pricing-section" id="pricing">
     <div class="pricing-header">
         <h2>اختر الباقة المناسبة لموقعك</h2>
-        <p style="color:var(--text-muted);">باقات مرنة تناسب جميع أحجام المواقع الإخبارية</p>
+        <p>باقات مرنة تناسب جميع أحجام المواقع الإخبارية</p>
     </div>
-    
-    <div class="pricing-grid">
-        {% for pkg in packages %}
+
+    <div class="grid-auto pricing-grid">
+        {% for pkg in packages|dictsortreversed:"price" %}
             <div class="pricing-card">
-                <div class="package-name">{{ pkg.name }}</div>
+                <span class="package-name">{{ pkg.name }}</span>
                 <div class="package-price">
-                    ${{ pkg.price }} <span style="font-size:1.1rem; color:var(--text-muted); font-weight:normal;">/ أو {{ pkg.price_egp }} ج.م</span> <span>/شهرياً</span>
+                    <span class="amount">${{ pkg.price }}</span>
+                    <span class="sub">/ أو {{ pkg.price_egp }} ج.م / شهرياً</span>
                 </div>
-                <p style="color:var(--primary-light); font-weight:bold;">نشر حتى {{ pkg.daily_limit }} مقال يومياً</p>
-                <ul class="package-features">
+                <div class="daily-limit-row">نشر حتى {{ pkg.daily_limit }} مقال يومياً</div>
+                <ul class="feature-list">
                     {% for feature in pkg.features.splitlines %}
-                        {% if feature %}
-                            <li>{{ feature }}</li>
-                        {% endif %}
+                        {% if feature %}<li>{{ feature }}</li>{% endif %}
                     {% endfor %}
                 </ul>
                 {% if user.is_authenticated %}
-                    <a href="{% url 'payments:checkout' pkg.id %}" class="btn-primary btn-buy">اشترك الآن</a>
+                    <a href="{% url 'payments:checkout' pkg.id %}" class="btn btn-primary btn-block">اشترك الآن</a>
                 {% else %}
-                    <a href="{% url 'accounts:signup' %}" class="btn-primary btn-buy">سجل للاشتراك</a>
+                    <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-block">سجل للاشتراك</a>
                 {% endif %}
             </div>
         {% empty %}
-            <p class="text-center" style="grid-column: 1/-1;">جاري إعداد الباقات قريباً...</p>
+            <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">جاري إعداد الباقات قريباً...</p>
         {% endfor %}
     </div>
 </div>

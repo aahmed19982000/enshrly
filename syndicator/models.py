@@ -628,7 +628,12 @@ class WordPressScheduleSlot(models.Model):
 
 class WPConnectionToken(models.Model):
     token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="كود الربط (Token)")
-    client_name = models.CharField(max_length=255, verbose_name="اسم العميل / الموقع", help_text="لتمييز الكود ولمن يتبع")
+    customer = models.ForeignKey(
+        'accounts.CustomerProfile', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='connection_tokens', verbose_name="العميل المالك",
+        help_text="مصدر الملكية الفعلي للكود — لا تُستخدم client_name للتحقق من الملكية",
+    )
+    client_name = models.CharField(max_length=255, verbose_name="اسم العميل / الموقع", help_text="للعرض فقط (تسمية الكود)، وليس مصدر الملكية")
     package_daily_limit = models.PositiveIntegerField(default=3, verbose_name="الحد اليومي للباقة المشتراة")
     is_used = models.BooleanField(default=False, verbose_name="تم الاستخدام؟")
     wp_site = models.ForeignKey(WordPressSite, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="الموقع المرتبط", help_text="سيتم ملؤه تلقائياً بعد نجاح الربط")

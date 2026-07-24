@@ -1,38 +1,71 @@
 {% extends 'landing/base.html' %}
+
+{% block extra_css %}
+<style>
+    .pricing-header { text-align: center; margin-bottom: 2rem; }
+    .pricing-header h2 { font-size: 1.9rem; color: var(--text); margin: 0 0 0.5rem; }
+    .pricing-header p { color: var(--muted); margin: 0; }
+    .trial-banner { text-align: center; align-items: center; max-width: 600px; margin: 0 auto 2rem; }
+    .trial-banner .title { font-weight: 700; color: var(--text); }
+    .trial-banner .sub { color: var(--muted); font-size: 0.9rem; }
+    /* Grid auto-placement direction is unreliable under dir="rtl" across
+       browsers; force ltr on the track order and flip each card's own
+       content back to rtl so cheapest lands rightmost, deterministically. */
+    .pricing-grid { direction: ltr; }
+    .pricing-card {
+        direction: rtl;
+        background: var(--surface); border: 1px solid rgba(33, 28, 20, 0.28); border-radius: var(--radius-md);
+        padding: 2rem 1.75rem; display: flex; flex-direction: column; gap: 1.2rem;
+    }
+    .pricing-card .package-name { font-weight: 700; font-size: 1.2rem; color: var(--text); }
+    .pricing-card .package-price { display: flex; flex-direction: column; gap: 0.15rem; }
+    .pricing-card .package-price .amount { font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+    .pricing-card .package-price .sub { font-size: 0.9rem; color: var(--muted); font-family: var(--font-body); font-weight: normal; white-space: nowrap; }
+    .pricing-card .daily-limit-row {
+        color: var(--rust);
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 0.6rem 0;
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+    }
+    .pricing-card .btn { margin-top: auto; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="pricing-section" id="pricing" style="margin-top: 50px;">
+<div class="container" style="max-width: 1080px; padding: 3rem 1rem 5rem;">
     <div class="pricing-header">
         <h2>أهلاً بك {{ user.first_name }}! اختر الباقة المناسبة لموقعك</h2>
-        <p style="color:var(--text-muted);">باقات مرنة تناسب جميع أحجام المواقع الإخبارية</p>
+        <p>باقات مرنة تناسب جميع أحجام المواقع الإخبارية</p>
     </div>
-    
+
     {% if not has_used_trial %}
-    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 1.5rem; text-align: center; max-width: 600px; margin: 0 auto 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <h3 style="color: #10b981; margin: 0 0 0.5rem 0; font-size: 1.3rem;">🎁 فترة تجريبية مجانية متوفرة لك!</h3>
-        <p style="color: var(--text-color); font-size: 0.95rem; margin: 0 0 1.2rem 0;">جرب نظام النشر التلقائي مجاناً لمدة 7 أيام (بحد أقصى 3 مقالات يومياً) دون الحاجة لبطاقة ائتمان.</p>
-        <a href="{% url 'payments:free_trial' %}" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; padding: 0.8rem 2rem; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">ابدأ تجربتك المجانية الآن</a>
+    <div class="panel panel-accent trial-banner">
+        <span class="title">تجربة مجانية لمدة ٧ أيام</span>
+        <span class="sub">حتى ٣ مقالات يومياً — بدون بطاقة ائتمان</span>
+        <a href="{% url 'payments:free_trial' %}" class="btn btn-ghost">ابدأ تجربتك المجانية الآن</a>
     </div>
     {% endif %}
 
-    <div class="pricing-grid">
-        {% for pkg in packages %}
+    <div class="grid-auto pricing-grid">
+        {% for pkg in packages|dictsortreversed:"price" %}
             <div class="pricing-card">
-                <div class="package-name">{{ pkg.name }}</div>
+                <span class="package-name">{{ pkg.name }}</span>
                 <div class="package-price">
-                    ${{ pkg.price }} <span style="font-size:1.1rem; color:var(--text-muted); font-weight:normal;">/ أو {{ pkg.price_egp }} ج.م</span> <span>/شهرياً</span>
+                    <span class="amount">${{ pkg.price }}</span>
+                    <span class="sub">/ أو {{ pkg.price_egp }} ج.م / شهرياً</span>
                 </div>
-                <p style="color:var(--primary-light); font-weight:bold;">نشر حتى {{ pkg.daily_limit }} مقال يومياً</p>
-                <ul class="package-features">
+                <div class="daily-limit-row">نشر حتى {{ pkg.daily_limit }} مقال يومياً</div>
+                <ul class="feature-list">
                     {% for feature in pkg.features.splitlines %}
-                        {% if feature %}
-                            <li>{{ feature }}</li>
-                        {% endif %}
+                        {% if feature %}<li>{{ feature }}</li>{% endif %}
                     {% endfor %}
                 </ul>
-                <a href="{% url 'payments:checkout' pkg.id %}" class="btn-primary btn-buy">اشترك الآن</a>
+                <a href="{% url 'payments:checkout' pkg.id %}" class="btn btn-primary btn-block">اشترك الآن</a>
             </div>
         {% empty %}
-            <p class="text-center" style="grid-column: 1/-1;">لا توجد باقات متاحة حالياً.</p>
+            <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">لا توجد باقات متاحة حالياً.</p>
         {% endfor %}
     </div>
 </div>

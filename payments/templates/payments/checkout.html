@@ -1,106 +1,105 @@
 {% extends 'landing/base.html' %}
 {% block content %}
-<div class="container" style="max-width: 600px; padding: 4rem 1rem;">
-    <div class="pricing-card" style="text-align:right;">
-        <h2 style="margin-bottom: 2rem;">إتمام الدفع</h2>
-        
-        <div style="background:rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem; border: 1px solid rgba(255,255,255,0.1);">
-            <h3 style="margin-top:0;">باقة: {{ package.name }}</h3>
-            <p style="font-size: 1.5rem; color: var(--primary-light); font-weight: bold;">السعر: <span id="display-price">${{ package.price }}</span></p>
-            <p style="color:var(--text-muted);">نشر حتى {{ package.daily_limit }} مقال يومياً.</p>
+<div class="page-shell-body" style="max-width: 480px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">إتمام الدفع</h1>
+
+    <div class="panel panel-accent">
+        <span class="card-title">ملخص الباقة</span>
+        <div style="display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: var(--text);">{{ package.name }}</span>
+            <span style="font-family: var(--font-display); font-weight: 700; color: var(--gold);" id="display-price">${{ package.price }}</span>
+        </div>
+        <span style="color: var(--muted); font-size: 0.85rem;">نشر حتى {{ package.daily_limit }} مقال يومياً</span>
+    </div>
+
+    <form method="post" action="{% url 'payments:checkout' package.id %}" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        {% csrf_token %}
+
+        <div class="panel">
+            <span class="card-title">العملة</span>
+            <div style="display: flex; gap: 0.75rem;">
+                <label class="toggle-chip selected">
+                    <input type="radio" name="currency" value="USD" checked onchange="updatePrice({{ package.price }}, 'USD')">
+                    دولار (USD)
+                </label>
+                <label class="toggle-chip">
+                    <input type="radio" name="currency" value="EGP" onchange="updatePrice({{ package.price_egp }}, 'EGP')">
+                    جنيه مصري (EGP)
+                </label>
+            </div>
         </div>
 
-        <form method="post" action="{% url 'payments:checkout' package.id %}">
-            {% csrf_token %}
-            
-            <h4 style="margin-bottom: 1rem;">اختر عملة الحساب</h4>
-            <div style="display:flex; gap:1rem; margin-bottom: 2rem;">
-                <label style="background:rgba(255,255,255,0.05); padding:0.75rem 1.5rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer; flex: 1; text-align: center; display: flex; align-items: center; justify-content: center;">
-                    <input type="radio" name="currency" value="USD" checked onchange="updatePrice({{ package.price }}, 'USD')">
-                    <span style="margin-right: 10px; font-weight:bold;">دولار (USD)</span>
-                </label>
-                
-                <label style="background:rgba(255,255,255,0.05); padding:0.75rem 1.5rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer; flex: 1; text-align: center; display: flex; align-items: center; justify-content: center;">
-                    <input type="radio" name="currency" value="EGP" onchange="updatePrice({{ package.price_egp }}, 'EGP')">
-                    <span style="margin-right: 10px; font-weight:bold;">جنيه مصري (EGP)</span>
-                </label>
-            </div>
+        <div class="panel">
+            <span class="card-title">طريقة الدفع</span>
 
-            <h4 style="margin-bottom: 1rem;">اختر وسيلة الدفع</h4>
-            <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom: 2rem;">
-                <label id="paypal-opt" style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer;">
-                    <input type="radio" name="gateway" id="gw-paypal" value="paypal" required onclick="togglePhoneInput(false)">
-                    <span style="margin-right: 10px; font-weight:bold;">PayPal / بطاقة ائتمانية دولية</span>
-                </label>
-                
-                <label id="paymob-opt" style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer; display:none;">
-                    <input type="radio" name="gateway" id="gw-paymob" value="paymob" onclick="togglePhoneInput(false)">
-                    <span style="margin-right: 10px; font-weight:bold;">البطاقات البنكية المصرية (Visa / Mastercard / Meeza)</span>
-                </label>
-                
-                <label id="local-opt" style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.1); cursor:pointer; display:none;">
-                    <input type="radio" name="gateway" id="gw-local" value="local" onclick="togglePhoneInput(true)">
-                    <span style="margin-right: 10px; font-weight:bold;">محافظ محلية (Vodafone Cash / فوري)</span>
-                </label>
-            </div>
+            <label id="paypal-opt" class="select-row selected">
+                <input type="radio" name="gateway" id="gw-paypal" value="paypal" required onclick="togglePhoneInput(false)">
+                <span class="select-row-label">PayPal / بطاقة ائتمانية دولية</span>
+            </label>
 
-            <div id="phone-input-group" style="display:none; margin-bottom:2rem; background:rgba(255,255,255,0.02); padding:1.5rem; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
-                <label for="sender_phone" style="display:block; margin-bottom:0.5rem; font-weight:bold;">رقم المحفظة التي ستحول منها:</label>
-                <input type="text" name="sender_phone" id="sender_phone" placeholder="مثال: 01012345678" style="width:100%; padding:0.75rem; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.3); color:white; font-size:1.1rem; text-align:left; direction:ltr;">
-                <span style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:0.5rem;">يُساعدنا هذا في تأكيد عمليتك تلقائياً وبسرعة فور التحويل.</span>
-            </div>
+            <label id="paymob-opt" class="select-row" style="display: none;">
+                <input type="radio" name="gateway" id="gw-paymob" value="paymob" onclick="togglePhoneInput(false)">
+                <span class="select-row-label">البطاقات البنكية المصرية (Visa / Mastercard / Meeza)</span>
+            </label>
 
-            <button type="submit" class="btn-primary" style="width:100%; font-size:1.2rem; padding:1rem;">متابعة الدفع</button>
-        </form>
-    </div>
+            <label id="local-opt" class="select-row" style="display: none;">
+                <input type="radio" name="gateway" id="gw-local" value="local" onclick="togglePhoneInput(true)">
+                <span class="select-row-label">محافظ محلية (Vodafone Cash / فوري)</span>
+            </label>
+
+            <div id="phone-input-group" class="field" style="display: none;">
+                <label for="sender_phone">رقم المحفظة التي ستحول منها:</label>
+                <input type="text" name="sender_phone" id="sender_phone" placeholder="مثال: 01012345678" style="direction: ltr; text-align: left;">
+                <span class="help-text">يُساعدنا هذا في تأكيد عمليتك تلقائياً وبسرعة فور التحويل.</span>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg">متابعة الدفع</button>
+    </form>
 </div>
 
 <script>
 function updatePrice(amount, currency) {
     const display = document.getElementById('display-price');
-    
+
     const paypalOpt = document.getElementById('paypal-opt');
     const paymobOpt = document.getElementById('paymob-opt');
     const localOpt = document.getElementById('local-opt');
-    
+
     const gwPaypal = document.getElementById('gw-paypal');
     const gwPaymob = document.getElementById('gw-paymob');
     const gwLocal = document.getElementById('gw-local');
 
     if (currency === 'USD') {
         display.innerText = '$' + amount;
-        
-        // Show PayPal, Hide Egyptian Paymob/Local
+
         paypalOpt.style.display = 'block';
         paymobOpt.style.display = 'none';
         localOpt.style.display = 'none';
-        
-        // Reset selections
+
         gwPaypal.required = true;
         gwPaypal.checked = true;
         gwPaymob.required = false;
         gwPaymob.checked = false;
         gwLocal.required = false;
         gwLocal.checked = false;
-        
+
         togglePhoneInput(false);
     } else {
         display.innerText = amount + ' ج.م';
-        
-        // Hide PayPal, Show Egyptian Paymob/Local
+
         paypalOpt.style.display = 'none';
         paymobOpt.style.display = 'block';
         localOpt.style.display = 'block';
-        
-        // Reset selections
+
         gwPaypal.required = false;
         gwPaypal.checked = false;
-        
+
         gwPaymob.required = true;
-        gwPaymob.checked = true; // Default EGP to Paymob Cards
+        gwPaymob.checked = true;
         gwLocal.required = false;
         gwLocal.checked = false;
-        
+
         togglePhoneInput(false);
     }
 }
@@ -117,7 +116,6 @@ function togglePhoneInput(show) {
     }
 }
 
-// Initial update on page load (defaults to USD)
 document.addEventListener('DOMContentLoaded', function() {
     updatePrice({{ package.price }}, 'USD');
 });

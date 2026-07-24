@@ -1,8 +1,33 @@
 import requests
 from django.conf import settings
+from django.core.cache import cache
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def get_client_ip(request):
+    """Best-effort client IP, honoring a reverse proxy's X-Forwarded-For if present."""
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', 'unknown')
+
+
+def check_rate_limit(key, limit, window_seconds):
+    """
+    Fixed-window rate limiter backed by Django's cache (no extra dependency).
+    Returns True if `key` has already hit `limit` attempts within the current
+    window and this call should be blocked; otherwise counts this call and
+    returns False. Not perfectly atomic under heavy concurrency, which is fine
+    for abuse throttling — it doesn't need to be a hard security boundary.
+    """
+    cache_key = f'ratelimit:{key}'
+    count = cache.get(cache_key, 0)
+    if count >= limit:
+        return True
+    cache.set(cache_key, count + 1, timeout=window_seconds)
+    return False
 
 def send_whatsapp_otp(phone_number, otp_code):
     """

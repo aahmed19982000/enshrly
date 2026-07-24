@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Enshrly Connector
- * Description: Connects your WordPress site to the Enshrly system easily and manages settings.
- * Version: 1.1.0
- * Author: Enshrly
+ * Plugin Name: موصل صحفي هب
+ * Description: يربط موقع ووردبريس الخاص بك بنظام صحفي هب بسهولة ويدير إعداداته.
+ * Version: 1.2.0
+ * Author: صحفي هب
  */
 
 if (!defined('ABSPATH')) {
@@ -14,6 +14,49 @@ class Enshrly_Connector {
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
+        add_action('admin_head', array($this, 'menu_icon_styles'));
+        add_action('transition_post_status', array($this, 'on_post_published'), 10, 3);
+    }
+
+    /**
+     * Fires on every post status change on the site, regardless of who/what
+     * published it (a human editor in wp-admin, or Sahafi Hub's own REST API
+     * push in connect_to_enshrly()) - this is the single source of truth for
+     * "a news post just went live" that the Facebook auto-posting feature relies on.
+     */
+    public function on_post_published($new_status, $old_status, $post) {
+        if ($new_status !== 'publish' || $old_status === 'publish' || $post->post_type !== 'post') {
+            return;
+        }
+
+        $token = get_option('enshrly_token', '');
+        $server_url = get_option('enshrly_server_url', '');
+        if (empty($token) || empty($server_url)) {
+            return;
+        }
+
+        $thumb_id = get_post_thumbnail_id($post->ID);
+        $image_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '';
+
+        wp_remote_post(rtrim($server_url, '/') . '/api/wp-post-published/', array(
+            'timeout' => 15,
+            'blocking' => false,
+            'headers' => array('Content-Type' => 'application/json'),
+            'body' => wp_json_encode(array(
+                'token' => $token,
+                'site_url' => get_site_url(),
+                'post_id' => $post->ID,
+                'title' => $post->post_title,
+                'excerpt' => wp_strip_all_tags(get_the_excerpt($post)),
+                'link' => get_permalink($post->ID),
+                'image_url' => $image_url,
+                'categories' => wp_get_post_categories($post->ID, array('fields' => 'names')),
+            )),
+        ));
+    }
+
+    public function menu_icon_styles() {
+        echo '<style>#adminmenu #toplevel_page_enshrly-connector .wp-menu-image img { width: 20px !important; height: 20px !important; padding: 6px 0 0 !important; }</style>';
     }
 
     public function enqueue_scripts($hook) {
@@ -26,12 +69,12 @@ class Enshrly_Connector {
 
     public function add_admin_menu() {
         add_menu_page(
-            'Enshrly Integration',
-            'Enshrly',
+            'تكامل صحفي هب',
+            'صحفي هب',
             'manage_options',
             'enshrly-connector',
             array($this, 'settings_page'),
-            'dashicons-admin-network',
+            plugin_dir_url(__FILE__) . 'assets/icon.png',
             100
         );
     }
@@ -153,7 +196,10 @@ class Enshrly_Connector {
 
         ?>
         <div class="wrap" style="max-width: 900px; margin-bottom: 50px;">
-            <h1 style="margin-bottom: 20px;">ربط وإعدادات نظام Enshrly</h1>
+            <h1 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'assets/icon.png'); ?>" alt="صحفي هب" style="height: 36px; width: 36px;" />
+                ربط وإعدادات نظام صحفي هب
+            </h1>
             
             <?php if ($message): ?>
                 <div class="notice notice-success is-dismissible"><p><?php echo esc_html($message); ?></p></div>
@@ -176,7 +222,7 @@ class Enshrly_Connector {
                     <h2>1. بيانات الربط الأساسية</h2>
                     <table class="form-table">
                         <tr valign="top">
-                            <th scope="row"><label for="enshrly_server_url">رابط نظام Enshrly (Server URL)</label></th>
+                            <th scope="row"><label for="enshrly_server_url">رابط نظام صحفي هب (Server URL)</label></th>
                             <td>
                                 <input type="url" id="enshrly_server_url" name="enshrly_server_url" value="<?php echo esc_attr($saved_server_url); ?>" class="regular-text" required placeholder="https://your-enshrly-domain.com" />
                             </td>
@@ -482,7 +528,7 @@ class Enshrly_Connector {
         $user_id = get_current_user_id();
         $user = wp_get_current_user();
         
-        $app_password_name = 'Enshrly Integration ' . time();
+        $app_password_name = 'تكامل صحفي هب ' . time();
         $generated = WP_Application_Passwords::create_new_application_password($user_id, array('name' => $app_password_name));
         
         if (is_wp_error($generated)) {

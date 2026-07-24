@@ -288,7 +288,16 @@
                     <input type="checkbox" name="social_image_enabled" id="id_social_image_enabled" {% if form.social_image_enabled.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
                     <div class="flex-1">
                         <label for="id_social_image_enabled" class="block text-sm font-bold text-slate-200"><i class="fa-solid fa-image ml-1"></i>تفعيل توليد صور السوشال ميديا</label>
-                        <p class="text-xs text-slate-500">عند التفعيل، يُولَّد تلقائياً تصميم صورة (صورة الخبر + العنوان + لوجو الموقع وألوانه) عند نشر كل خبر جديد لهذا الموقع، مع إمكانية إعادة التوليد يدوياً لاحقاً من صفحة "المقالات المنشورة".</p>
+                        <p class="text-xs text-slate-500">عند التفعيل، يُولَّد تلقائياً تصميم صورة (صورة الخبر + العنوان + لوجو الموقع وألوانه) عند نشر كل خبر جديد لهذا الموقع (بما فيها الأخبار المنشورة يدوياً من ووردبريس)، مع إمكانية إعادة التوليد يدوياً لاحقاً من صفحة "المقالات المنشورة".</p>
+                    </div>
+                </div>
+
+                <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 space-y-2">
+                    <p class="text-[10px] text-amber-300"><i class="fa-solid fa-circle-info ml-1"></i>هذه خدمة إضافية مدفوعة بشكل منفصل عن باقة الموقع الأساسية. فعّل الخانة أعلاه فقط بعد الدفع، أو اضبط تاريخ نهاية تجربة مجانية أدناه ليتوقف التفعيل تلقائياً بعده.</p>
+                    <div class="space-y-1 max-w-xs">
+                        <label for="id_facebook_addon_trial_ends_at" class="block text-xs font-semibold text-slate-300">نهاية الفترة التجريبية المجانية (اختياري)</label>
+                        <input type="datetime-local" name="facebook_addon_trial_ends_at" id="id_facebook_addon_trial_ends_at" value="{{ form.facebook_addon_trial_ends_at.value|date:'Y-m-d\TH:i' }}" class="block w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-200 text-xs transition duration-150">
+                        <p class="text-[10px] text-slate-500">اتركه فارغاً لتفعيل دائم بعد الدفع.</p>
                     </div>
                 </div>
 

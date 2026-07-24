@@ -282,7 +282,7 @@ class WordPressSiteListView(StaffRequiredMixin, ListView):
         )
 
 
-WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'merge_group', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_logo', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token']
+WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'merge_group', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_logo', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token', 'facebook_addon_trial_ends_at']
 
 
 class WordPressSiteCreateView(StaffRequiredMixin, CreateView):
@@ -893,3 +893,45 @@ def wp_plugin_data_api_view(request):
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def wp_post_published_api_view(request):
+    """
+    Called by the WP plugin's transition_post_status hook on every post
+    published on a customer site - by a human editor in wp-admin, or by
+    Sahafi Hub's own REST push (push_article_to_wordpress). Drives the
+    Facebook auto-posting add-on, which is gated per-site and billed
+    separately from the core syndication service (WordPressSite.social_image_enabled
+    / facebook_addon_is_active - see models.py).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        data = json.loads(request.body)
+        token_str = data.get('token')
+        site_url = data.get('site_url', '')
+
+        token_obj = WPConnectionToken.objects.filter(token=token_str, is_used=True).select_related('wp_site').first()
+        if not token_obj or not token_obj.wp_site:
+            return JsonResponse({'status': 'error', 'message': 'Invalid token.'}, status=403)
+
+        wp_site = token_obj.wp_site
+        if wp_site.url.rstrip('/') != site_url.rstrip('/'):
+            return JsonResponse({'status': 'error', 'message': 'Site URL mismatch.'}, status=403)
+
+        if not wp_site.is_active or not wp_site.facebook_addon_is_active:
+            return JsonResponse({'status': 'ok', 'skipped': True})
+
+        try:
+            from .social_image_utils import generate_and_publish_social_share_from_wp_payload
+            generate_and_publish_social_share_from_wp_payload(wp_site, data)
+        except Exception as e:
+            # Best-effort add-on - must never surface as an error to WordPress.
+            logger.error(f"Error in Facebook social share pipeline for {wp_site.name}: {e}")
+
+        return JsonResponse({'status': 'ok'})
+    except Exception as e:
+        logger.error(f"WP Post Published API Error: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error.'}, status=500)

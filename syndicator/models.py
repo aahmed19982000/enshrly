@@ -503,6 +503,7 @@ class WordPressSite(models.Model):
     social_secondary_color = models.CharField(max_length=7, default='#0f172a', verbose_name="اللون الثانوي للتصميم", help_text="كود اللون السداسي عشري (Hex)، مثال: #0f172a")
     facebook_page_id = models.CharField(max_length=100, blank=True, default='', verbose_name="معرّف صفحة فيسبوك (Page ID)", help_text="اتركه فارغاً لتعطيل النشر التلقائي على فيسبوك مع إبقاء توليد الصورة فقط.")
     facebook_access_token = EncryptedCharField(max_length=1000, blank=True, null=True, verbose_name="توكن وصول صفحة فيسبوك (Page Access Token)", help_text="توكن وصول دائم (Long-Lived Page Access Token) يُنشأ يدوياً من أدوات مطوري فيسبوك لهذه الصفحة تحديداً.")
+    facebook_addon_trial_ends_at = models.DateTimeField(null=True, blank=True, verbose_name="نهاية الفترة التجريبية المجانية (خدمة فيسبوك)", help_text="خدمة النشر التلقائي على فيسبوك مدفوعة بشكل منفصل عن الاشتراك الأساسي. اترك هذا الحقل فارغاً لتفعيل دائم (بعد الدفع)، أو حدد تاريخاً لمنح تجربة مجانية تُعطَّل تلقائياً بعده حتى لو ظل مفتاح التفعيل أعلاه مفعّلاً.")
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -534,6 +535,19 @@ class WordPressSite(models.Model):
     @property
     def facebook_auto_publish_enabled(self):
         return bool(self.facebook_page_id and self.facebook_access_token)
+
+    @property
+    def facebook_addon_is_active(self):
+        """Gates the whole Facebook add-on (image generation + posting)
+        independently of social_image_enabled's on/off intent: a trial end
+        date in the past auto-revokes access even if staff forgot to flip
+        social_image_enabled back off."""
+        if not self.social_image_enabled:
+            return False
+        if self.facebook_addon_trial_ends_at:
+            from django.utils import timezone
+            return timezone.now() <= self.facebook_addon_trial_ends_at
+        return True
 
 
 class SocialSharePost(models.Model):

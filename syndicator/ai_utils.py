@@ -1955,15 +1955,10 @@ def push_article_to_wordpress(wp_site, article, extra_tag_names=None, focus_keyw
 
         logger.info(f"Successfully syndicated article to WordPress site {wp_site.name}, URL: {published_url}")
 
-        if wp_site.social_image_enabled:
-            try:
-                from .social_image_utils import generate_and_publish_social_share
-                generate_and_publish_social_share(article, wp_site)
-            except Exception as social_e:
-                # Social-card generation/Facebook publishing is a best-effort
-                # add-on - it must never affect the success of the actual
-                # WordPress publish above.
-                logger.error(f"Error generating social share image for {wp_site.name}: {social_e}")
+        # Facebook social-card generation/posting is handled entirely by the
+        # WordPress plugin's transition_post_status hook -> /api/wp-post-published/
+        # (see social_image_utils.py), which fires for this same publish PATCH
+        # above as well as for manually-authored posts. Not duplicated here.
 
         return published_url
     except Exception as e:

@@ -1,0 +1,21 @@
+{% extends 'landing/base.html' %}
+{% block title %}اختر صفحتك — Sahafi Hub{% endblock %}
+{% block content %}
+<div class="page-shell-body" style="max-width: 460px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">اختر صفحتك</h1>
+
+    <div class="panel panel-accent" style="gap: 1rem;">
+        <span style="color: var(--muted); font-size: 0.9rem;">
+            حسابك يدير أكثر من صفحة فيسبوك — اختر الصفحة التي تريد ربطها بموقع «{{ wp_site.name }}»:
+        </span>
+        <form method="post" action="{% url 'news_ai:facebook_connect_choose_page' token=token %}" style="display: flex; flex-direction: column; gap: 0.6rem;">
+            {% csrf_token %}
+            {% for page in pages %}
+                <button type="submit" name="page_id" value="{{ page.id }}" class="btn btn-secondary btn-block" style="text-align: right;">
+                    {{ page.name }}
+                </button>
+            {% endfor %}
+        </form>
+    </div>
+</div>
+{% endblock %}

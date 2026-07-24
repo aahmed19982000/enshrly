@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views as views_ai
 from . import saas_admin_views
+from . import views_facebook_connect
 
 app_name = 'news_ai'
 
@@ -57,4 +58,10 @@ urlpatterns = [
     
     # API endpoints for WP plugin
     path('api/wp-plugin-data/', views_ai.wp_plugin_data_api_view, name='wp_plugin_data_api'),
+    path('api/wp-post-published/', views_ai.wp_post_published_api_view, name='wp_post_published_api'),
+
+    # Facebook Page self-serve connect (OAuth)
+    path('facebook/connect/<str:token>/', views_facebook_connect.facebook_connect_start, name='facebook_connect_start'),
+    path('facebook/connect/callback/', views_facebook_connect.facebook_connect_callback, name='facebook_connect_callback'),
+    path('facebook/connect/<str:token>/choose-page/', views_facebook_connect.facebook_connect_choose_page, name='facebook_connect_choose_page'),
 ]

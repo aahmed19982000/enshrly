@@ -199,6 +199,16 @@ PAYMOB_HMAC_KEY = env('PAYMOB_HMAC_KEY', default='')
 PAYMOB_CARD_INTEGRATION_ID = env('PAYMOB_CARD_INTEGRATION_ID', default='5792603')
 PAYMOB_IFRAME_ID = env('PAYMOB_IFRAME_ID', default='1063704')  # معرف إطار الدفع الافتراضي، يمكن تعديله لاحقاً
 
+# الرابط الأساسي العلني للخادم — يُستخدم لبناء redirect_uri الخاص بربط فيسبوك
+# OAuth ولبناء روابط صور مشاركة السوشال ميديا المُرسَلة لـ Facebook Graph API.
+SITE_BASE_URL = env('SITE_BASE_URL', default='http://localhost:8000')
+
+# ربط صفحات فيسبوك الذاتي (OAuth) لخدمة النشر التلقائي على فيسبوك — يُسجَّل
+# التطبيق على developers.facebook.com، ويجب ضبط "Valid OAuth Redirect URI"
+# هناك على {SITE_BASE_URL}/facebook/connect/callback/
+FACEBOOK_APP_ID = env('FACEBOOK_APP_ID', default='')
+FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET', default='')
+
 
 
 

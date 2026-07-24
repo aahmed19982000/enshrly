@@ -1,0 +1,13 @@
+{% extends 'landing/base.html' %}
+{% block title %}تعذّر الربط — Sahafi Hub{% endblock %}
+{% block content %}
+<div class="page-shell-body" style="max-width: 460px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">تعذّر الربط</h1>
+
+    <div class="panel panel-accent text-center" style="align-items: center; gap: 0.75rem;">
+        <span style="color: var(--rust); font-weight: var(--weight-semibold); font-size: 1.05rem;">✗ حدث خطأ</span>
+        <span style="color: var(--muted); font-size: 0.9rem;">{{ message }}</span>
+        <span style="color: var(--muted); font-size: 0.8rem;">يرجى التواصل مع فريق Sahafi Hub للحصول على رابط جديد.</span>
+    </div>
+</div>
+{% endblock %}

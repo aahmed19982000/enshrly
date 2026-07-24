@@ -600,7 +600,7 @@ def get_paymob_payment_key(auth_token, amount_cents, order_id, integration_id, c
     url = "https://accept.paymob.com/api/acceptance/payment_keys"
     billing_data = {
         "apartment": "NA",
-        "email": customer_user.email or "customer@enshrly.com",
+        "email": customer_user.email or "customer@sahafihub.com",
         "floor": "NA",
         "first_name": customer_user.first_name or "Client",
         "street": "NA",
@@ -610,7 +610,7 @@ def get_paymob_payment_key(auth_token, amount_cents, order_id, integration_id, c
         "postal_code": "NA",
         "city": "Cairo",
         "country": "EG",
-        "last_name": customer_user.last_name or "Enshrly",
+        "last_name": customer_user.last_name or "Sahafi Hub",
         "state": "Cairo"
     }
     payload = {

@@ -19,8 +19,6 @@ class StaffRequiredMixin(UserPassesTestMixin):
     """
     Mixin that ensures the user is logged in and is a staff member.
     """
-    login_url = '/accounts/login/' # Or wherever the login path is configured
-    
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.is_staff
 

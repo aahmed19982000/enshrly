@@ -9,6 +9,10 @@
             <input type="text" name="otp_code" required maxlength="6" style="width: 200px; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--rule); background: var(--ink); color: var(--text); font-size: 1.5rem; text-align: center; letter-spacing: 5px; font-family: var(--font-mono);">
             <button type="submit" class="btn btn-primary btn-block">تأكيد الكود</button>
         </form>
+        <form method="post" action="{% url 'accounts:resend_otp' %}" style="margin-top: 1rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost">لم يصل شيء؟ إعادة إرسال الكود</button>
+        </form>
     </div>
 </div>
 {% endblock %}

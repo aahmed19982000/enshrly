@@ -171,8 +171,9 @@ CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_TASK_ALWAYS_EAGER = True
 
+LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/ai-dashboard/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGOUT_REDIRECT_URL = '/auth/login/'
 
 # إعدادات إرسال رسائل الواتساب عبر Infobip — القيم الحقيقية في .env (غير متتبَّع بـ git)
 INFOBIP_API_KEY = env('INFOBIP_API_KEY', default='')

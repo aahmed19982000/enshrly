@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}إنشرلي — نشر أخبار السوق باسمك{% endblock %}</title>
+    <title>{% block title %}Sahafi Hub — نشر أخبار السوق باسمك{% endblock %}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon-16.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'images/favicon-180.png' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,7 +17,9 @@
 <body>
 
 <nav class="site-nav">
-    <a href="{% url 'landing:home' %}" class="wordmark">إنشرلي</a>
+    <a href="{% url 'landing:home' %}" class="wordmark">
+        <img src="{% static 'images/logo.png' %}" alt="Sahafi Hub" style="height: 64px; width: auto; display: block;">
+    </a>
     <div class="site-nav-links">
         {% if user.is_authenticated %}
             <a href="{% url 'payments:packages' %}">الباقات</a>
@@ -47,7 +52,7 @@
     <div class="site-footer-inner">
         <div class="footer-columns">
             <div class="footer-col">
-                <span class="footer-wordmark">إنشرلي</span>
+                <img src="{% static 'images/logo.png' %}" alt="Sahafi Hub" class="footer-wordmark" style="height: 92px; width: auto; align-self: flex-start; display: block;">
                 <p class="footer-blurb">صحفي مقيم في موقعك، يكتب باسمك وينشر نيابة عنك</p>
             </div>
             <div class="footer-col">
@@ -64,7 +69,7 @@
             </div>
         </div>
         <div class="footer-bottom">
-            <span>© {% now "Y" %} إنشرلي — جميع الحقوق محفوظة</span>
+            <span>© {% now "Y" %} Sahafi Hub — جميع الحقوق محفوظة</span>
         </div>
     </div>
 </footer>

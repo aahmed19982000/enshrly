@@ -24,9 +24,29 @@ def signup_view(request):
             messages.error(request, "تم إرسال عدد كافٍ من رسائل التفعيل لهذا الرقم، حاول مرة أخرى لاحقاً.")
             return redirect('accounts:signup')
 
-        if User.objects.filter(username=whatsapp).exists():
-            messages.error(request, "رقم الواتساب مسجل مسبقاً.")
-            return redirect('accounts:signup')
+        user_qs = User.objects.filter(username=whatsapp)
+        if user_qs.exists():
+            user = user_qs.first()
+            profile = getattr(user, 'customer_profile', None)
+            if profile and profile.is_whatsapp_verified:
+                messages.error(request, "رقم الواتساب مسجل ومفعل مسبقاً، يرجى تسجيل الدخول.")
+                return redirect('accounts:signup')
+            else:
+                # User exists but not verified. Update info and resend OTP.
+                user.set_password(password)
+                user.first_name = name
+                user.save()
+                
+                if not profile:
+                    profile = CustomerProfile.objects.create(user=user, whatsapp_number=whatsapp)
+                
+                # Generate and send OTP
+                otp = WhatsAppOTP.objects.create(customer=profile)
+                send_whatsapp_otp(whatsapp, otp.otp_code)
+                
+                # Log the user in to continue to verification
+                login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                return redirect('accounts:verify_otp')
 
         user = User.objects.create_user(username=whatsapp, password=password, first_name=name)
         profile = CustomerProfile.objects.create(user=user, whatsapp_number=whatsapp)
@@ -76,6 +96,27 @@ def verify_otp_view(request):
             messages.error(request, "الكود غير صحيح أو منتهي الصلاحية.")
 
     return render(request, 'accounts/verify_otp.html')
+
+@login_required
+def resend_otp_view(request):
+    if request.method != 'POST' or not hasattr(request.user, 'customer_profile'):
+        return redirect('accounts:verify_otp')
+
+    profile = request.user.customer_profile
+    if profile.is_whatsapp_verified:
+        return redirect('accounts:dashboard')
+
+    # Cap resends per profile — otherwise this endpoint lets a logged-in user
+    # spam themselves (or, since usernames are phone numbers, anyone whose
+    # number they know) with free WhatsApp messages.
+    if check_rate_limit(f'otp_resend:{profile.id}', limit=3, window_seconds=600):
+        messages.error(request, "لقد تجاوزت عدد مرات إعادة الإرسال المسموحة، يرجى الانتظار قليلاً.")
+        return redirect('accounts:verify_otp')
+
+    otp = WhatsAppOTP.objects.create(customer=profile)
+    send_whatsapp_otp(profile.whatsapp_number, otp.otp_code)
+    messages.success(request, "تم إرسال كود جديد إلى رقم الواتساب الخاص بك.")
+    return redirect('accounts:verify_otp')
 
 def login_view(request):
     if request.method == 'POST':

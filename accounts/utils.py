@@ -42,7 +42,10 @@ def send_whatsapp_otp(phone_number, otp_code):
         # Return True for local development
         return True
 
-    url = f"{base_url}/whatsapp/1/message/text"
+    # OTP is a business-initiated, out-of-session message, so it must go through
+    # an approved WhatsApp "authentication" template rather than the free-text
+    # endpoint — free text only delivers inside an open customer-service window.
+    url = f"{base_url}/whatsapp/1/message/template"
 
     headers = {
         "Authorization": f"App {api_key}",
@@ -56,19 +59,33 @@ def send_whatsapp_otp(phone_number, otp_code):
         formatted_number = '2' + formatted_number
 
     payload = {
-        "from": sender_number,
-        "to": formatted_number,
-        "content": {
-            "text": f"مرحباً بك في خدمة النشر الآلي! كود التفعيل الخاص بك هو: {otp_code}"
-        }
+        "messages": [
+            {
+                "from": sender_number,
+                "to": formatted_number,
+                "content": {
+                    "templateName": "authentication",
+                    "templateData": {
+                        "body": {"placeholders": [otp_code]},
+                        "buttons": [
+                            {"type": "URL", "parameter": otp_code},
+                            {"type": "QUICK_REPLY", "parameter": otp_code}
+                        ]
+                    },
+                    "language": "ar"
+                }
+            }
+        ]
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
+        logger.warning(f"Infobip OTP template accepted for {formatted_number}: {response.text}")
         return True
     except requests.exceptions.RequestException as e:
-        logger.error(f"Infobip Error: {str(e)} - {response.text if hasattr(response, 'text') else ''}")
+        resp_text = response.text if 'response' in locals() and hasattr(response, 'text') else ''
+        logger.error(f"Infobip Error: {str(e)} - {resp_text}")
         return False
 
 def send_whatsapp_payment_success(phone_number, client_name, package_name, token_code, days=30):
@@ -100,7 +117,7 @@ def send_whatsapp_payment_success(phone_number, client_name, package_name, token
         f"📦 الباقة: {package_name}\n"
         f"🔑 كود الربط الخاص بك (Token):\n`{token_code}`\n\n"
         f"📅 صلاحية الكود: {days} يوماً من تاريخ اليوم.\n\n"
-        f"يرجى نسخ هذا الكود ووضعه في لوحة تحكم موقعك الووردبريس (إضافة Enshrly Connector) لبدء النشر التلقائي فوراً."
+        f"يرجى نسخ هذا الكود ووضعه في لوحة تحكم موقعك الووردبريس (إضافة Sahafi Hub Connector) لبدء النشر التلقائي فوراً."
     )
 
     payload = {
@@ -116,7 +133,8 @@ def send_whatsapp_payment_success(phone_number, client_name, package_name, token
         response.raise_for_status()
         return True
     except requests.exceptions.RequestException as e:
-        logger.error(f"Infobip Payment Success WhatsApp Error: {str(e)} - {response.text if hasattr(response, 'text') else ''}")
+        resp_text = response.text if 'response' in locals() and hasattr(response, 'text') else ''
+        logger.error(f"Infobip Payment Success WhatsApp Error: {str(e)} - {resp_text}")
         return False
 
 def send_whatsapp_renewal_reminder(phone_number, client_name, site_name, days_left, is_trial=False):
@@ -148,26 +166,26 @@ def send_whatsapp_renewal_reminder(phone_number, client_name, site_name, days_le
             message_text = (
                 f"عزيزي {client_name}، نود تذكيرك بأن الفترة التجريبية المجانية لموقعك ({site_name}) تنتهي بعد {days_left} أيام. ⚠️\n\n"
                 f"لضمان استمرار النشر التلقائي دون توقف، يرجى الترقية والاشتراك في إحدى الباقات المدفوعة عبر لوحة التحكم الخاصة بك.\n\n"
-                f"رابط لوحة التحكم للترقية:\nhttps://enshrly.com/accounts/dashboard/"
+                f"رابط لوحة التحكم للترقية:\nhttps://sahafihub.com/auth/dashboard/"
             )
         else:
             message_text = (
                 f"عزيزي {client_name}، لقد انتهت الفترة التجريبية المجانية لموقعك ({site_name}) اليوم! ❌\n\n"
                 f"تم إيقاف النشر التلقائي مؤقتاً. يرجى الاشتراك في إحدى باقاتنا للاستمرار في النشر.\n\n"
-                f"اشترك الآن بخطوة واحدة من هنا:\nhttps://enshrly.com/accounts/dashboard/"
+                f"اشترك الآن بخطوة واحدة من هنا:\nhttps://sahafihub.com/auth/dashboard/"
             )
     else:
         if days_left > 0:
             message_text = (
                 f"عزيزي {client_name}، نود تذكيرك بأن اشتراك موقعك ({site_name}) ينتهي بعد {days_left} أيام. ⚠️\n\n"
                 f"لتجنب توقف النشر التلقائي للخبر والمقالات، يرجى تجديد اشتراكك في أقرب وقت عبر لوحة التحكم الخاصة بك.\n\n"
-                f"رابط لوحة التحكم للتجديد:\nhttps://enshrly.com/accounts/dashboard/"
+                f"رابط لوحة التحكم للتجديد:\nhttps://sahafihub.com/auth/dashboard/"
             )
         else:
             message_text = (
                 f"عزيزي {client_name}، نود إعلامك بأن اشتراك موقعك ({site_name}) قد انتهى اليوم! ❌\n\n"
                 f"لقد تم إيقاف عمليات النشر التلقائي مؤقتاً لحين تجديد الاشتراك.\n\n"
-                f"يمكنك التجديد الآن بخطوة واحدة عبر لوحة التحكم الخاصة بك:\nhttps://enshrly.com/accounts/dashboard/"
+                f"يمكنك التجديد الآن بخطوة واحدة عبر لوحة التحكم الخاصة بك:\nhttps://sahafihub.com/auth/dashboard/"
             )
 
     payload = {
@@ -183,7 +201,8 @@ def send_whatsapp_renewal_reminder(phone_number, client_name, site_name, days_le
         response.raise_for_status()
         return True
     except requests.exceptions.RequestException as e:
-        logger.error(f"Infobip Renewal WhatsApp Error: {str(e)} - {response.text if hasattr(response, 'text') else ''}")
+        resp_text = response.text if 'response' in locals() and hasattr(response, 'text') else ''
+        logger.error(f"Infobip Renewal WhatsApp Error: {str(e)} - {resp_text}")
         return False
 
 

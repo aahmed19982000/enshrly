@@ -93,11 +93,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'enshrly.wsgi.application'
 
+# Defaults to local SQLite for zero-config local dev; set DATABASE_URL in
+# `.env` (e.g. postgres://user:pass@localhost:5432/dbname) for any real deployment.
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -167,9 +166,12 @@ CKEDITOR_5_CONFIGS = {
 }
 CKEDITOR_5_FILE_UPLOAD_PERMISSION = "staff"
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_TASK_ALWAYS_EAGER = True
+# ALWAYS_EAGER defaults to True so local dev runs tasks inline without needing
+# Redis/a worker; set CELERY_TASK_ALWAYS_EAGER=False in `.env` once a real
+# Celery worker + beat are running (see systemd services in production).
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=True)
 
 LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/ai-dashboard/'

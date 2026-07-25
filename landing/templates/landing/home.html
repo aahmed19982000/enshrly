@@ -1,4 +1,5 @@
 {% extends 'landing/base.html' %}
+{% load static %}
 
 {% block extra_css %}
 <style>
@@ -28,7 +29,8 @@
     .video-eyebrow span { font-weight: 700; color: var(--gold); font-size: 0.9rem; }
     .video-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; }
     .video-frame video { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface); }
-    .video-play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .video-play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; transition: opacity 0.2s; }
+    .video-frame.is-playing .video-play-overlay { opacity: 0; }
     .video-play-circle { width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--rule-strong); display: flex; align-items: center; justify-content: center; }
     .video-play-triangle { width: 0; height: 0; border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-inline-start: 18px solid var(--gold); margin-inline-start: 4px; }
     .video-caption { border-top: 2px solid var(--gold); margin-top: 1rem; padding-top: 0.6rem; text-align: center; }
@@ -124,7 +126,7 @@
 <div class="video-section">
     <div class="video-eyebrow"><span>شوف الفكرة عملياً</span></div>
     <div class="video-frame">
-        <video controls muted preload="none"></video>
+        <video controls autoplay muted loop playsinline preload="auto" src="{% static 'videos/promo.mp4' %}" onplay="this.closest('.video-frame').classList.add('is-playing')" onpause="this.closest('.video-frame').classList.remove('is-playing')"></video>
         <div class="video-play-overlay">
             <div class="video-play-circle">
                 <div class="video-play-triangle"></div>

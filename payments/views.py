@@ -445,19 +445,8 @@ def pair_qr_view(request):
     import io
     import json
     import qrcode
-    import socket
-    
-    # Get local IP dynamically
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(('8.8.8.8', 80))
-        local_ip = s.getsockname()[0]
-    except Exception:
-        local_ip = '127.0.0.1'
-    finally:
-        s.close()
-        
-    server_url = f"http://{local_ip}:8000/payments/api/v1/payments"
+
+    server_url = f"{settings.SITE_BASE_URL}/payments/api/v1/payments"
     payload = {
         "pair_token": getattr(settings, 'PAIRING_TOKEN', ''),
         "server_url": server_url

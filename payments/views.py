@@ -5,7 +5,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import models
-from .models import SubscriptionPackage, Transaction
+from .models import SubscriptionPackage, Transaction, DevicePairing
 from syndicator.models import WPConnectionToken
 import uuid
 import json
@@ -432,6 +432,10 @@ def confirm_pairing(request):
     if not expected_token or not pair_token or not hmac.compare_digest(pair_token, expected_token):
         return JsonResponse({"success": False, "message": "Invalid or missing pairing token"}, status=401)
 
+    pairing = DevicePairing.get_singleton()
+    pairing.paired = True
+    pairing.save(update_fields=['paired', 'updated_at'])
+
     return JsonResponse({
         "success": True,
         "data": {
@@ -452,7 +456,7 @@ def pair_qr_view(request):
         "server_url": server_url
     }
     payload_str = json.dumps(payload)
-    
+
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
     qr.add_data(payload_str)
     qr.make(fit=True)
@@ -460,12 +464,22 @@ def pair_qr_view(request):
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     qr_base64 = base64.b64encode(buffer.getvalue()).decode("ascii")
-    
+
+    # Reset pairing state each time the QR is (re)displayed so an old
+    # confirmation from a previous scan doesn't show as already-paired.
+    pairing = DevicePairing.get_singleton()
+    pairing.paired = False
+    pairing.save(update_fields=['paired', 'updated_at'])
+
     return render(request, 'payments/pair.html', {
         'qr_base64': qr_base64,
         'server_url': server_url,
         'payload': payload_str
     })
+
+
+def pairing_status(request):
+    return JsonResponse({'paired': DevicePairing.get_singleton().paired})
 
 @csrf_exempt
 def confirm_payment_api(request):

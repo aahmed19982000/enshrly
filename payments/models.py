@@ -25,6 +25,21 @@ class SubscriptionPackage(models.Model):
             rate = 50.0
         return (self.price * Decimal(str(rate))).quantize(Decimal('1.00'))
 
+class DevicePairing(models.Model):
+    """
+    Singleton tracking whether the currently displayed pairing QR (see
+    pair_qr_view) has been claimed by confirm_pairing yet, so the QR page
+    can poll and switch to a "paired" state without a manual refresh.
+    """
+    paired = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_singleton(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Transaction(models.Model):
     STATUS_CHOICES = [
         ('pending', 'قيد الانتظار'),

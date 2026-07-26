@@ -3,11 +3,15 @@
 <div class="page-shell-body" style="max-width: 420px; margin: 0 auto; padding: 3rem 1rem;">
     <h1 class="page-shell-title">اربط تطبيق الجوال</h1>
 
-    <div class="panel panel-accent text-center" style="align-items: center;">
+    <div id="pair-waiting-panel" class="panel panel-accent text-center" style="align-items: center;">
         <span style="color: var(--muted); font-size: 0.9rem;">افتح تطبيق Sahafi Hub على جوالك وامسح الكود التالي</span>
         <div style="background: #fff; padding: 1rem; border-radius: var(--radius-sm); display: inline-block;">
             <img src="data:image/png;base64,{{ qr_base64 }}" alt="Pairing QR Code" style="display: block; max-width: 100%; height: auto;">
         </div>
+    </div>
+
+    <div id="pair-success-panel" class="panel panel-accent text-center" style="align-items: center; display: none;">
+        <span style="color: var(--text); font-size: 1.1rem; font-weight: 600;">✅ تم إقران الجهاز بنجاح</span>
     </div>
 
     <div class="panel">
@@ -15,4 +19,22 @@
         <div class="mono-block">{{ server_url }}</div>
     </div>
 </div>
+
+<script>
+(function () {
+    var statusUrl = '{% url "payments:pairing_status" %}';
+    var pollTimer = setInterval(function () {
+        fetch(statusUrl)
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.paired) {
+                    clearInterval(pollTimer);
+                    document.getElementById('pair-waiting-panel').style.display = 'none';
+                    document.getElementById('pair-success-panel').style.display = 'flex';
+                }
+            })
+            .catch(function () { /* transient network hiccup, keep polling */ });
+    }, 3000);
+})();
+</script>
 {% endblock %}

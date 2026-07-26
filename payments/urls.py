@@ -15,6 +15,7 @@ urlpatterns = [
     path('checkout/pending/<uuid:transaction_id>/', views.checkout_pending_view, name='checkout_pending'),
     path('checkout/status/<uuid:transaction_id>/', views.check_payment_status_api, name='check_payment_status'),
     path('pair/', views.pair_qr_view, name='pair_qr'),
+    path('pair/status/', views.pairing_status, name='pairing_status'),
     path('api/v1/payments/transactions/', views.mobile_post_transaction, name='mobile_post_transaction'),
     path('api/v1/payments/api/confirm-payment/', views.confirm_payment_api, name='confirm_payment_api'),
     path('api/v1/payments/api/v1/pair/confirm/', views.confirm_pairing, name='confirm_pairing'),

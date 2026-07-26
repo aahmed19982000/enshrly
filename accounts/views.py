@@ -3,19 +3,20 @@ from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
 from django.contrib import messages
 from .models import CustomerProfile, WhatsAppOTP
-from .utils import send_whatsapp_otp, get_client_ip, check_rate_limit
+from .utils import send_otp_email, get_client_ip, check_rate_limit
 from django.contrib.auth.decorators import login_required
 
 def signup_view(request):
     if request.method == 'POST':
         name = request.POST.get('name')
         whatsapp = request.POST.get('whatsapp')
+        email = request.POST.get('email')
         password = request.POST.get('password')
 
-        # Throttle signups: caps how many WhatsApp OTP messages one visitor can
-        # trigger (per IP) and how many times one phone number can be targeted
-        # (per number) — signup is unauthenticated and otherwise lets anyone
-        # send unsolicited "OTP" WhatsApp messages to any number for free.
+        # Throttle signups: caps how many OTP emails one visitor can trigger
+        # (per IP) and how many times one phone number can be targeted (per
+        # number) — signup is unauthenticated and otherwise lets anyone
+        # send unsolicited "OTP" emails to any address for free.
         client_ip = get_client_ip(request)
         if check_rate_limit(f'signup:ip:{client_ip}', limit=5, window_seconds=3600):
             messages.error(request, "عدد محاولات كبير جداً من جهازك، حاول مرة أخرى بعد قليل.")
@@ -35,25 +36,26 @@ def signup_view(request):
                 # User exists but not verified. Update info and resend OTP.
                 user.set_password(password)
                 user.first_name = name
+                user.email = email
                 user.save()
-                
+
                 if not profile:
                     profile = CustomerProfile.objects.create(user=user, whatsapp_number=whatsapp)
-                
+
                 # Generate and send OTP
                 otp = WhatsAppOTP.objects.create(customer=profile)
-                send_whatsapp_otp(whatsapp, otp.otp_code)
+                send_otp_email(email, otp.otp_code)
                 
                 # Log the user in to continue to verification
                 login(request, user, backend='django.contrib.auth.backends.ModelBackend')
                 return redirect('accounts:verify_otp')
 
-        user = User.objects.create_user(username=whatsapp, password=password, first_name=name)
+        user = User.objects.create_user(username=whatsapp, password=password, first_name=name, email=email)
         profile = CustomerProfile.objects.create(user=user, whatsapp_number=whatsapp)
 
         # Generate and send OTP
         otp = WhatsAppOTP.objects.create(customer=profile)
-        send_whatsapp_otp(whatsapp, otp.otp_code)
+        send_otp_email(email, otp.otp_code)
 
         # Log the user in to continue to verification
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
@@ -68,7 +70,7 @@ def verify_otp_view(request):
             return redirect('payments:packages')
         profile = CustomerProfile.objects.create(user=request.user, whatsapp_number=request.user.username)
         otp = WhatsAppOTP.objects.create(customer=profile)
-        send_whatsapp_otp(profile.whatsapp_number, otp.otp_code)
+        send_otp_email(request.user.email, otp.otp_code)
     else:
         profile = request.user.customer_profile
 
@@ -107,15 +109,14 @@ def resend_otp_view(request):
         return redirect('accounts:dashboard')
 
     # Cap resends per profile — otherwise this endpoint lets a logged-in user
-    # spam themselves (or, since usernames are phone numbers, anyone whose
-    # number they know) with free WhatsApp messages.
+    # spam themselves (or anyone whose email they know) with free emails.
     if check_rate_limit(f'otp_resend:{profile.id}', limit=3, window_seconds=600):
         messages.error(request, "لقد تجاوزت عدد مرات إعادة الإرسال المسموحة، يرجى الانتظار قليلاً.")
         return redirect('accounts:verify_otp')
 
     otp = WhatsAppOTP.objects.create(customer=profile)
-    send_whatsapp_otp(profile.whatsapp_number, otp.otp_code)
-    messages.success(request, "تم إرسال كود جديد إلى رقم موبايلك عبر رسالة SMS.")
+    send_otp_email(profile.user.email, otp.otp_code)
+    messages.success(request, "تم إرسال كود جديد إلى بريدك الإلكتروني.")
     return redirect('accounts:verify_otp')
 
 def login_view(request):

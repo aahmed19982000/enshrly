@@ -3,7 +3,7 @@
 <div class="container" style="max-width: 460px; padding: 4rem 1rem;">
     <div class="panel panel-accent text-center">
         <h2 style="margin-bottom: 0.5rem;">تفعيل الحساب</h2>
-        <p style="color: var(--muted); margin-bottom: 0.5rem;">لقد أرسلنا كوداً مكوناً من 4 أرقام برسالة SMS إلى رقم موبايلك. يرجى إدخاله هنا لتفعيل حسابك.</p>
+        <p style="color: var(--muted); margin-bottom: 0.5rem;">لقد أرسلنا كوداً مكوناً من 4 أرقام إلى بريدك الإلكتروني. يرجى إدخاله هنا لتفعيل حسابك.</p>
         <form method="post" action="{% url 'accounts:verify_otp' %}" style="display: flex; flex-direction: column; gap: 1.25rem; align-items: center;">
             {% csrf_token %}
             <input type="text" name="otp_code" required maxlength="6" style="width: 200px; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--rule); background: var(--ink); color: var(--text); font-size: 1.5rem; text-align: center; letter-spacing: 5px; font-family: var(--font-mono);">

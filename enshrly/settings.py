@@ -182,11 +182,21 @@ LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/ai-dashboard/'
 LOGOUT_REDIRECT_URL = '/auth/login/'
 
-# إعدادات إرسال رسائل الواتساب عبر Infobip — القيم الحقيقية في .env (غير متتبَّع بـ git)
-INFOBIP_API_KEY = env('INFOBIP_API_KEY', default='')
-INFOBIP_BASE_URL = env('INFOBIP_BASE_URL', default='')
-INFOBIP_SENDER = env('INFOBIP_SENDER', default='')  # رقم الواتساب المعتمد المرسل لديهم
-INFOBIP_SMS_SENDER = env('INFOBIP_SMS_SENDER', default='')  # اختياري — Sender ID لرسائل الـ SMS (OTP)، فاضي = تلقائي من Infobip
+# رابط بوت واتساب المحلي (Baileys) لإشعارات الدفع/التجديد — فاضي = محاكاة فقط (يطبع في اللوج)
+WHATSAPP_BOT_URL = env('WHATSAPP_BOT_URL', default='')
+
+# إرسال كود التحقق (OTP) بالإيميل. بدون EMAIL_HOST يطبع الكود في الـ console فقط (تطوير محلي).
+EMAIL_HOST = env('EMAIL_HOST', default='')
+if EMAIL_HOST:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+    EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+    EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+    EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+    DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = 'no-reply@sahafihub.com'
 
 # إعدادات استقبال وتأكيد مدفوعات المحافظ الإلكترونية
 WALLET_API_KEY = env('WALLET_API_KEY', default='')

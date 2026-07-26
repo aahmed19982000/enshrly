@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
 from django.contrib import messages
 from .models import CustomerProfile, WhatsAppOTP, PasswordResetOTP
-from .utils import send_otp_email, get_client_ip, check_rate_limit
+from .utils import send_otp_email, send_whatsapp_welcome, get_client_ip, check_rate_limit
 from django.contrib.auth.decorators import login_required
 
 def signup_view(request):
@@ -52,6 +52,7 @@ def signup_view(request):
 
         user = User.objects.create_user(username=whatsapp, password=password, first_name=name, email=email)
         profile = CustomerProfile.objects.create(user=user, whatsapp_number=whatsapp)
+        send_whatsapp_welcome(whatsapp, name)
 
         # Generate and send OTP
         otp = WhatsAppOTP.objects.create(customer=profile)

@@ -12,7 +12,7 @@ import json
 from decimal import Decimal
 from django.utils import timezone
 from datetime import timedelta
-from accounts.utils import send_whatsapp_payment_success
+from accounts.utils import send_whatsapp_payment_success, send_whatsapp_payment_failed
 
 def packages_view(request):
     packages = SubscriptionPackage.objects.filter(is_active=True).order_by('price')
@@ -238,6 +238,11 @@ def confirm_paypal_payment(request):
             success_url = reverse('payments:payment_success', kwargs={'transaction_id': transaction.transaction_id})
             return JsonResponse({"success": True, "redirect_url": success_url})
         else:
+            send_whatsapp_payment_failed(
+                phone_number=transaction.customer.whatsapp_number,
+                client_name=request.user.first_name or request.user.username,
+                package_name=transaction.package.name
+            )
             return JsonResponse({"success": False, "message": f"حالة الطلب غير مكتملة في باي بال: {order_details.get('status')}"}, status=400)
             
     except Exception as e:
@@ -776,6 +781,20 @@ def paymob_webhook_view(request):
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                 package_name=transaction.package.name,
                 token_code=token_str
+            )
+        except Transaction.DoesNotExist:
+            pass
+    elif success is False and merchant_order_id:
+        try:
+            transaction = Transaction.objects.get(transaction_id=merchant_order_id, status='pending')
+            transaction.status = 'failed'
+            transaction.gateway_transaction_id = paymob_tx_id
+            transaction.save()
+
+            send_whatsapp_payment_failed(
+                phone_number=transaction.customer.whatsapp_number,
+                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
+                package_name=transaction.package.name
             )
         except Transaction.DoesNotExist:
             pass

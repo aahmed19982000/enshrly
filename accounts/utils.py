@@ -80,6 +80,29 @@ def _send_via_whatsapp_bot(phone_number, text):
         logger.error(f"WhatsApp bot error for {formatted_number}: {str(e)} - {resp_text}")
         return False
 
+def send_whatsapp_welcome(phone_number, client_name):
+    """
+    Sent right after a new account is created, before WhatsApp/OTP verification even completes.
+    """
+    message_text = (
+        f"أهلاً بيك يا {client_name} في Sahafi Hub! 🎉\n\n"
+        f"دلوقتي تقدر تستعرض باقاتنا وتبدأ النشر التلقائي لموقعك على الووردبريس في دقايق.\n\n"
+        f"لوحة التحكم: https://sahafihub.com/auth/dashboard/"
+    )
+    return _send_via_whatsapp_bot(phone_number, message_text)
+
+def send_whatsapp_payment_failed(phone_number, client_name, package_name):
+    """
+    Sent when a payment attempt is declined/fails at the gateway (Paymob decline,
+    PayPal non-COMPLETED status) — previously these failures were silent to the customer.
+    """
+    message_text = (
+        f"عزيزي {client_name}، للأسف لم تكتمل عملية الدفع الخاصة بباقة \"{package_name}\". ❌\n\n"
+        f"يرجى المحاولة مرة أخرى أو استخدام وسيلة دفع مختلفة من لوحة التحكم.\n\n"
+        f"لوحة التحكم: https://sahafihub.com/auth/dashboard/"
+    )
+    return _send_via_whatsapp_bot(phone_number, message_text)
+
 def send_whatsapp_payment_success(phone_number, client_name, package_name, token_code, days=30):
     """
     Sends a payment confirmation WhatsApp message containing the new connection token.

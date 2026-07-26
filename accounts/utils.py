@@ -31,21 +31,25 @@ def check_rate_limit(key, limit, window_seconds):
 
 def send_whatsapp_otp(phone_number, otp_code):
     """
-    Sends an OTP code via WhatsApp using Infobip API.
+    Sends an OTP code via SMS using Infobip API.
+
+    Not actually WhatsApp — WhatsApp "authentication" template messages hit
+    per-country regulatory blocks (Egypt included) and trial-account
+    destination restrictions that made delivery unreliable. SMS has none of
+    that: no template approval, no sender registration. Function name kept
+    to avoid touching every call site; a rename is a bigger diff than this
+    fix warrants.
     """
     api_key = getattr(settings, 'INFOBIP_API_KEY', '')
     base_url = getattr(settings, 'INFOBIP_BASE_URL', '')
-    sender_number = getattr(settings, 'INFOBIP_SENDER', '')
+    sms_sender = getattr(settings, 'INFOBIP_SMS_SENDER', '')
 
     if not api_key or not base_url:
         logger.warning(f"Infobip credentials missing. Simulated OTP {otp_code} for {phone_number}")
         # Return True for local development
         return True
 
-    # OTP is a business-initiated, out-of-session message, so it must go through
-    # an approved WhatsApp "authentication" template rather than the free-text
-    # endpoint — free text only delivers inside an open customer-service window.
-    url = f"{base_url}/whatsapp/1/message/template"
+    url = f"{base_url}/sms/2/text/advanced"
 
     headers = {
         "Authorization": f"App {api_key}",
@@ -58,34 +62,23 @@ def send_whatsapp_otp(phone_number, otp_code):
     if formatted_number.startswith('01') and len(formatted_number) == 11:
         formatted_number = '2' + formatted_number
 
-    payload = {
-        "messages": [
-            {
-                "from": sender_number,
-                "to": formatted_number,
-                "content": {
-                    "templateName": "authentication",
-                    "templateData": {
-                        "body": {"placeholders": [otp_code]},
-                        "buttons": [
-                            {"type": "URL", "parameter": otp_code},
-                            {"type": "QUICK_REPLY", "parameter": otp_code}
-                        ]
-                    },
-                    "language": "ar"
-                }
-            }
-        ]
+    message = {
+        "destinations": [{"to": formatted_number}],
+        "text": f"كود التحقق الخاص بك في Sahafi Hub: {otp_code}",
     }
+    if sms_sender:
+        message["from"] = sms_sender
+
+    payload = {"messages": [message]}
 
     try:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
-        logger.warning(f"Infobip OTP template accepted for {formatted_number}: {response.text}")
+        logger.warning(f"Infobip SMS OTP accepted for {formatted_number}: {response.text}")
         return True
     except requests.exceptions.RequestException as e:
         resp_text = response.text if 'response' in locals() and hasattr(response, 'text') else ''
-        logger.error(f"Infobip Error: {str(e)} - {resp_text}")
+        logger.error(f"Infobip SMS Error: {str(e)} - {resp_text}")
         return False
 
 def send_whatsapp_payment_success(phone_number, client_name, package_name, token_code, days=30):

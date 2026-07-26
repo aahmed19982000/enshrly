@@ -115,7 +115,7 @@ def resend_otp_view(request):
 
     otp = WhatsAppOTP.objects.create(customer=profile)
     send_whatsapp_otp(profile.whatsapp_number, otp.otp_code)
-    messages.success(request, "تم إرسال كود جديد إلى رقم الواتساب الخاص بك.")
+    messages.success(request, "تم إرسال كود جديد إلى رقم موبايلك عبر رسالة SMS.")
     return redirect('accounts:verify_otp')
 
 def login_view(request):

@@ -186,6 +186,7 @@ LOGOUT_REDIRECT_URL = '/auth/login/'
 INFOBIP_API_KEY = env('INFOBIP_API_KEY', default='')
 INFOBIP_BASE_URL = env('INFOBIP_BASE_URL', default='')
 INFOBIP_SENDER = env('INFOBIP_SENDER', default='')  # رقم الواتساب المعتمد المرسل لديهم
+INFOBIP_SMS_SENDER = env('INFOBIP_SMS_SENDER', default='')  # اختياري — Sender ID لرسائل الـ SMS (OTP)، فاضي = تلقائي من Infobip
 
 # إعدادات استقبال وتأكيد مدفوعات المحافظ الإلكترونية
 WALLET_API_KEY = env('WALLET_API_KEY', default='')

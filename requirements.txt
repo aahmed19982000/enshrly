@@ -6,6 +6,7 @@ django-mptt
 djangorestframework
 djangorestframework-simplejwt
 Pillow
+qrcode
 django-environ
 django-modeltranslation
 Gunicorn

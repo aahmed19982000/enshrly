@@ -15,7 +15,8 @@
             </div>
             <button type="submit" class="btn btn-primary btn-block">تسجيل الدخول</button>
         </form>
-        <p class="text-center" style="margin-top: 1rem; color: var(--muted);">ليس لديك حساب؟ <a href="{% url 'accounts:signup' %}">إنشاء حساب جديد</a></p>
+        <p class="text-center" style="margin-top: 1rem; color: var(--muted);"><a href="{% url 'accounts:forgot_password' %}">نسيت كلمة السر؟</a></p>
+        <p class="text-center" style="margin-top: 0.5rem; color: var(--muted);">ليس لديك حساب؟ <a href="{% url 'accounts:signup' %}">إنشاء حساب جديد</a></p>
     </div>
 </div>
 {% endblock %}

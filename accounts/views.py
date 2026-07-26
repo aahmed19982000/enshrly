@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
 from django.contrib import messages
-from .models import CustomerProfile, WhatsAppOTP
+from .models import CustomerProfile, WhatsAppOTP, PasswordResetOTP
 from .utils import send_otp_email, get_client_ip, check_rate_limit
 from django.contrib.auth.decorators import login_required
 
@@ -143,6 +143,59 @@ def login_view(request):
             messages.error(request, "رقم الواتساب أو كلمة المرور غير صحيحة.")
 
     return render(request, 'accounts/login.html')
+
+def forgot_password_view(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        client_ip = get_client_ip(request)
+
+        # Throttled the same way as signup — this endpoint is unauthenticated.
+        if check_rate_limit(f'forgot_pw:ip:{client_ip}', limit=5, window_seconds=3600):
+            messages.error(request, "عدد محاولات كبير جداً من جهازك، حاول مرة أخرى بعد قليل.")
+            return redirect('accounts:forgot_password')
+
+        user = User.objects.filter(email=email).first()
+        if user and hasattr(user, 'customer_profile'):
+            if check_rate_limit(f'forgot_pw:email:{email}', limit=3, window_seconds=3600):
+                messages.error(request, "تم إرسال عدد كافٍ من الأكواد لهذا البريد، حاول مرة أخرى لاحقاً.")
+                return redirect('accounts:forgot_password')
+            otp = PasswordResetOTP.objects.create(customer=user.customer_profile)
+            send_otp_email(email, otp.otp_code)
+
+        request.session['reset_email'] = email
+        # Same message whether or not the email is registered — otherwise this
+        # endpoint lets anyone check which emails have accounts.
+        messages.success(request, "لو البريد ده مسجل عندنا، هيوصلك كود لإعادة تعيين كلمة السر.")
+        return redirect('accounts:reset_password')
+
+    return render(request, 'accounts/forgot_password.html')
+
+def reset_password_view(request):
+    email = request.session.get('reset_email')
+    if not email:
+        return redirect('accounts:forgot_password')
+
+    if request.method == 'POST':
+        code = request.POST.get('otp_code')
+        new_password = request.POST.get('new_password')
+
+        user = User.objects.filter(email=email).first()
+        otp = None
+        if user and hasattr(user, 'customer_profile'):
+            otp = user.customer_profile.password_reset_otps.filter(otp_code=code, is_used=False).last()
+
+        if otp and otp.is_valid():
+            otp.is_used = True
+            otp.save()
+            user.set_password(new_password)
+            user.save()
+            del request.session['reset_email']
+            messages.success(request, "تم تغيير كلمة السر بنجاح، يمكنك تسجيل الدخول الآن.")
+            return redirect('accounts:login')
+        else:
+            messages.error(request, "الكود غير صحيح أو منتهي الصلاحية.")
+
+    return render(request, 'accounts/reset_password.html')
 
 from syndicator.models import WPConnectionToken, AIImportLog
 from django.utils import timezone

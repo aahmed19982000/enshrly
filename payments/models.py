@@ -69,6 +69,11 @@ class Transaction(models.Model):
     sender_phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="رقم المرسل (المحفظة)")
     verified_transaction_id = models.CharField(max_length=255, blank=True, null=True, unique=True, verbose_name="رقم العملية الموثق")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    fallback_notified = models.BooleanField(
+        default=False,
+        verbose_name="تم إرسال رسالة التأكيد اليدوي",
+        help_text="لتفادي إرسال رسالة واتساب مكررة لطلب سكرين شوت التحويل عند انقطاع اتصال تطبيق المراقبة"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

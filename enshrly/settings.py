@@ -28,6 +28,11 @@ ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['*'])
 # rotate an existing value without re-encrypting already-stored rows first.
 FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default='')
 
+# Nginx terminates TLS and proxies to Gunicorn over plain HTTP, setting
+# X-Forwarded-Proto — without this, Django never sees a request as secure and
+# SECURE_SSL_REDIRECT below would redirect forever.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # Production hardening — all default to safe values for real HTTPS deployments,
 # but stay off while DEBUG is on so plain http://localhost development keeps working.
 # Override via `.env` for a deployment that's DEBUG=False but not yet on HTTPS.

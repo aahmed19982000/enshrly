@@ -145,6 +145,22 @@ def checkout_view(request, package_id):
 
         amount = package.price_for_period(billing_period, currency)
 
+        if gateway == 'local':
+            # Re-submitting checkout for the same package (e.g. after closing the
+            # pending page and coming back) previously created a brand new pending
+            # transaction each time, leaving duplicate rows that a single wallet
+            # transfer could only ever match one of — the rest sat pending forever
+            # with no explanation. Reuse the existing pending attempt instead.
+            existing = Transaction.objects.filter(
+                customer=profile, package=package, billing_period=billing_period,
+                currency=currency, gateway='local', status='pending'
+            ).order_by('-created_at').first()
+            if existing:
+                if sender_phone and sender_phone != existing.sender_phone:
+                    existing.sender_phone = sender_phone
+                    existing.save(update_fields=['sender_phone', 'updated_at'])
+                return redirect('payments:checkout_pending', transaction_id=existing.transaction_id)
+
         # Create pending transaction
         transaction = Transaction.objects.create(
             customer=profile,

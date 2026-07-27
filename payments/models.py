@@ -1,16 +1,46 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator
 from accounts.models import CustomerProfile
 import uuid
 from decimal import Decimal
 
 class SubscriptionPackage(models.Model):
+    BILLING_PERIOD_CHOICES = [
+        ('monthly', 'شهري'),
+        ('quarterly', 'ربع سنوي (3 أشهر)'),
+        ('semiannual', 'نصف سنوي (6 أشهر)'),
+        ('annual', 'سنوي (12 شهر)'),
+    ]
+    # عدد الأشهر التي تغطيها كل فترة اشتراك، تُستخدم لحساب السعر الإجمالي قبل الخصم
+    BILLING_PERIOD_MONTHS = {'monthly': 1, 'quarterly': 3, 'semiannual': 6, 'annual': 12}
+    # مدة صلاحية كود الربط (WPConnectionToken) بالأيام لكل فترة اشتراك
+    BILLING_PERIOD_DAYS = {'monthly': 30, 'quarterly': 90, 'semiannual': 182, 'annual': 365}
+
     name = models.CharField(max_length=100, verbose_name="اسم الباقة")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="السعر (بالدولار)")
     daily_limit = models.PositiveIntegerField(verbose_name="الحد الأقصى للنشر اليومي")
+    monthly_articles_limit = models.PositiveIntegerField(
+        default=0,
+        verbose_name="الحد الأقصى للنشر الشهري",
+        help_text="للعرض فقط حالياً في لوحة التحكم وصفحة الباقات، بدون إنفاذ فعلي في محرك النشر. 0 = لا يُعرض حد شهري منفصل."
+    )
     features = models.TextField(verbose_name="المميزات", help_text="كل ميزة في سطر منفصل")
     is_active = models.BooleanField(default=True, verbose_name="مفعلة")
     is_custom = models.BooleanField(default=False, verbose_name="مخصصة للشركات (تتطلب تواصل)")
+
+    quarterly_discount_percent = models.PositiveIntegerField(
+        default=0, validators=[MaxValueValidator(100)],
+        verbose_name="نسبة الخصم - اشتراك ربع سنوي (%)"
+    )
+    semiannual_discount_percent = models.PositiveIntegerField(
+        default=0, validators=[MaxValueValidator(100)],
+        verbose_name="نسبة الخصم - اشتراك نصف سنوي (%)"
+    )
+    annual_discount_percent = models.PositiveIntegerField(
+        default=0, validators=[MaxValueValidator(100)],
+        verbose_name="نسبة الخصم - اشتراك سنوي (%)"
+    )
 
     def __str__(self):
         return f"{self.name} - ${self.price}"
@@ -24,6 +54,26 @@ class SubscriptionPackage(models.Model):
         except Exception:
             rate = 50.0
         return (self.price * Decimal(str(rate))).quantize(Decimal('1.00'))
+
+    def discount_percent_for_period(self, period):
+        """نسبة الخصم المضبوطة لهذه الباقة حسب فترة الاشتراك المختارة."""
+        return {
+            'quarterly': self.quarterly_discount_percent,
+            'semiannual': self.semiannual_discount_percent,
+            'annual': self.annual_discount_percent,
+        }.get(period, 0)
+
+    def price_for_period(self, period, currency='USD'):
+        """
+        السعر الإجمالي لفترة الاشتراك المختارة بعد تطبيق نسبة الخصم الخاصة
+        بالباقة لتلك الفترة. يُحسب دائماً على الخادم (وليس في المتصفح) حتى
+        لا يعتمد المبلغ النهائي المحفوظ في Transaction على قيمة يرسلها العميل.
+        """
+        months = self.BILLING_PERIOD_MONTHS.get(period, 1)
+        base = self.price if currency == 'USD' else self.price_egp
+        discount = self.discount_percent_for_period(period)
+        total = base * months * (Decimal(100) - discount) / Decimal(100)
+        return total.quantize(Decimal('0.01'))
 
 class DevicePairing(models.Model):
     """
@@ -62,6 +112,12 @@ class Transaction(models.Model):
     transaction_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     customer = models.ForeignKey(CustomerProfile, on_delete=models.SET_NULL, null=True, related_name='transactions')
     package = models.ForeignKey(SubscriptionPackage, on_delete=models.SET_NULL, null=True)
+    billing_period = models.CharField(
+        max_length=12,
+        choices=SubscriptionPackage.BILLING_PERIOD_CHOICES,
+        default='monthly',
+        verbose_name="فترة الاشتراك"
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="المبلغ المدفوع")
     currency = models.CharField(max_length=10, choices=CURRENCY_CHOICES, default='USD', verbose_name="العملة")
     gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES, verbose_name="بوابة الدفع")

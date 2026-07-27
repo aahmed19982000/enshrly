@@ -23,13 +23,21 @@ class PackageListView(StaffRequiredMixin, ListView):
 class PackageCreateView(StaffRequiredMixin, CreateView):
     model = SubscriptionPackage
     template_name = 'ai_dashboard/saas/package_form.html'
-    fields = ['name', 'price', 'daily_limit', 'features', 'is_custom', 'is_active']
+    fields = [
+        'name', 'price', 'daily_limit', 'monthly_articles_limit', 'features',
+        'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
+        'is_custom', 'is_active',
+    ]
     success_url = reverse_lazy('news_ai:saas_packages')
 
 class PackageUpdateView(StaffRequiredMixin, UpdateView):
     model = SubscriptionPackage
     template_name = 'ai_dashboard/saas/package_form.html'
-    fields = ['name', 'price', 'daily_limit', 'features', 'is_custom', 'is_active']
+    fields = [
+        'name', 'price', 'daily_limit', 'monthly_articles_limit', 'features',
+        'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
+        'is_custom', 'is_active',
+    ]
     success_url = reverse_lazy('news_ai:saas_packages')
 
 class PackageDeleteView(StaffRequiredMixin, DeleteView):

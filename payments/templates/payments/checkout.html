@@ -16,14 +16,37 @@
         {% csrf_token %}
 
         <div class="panel">
+            <span class="card-title">فترة الاشتراك</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+                <label class="toggle-chip selected">
+                    <input type="radio" name="billing_period" value="monthly" checked onchange="updatePrice()">
+                    شهري
+                </label>
+                <label class="toggle-chip">
+                    <input type="radio" name="billing_period" value="quarterly" onchange="updatePrice()">
+                    ربع سنوي
+                </label>
+                <label class="toggle-chip">
+                    <input type="radio" name="billing_period" value="semiannual" onchange="updatePrice()">
+                    نصف سنوي
+                </label>
+                <label class="toggle-chip">
+                    <input type="radio" name="billing_period" value="annual" onchange="updatePrice()">
+                    سنوي
+                </label>
+            </div>
+            <span id="discount-note" style="display: none; color: var(--gold); font-size: 0.85rem;"></span>
+        </div>
+
+        <div class="panel">
             <span class="card-title">العملة</span>
             <div style="display: flex; gap: 0.75rem;">
                 <label class="toggle-chip selected">
-                    <input type="radio" name="currency" value="USD" checked onchange="updatePrice({{ package.price }}, 'USD')">
+                    <input type="radio" name="currency" value="USD" checked onchange="updatePrice()">
                     دولار (USD)
                 </label>
                 <label class="toggle-chip">
-                    <input type="radio" name="currency" value="EGP" onchange="updatePrice({{ package.price_egp }}, 'EGP')">
+                    <input type="radio" name="currency" value="EGP" onchange="updatePrice()">
                     جنيه مصري (EGP)
                 </label>
             </div>
@@ -58,9 +81,17 @@
     </form>
 </div>
 
+{{ period_prices|json_script:"period-prices-data" }}
 <script>
-function updatePrice(amount, currency) {
+const PERIOD_PRICES = JSON.parse(document.getElementById('period-prices-data').textContent);
+
+function updatePrice() {
+    const period = document.querySelector('input[name="billing_period"]:checked').value;
+    const currency = document.querySelector('input[name="currency"]:checked').value;
+    const priceInfo = PERIOD_PRICES[period];
+
     const display = document.getElementById('display-price');
+    const discountNote = document.getElementById('discount-note');
 
     const paypalOpt = document.getElementById('paypal-opt');
     const paymobOpt = document.getElementById('paymob-opt');
@@ -70,8 +101,15 @@ function updatePrice(amount, currency) {
     const gwPaymob = document.getElementById('gw-paymob');
     const gwLocal = document.getElementById('gw-local');
 
+    if (priceInfo.discount > 0) {
+        discountNote.style.display = 'inline';
+        discountNote.innerText = `شامل خصم ${priceInfo.discount}% عن السعر الشهري`;
+    } else {
+        discountNote.style.display = 'none';
+    }
+
     if (currency === 'USD') {
-        display.innerText = '$' + amount;
+        display.innerText = '$' + priceInfo.usd;
 
         paypalOpt.style.display = 'block';
         paymobOpt.style.display = 'none';
@@ -86,7 +124,7 @@ function updatePrice(amount, currency) {
 
         togglePhoneInput(false);
     } else {
-        display.innerText = amount + ' ج.م';
+        display.innerText = priceInfo.egp + ' ج.م';
 
         paypalOpt.style.display = 'none';
         paymobOpt.style.display = 'block';
@@ -117,7 +155,7 @@ function togglePhoneInput(show) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    updatePrice({{ package.price }}, 'USD');
+    updatePrice();
 });
 </script>
 {% endblock %}

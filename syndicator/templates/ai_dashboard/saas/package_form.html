@@ -23,8 +23,31 @@
         </div>
 
         <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">الحد الأقصى للنشر الشهري (عرض فقط، 0 = بدون حد شهري منفصل)</label>
+            <input type="number" name="monthly_articles_limit" value="{{ object.monthly_articles_limit|default:'0' }}" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+        </div>
+
+        <div>
             <label class="block text-sm font-medium text-slate-300 mb-2">المميزات (كل ميزة في سطر منفصل)</label>
             <textarea name="features" rows="5" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500 transition duration-200">{{ object.features|default:'' }}</textarea>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800">
+            <label class="block text-sm font-medium text-slate-300 mb-2 mt-4">فترات الاشتراك ونسب الخصم (%)</label>
+            <div class="grid grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">ربع سنوي</label>
+                    <input type="number" name="quarterly_discount_percent" value="{{ object.quarterly_discount_percent|default:'0' }}" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">نصف سنوي</label>
+                    <input type="number" name="semiannual_discount_percent" value="{{ object.semiannual_discount_percent|default:'0' }}" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">سنوي</label>
+                    <input type="number" name="annual_discount_percent" value="{{ object.annual_discount_percent|default:'0' }}" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                </div>
+            </div>
         </div>
 
         <div class="flex items-center space-x-6 space-x-reverse">

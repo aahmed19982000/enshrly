@@ -14,6 +14,10 @@ from django.utils import timezone
 from datetime import timedelta
 from accounts.utils import send_whatsapp_payment_success, send_whatsapp_payment_failed
 
+def _token_expiry_days(transaction):
+    """مدة صلاحية كود الربط الناتج عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
+    return SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
+
 def packages_view(request):
     packages = SubscriptionPackage.objects.filter(is_active=True).order_by('price')
     has_used_trial = False
@@ -88,21 +92,26 @@ def checkout_view(request, package_id):
     if request.method == 'POST':
         gateway = request.POST.get('gateway')
         currency = request.POST.get('currency', 'USD')
+        billing_period = request.POST.get('billing_period', 'monthly')
         sender_phone = request.POST.get('sender_phone', '').strip()
-        
+
         if gateway not in dict(Transaction.GATEWAY_CHOICES):
             messages.error(request, "يرجى اختيار بوابة دفع صحيحة.")
             return redirect('payments:checkout', package_id=package.id)
-        
+
         if currency not in ['USD', 'EGP']:
             currency = 'USD'
-            
-        amount = package.price if currency == 'USD' else package.price_egp
+
+        if billing_period not in dict(SubscriptionPackage.BILLING_PERIOD_CHOICES):
+            billing_period = 'monthly'
+
+        amount = package.price_for_period(billing_period, currency)
 
         # Create pending transaction
         transaction = Transaction.objects.create(
             customer=profile,
             package=package,
+            billing_period=billing_period,
             amount=amount,
             currency=currency,
             gateway=gateway,
@@ -119,7 +128,15 @@ def checkout_view(request, package_id):
         # For crypto or other simulated successes
         return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
 
-    return render(request, 'payments/checkout.html', {'package': package})
+    period_prices = {
+        period: {
+            'usd': str(package.price_for_period(period, 'USD')),
+            'egp': str(package.price_for_period(period, 'EGP')),
+            'discount': package.discount_percent_for_period(period),
+        }
+        for period, _ in SubscriptionPackage.BILLING_PERIOD_CHOICES
+    }
+    return render(request, 'payments/checkout.html', {'package': package, 'period_prices': period_prices})
 
 import requests
 
@@ -223,7 +240,7 @@ def confirm_paypal_payment(request):
                 customer=profile,
                 client_name=request.user.first_name or request.user.username,
                 package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=30),
+                expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
             )
 
             # Send WhatsApp confirmation
@@ -231,7 +248,8 @@ def confirm_paypal_payment(request):
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=request.user.first_name or request.user.username,
                 package_name=transaction.package.name,
-                token_code=token_str
+                token_code=token_str,
+                days=_token_expiry_days(transaction)
             )
 
             from django.urls import reverse
@@ -364,7 +382,7 @@ def mobile_post_transaction(request):
         customer=matched_tx.customer,
         client_name=matched_tx.customer.user.first_name,
         package_daily_limit=matched_tx.package.daily_limit,
-        expires_at=timezone.now() + timedelta(days=30),
+        expires_at=timezone.now() + timedelta(days=_token_expiry_days(matched_tx)),
     )
 
     # Send WhatsApp confirmation
@@ -372,7 +390,8 @@ def mobile_post_transaction(request):
         phone_number=matched_tx.customer.whatsapp_number,
         client_name=matched_tx.customer.user.first_name or matched_tx.customer.user.username,
         package_name=matched_tx.package.name,
-        token_code=token_str
+        token_code=token_str,
+        days=_token_expiry_days(matched_tx)
     )
 
     return JsonResponse({
@@ -400,7 +419,7 @@ def payment_success_view(request, transaction_id):
             customer=transaction.customer,
             client_name=request.user.first_name,
             package_daily_limit=transaction.package.daily_limit,
-            expires_at=timezone.now() + timedelta(days=30),
+            expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
         )
 
         # Send WhatsApp confirmation
@@ -408,7 +427,8 @@ def payment_success_view(request, transaction_id):
             phone_number=transaction.customer.whatsapp_number,
             client_name=request.user.first_name or request.user.username,
             package_name=transaction.package.name,
-            token_code=token_str
+            token_code=token_str,
+            days=_token_expiry_days(transaction)
         )
 
     # Find the user's un-used tokens to display
@@ -556,7 +576,7 @@ def confirm_payment_api(request):
         customer=matched_tx.customer,
         client_name=matched_tx.customer.user.first_name,
         package_daily_limit=matched_tx.package.daily_limit,
-        expires_at=timezone.now() + timedelta(days=30),
+        expires_at=timezone.now() + timedelta(days=_token_expiry_days(matched_tx)),
     )
 
     # Send WhatsApp confirmation
@@ -564,7 +584,8 @@ def confirm_payment_api(request):
         phone_number=matched_tx.customer.whatsapp_number,
         client_name=matched_tx.customer.user.first_name or matched_tx.customer.user.username,
         package_name=matched_tx.package.name,
-        token_code=token_str
+        token_code=token_str,
+        days=_token_expiry_days(matched_tx)
     )
 
     return JsonResponse({
@@ -773,14 +794,15 @@ def paymob_webhook_view(request):
                 customer=transaction.customer,
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                 package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=30),
+                expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
             )
 
             send_whatsapp_payment_success(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                 package_name=transaction.package.name,
-                token_code=token_str
+                token_code=token_str,
+                days=_token_expiry_days(transaction)
             )
         except Transaction.DoesNotExist:
             pass

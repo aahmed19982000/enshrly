@@ -235,11 +235,20 @@ def confirm_paypal_payment(request):
         order_details = response.json()
         
         if order_details.get('status') == 'COMPLETED':
-            transaction.status = 'completed'
-            transaction.gateway_transaction_id = order_id
-            transaction.verified_transaction_id = f"PAYPAL-{order_id}"
-            transaction.save()
-            
+            from django.urls import reverse
+            success_url = reverse('payments:payment_success', kwargs={'transaction_id': transaction.transaction_id})
+
+            # Atomic claim: only the request that actually flips pending->completed
+            # proceeds to issue a token, so a retried/duplicate confirmation call
+            # can never generate two WPConnectionToken rows for one payment.
+            claimed = Transaction.objects.filter(pk=transaction.pk, status='pending').update(
+                status='completed',
+                gateway_transaction_id=order_id,
+                verified_transaction_id=f"PAYPAL-{order_id}",
+            )
+            if claimed == 0:
+                return JsonResponse({"success": True, "redirect_url": success_url})
+
             # Generate Token
             token_str = str(uuid.uuid4())
             WPConnectionToken.objects.create(
@@ -259,8 +268,6 @@ def confirm_paypal_payment(request):
                 days=_token_expiry_days(transaction)
             )
 
-            from django.urls import reverse
-            success_url = reverse('payments:payment_success', kwargs={'transaction_id': transaction.transaction_id})
             return JsonResponse({"success": True, "redirect_url": success_url})
         else:
             send_whatsapp_payment_failed(
@@ -377,10 +384,15 @@ def mobile_post_transaction(request):
     if not matched_tx:
         return JsonResponse({"success": False, "message": "No matching pending transaction found"}, status=200)
 
-    # Match and mark successful
-    matched_tx.status = 'completed'
-    matched_tx.verified_transaction_id = tx_id
-    matched_tx.save()
+    # Atomic claim: only one caller (this endpoint, the Java worker endpoint below,
+    # or a retried call) can flip this transaction pending->completed, so the same
+    # incoming wallet payment can never mint two WPConnectionToken rows.
+    claimed = Transaction.objects.filter(pk=matched_tx.pk, status='pending').update(
+        status='completed',
+        verified_transaction_id=tx_id,
+    )
+    if claimed == 0:
+        return JsonResponse({"success": False, "message": "Transaction already processed"}, status=400)
 
     # Generate token
     token_str = str(uuid.uuid4())
@@ -414,29 +426,30 @@ def mobile_post_transaction(request):
 def payment_success_view(request, transaction_id):
     transaction = get_object_or_404(Transaction, transaction_id=transaction_id, customer=request.user.customer_profile)
     
-    # In a real app, this view is a webhook or return URL that verifies payment status
+    # In a real app, this view is a webhook or return URL that verifies payment status.
+    # The atomic claim below guards against this page being loaded/refreshed twice
+    # (or racing a background wallet-watcher confirmation) and minting two tokens.
     if transaction.status == 'pending':
-        transaction.status = 'completed'
-        transaction.save()
+        claimed = Transaction.objects.filter(pk=transaction.pk, status='pending').update(status='completed')
+        if claimed:
+            # Generate WP Token for the user
+            token_str = str(uuid.uuid4())
+            token_obj = WPConnectionToken.objects.create(
+                token=token_str,
+                customer=transaction.customer,
+                client_name=request.user.first_name,
+                package_daily_limit=transaction.package.daily_limit,
+                expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
+            )
 
-        # Generate WP Token for the user
-        token_str = str(uuid.uuid4())
-        token_obj = WPConnectionToken.objects.create(
-            token=token_str,
-            customer=transaction.customer,
-            client_name=request.user.first_name,
-            package_daily_limit=transaction.package.daily_limit,
-            expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
-        )
-
-        # Send WhatsApp confirmation
-        send_whatsapp_payment_success(
-            phone_number=transaction.customer.whatsapp_number,
-            client_name=request.user.first_name or request.user.username,
-            package_name=transaction.package.name,
-            token_code=token_str,
-            days=_token_expiry_days(transaction)
-        )
+            # Send WhatsApp confirmation
+            send_whatsapp_payment_success(
+                phone_number=transaction.customer.whatsapp_number,
+                client_name=request.user.first_name or request.user.username,
+                package_name=transaction.package.name,
+                token_code=token_str,
+                days=_token_expiry_days(transaction)
+            )
 
     # Find the user's un-used tokens to display
     tokens = WPConnectionToken.objects.filter(customer=transaction.customer, is_used=False)
@@ -571,10 +584,16 @@ def confirm_payment_api(request):
     if not matched_tx:
         return JsonResponse({"success": True, "message": "Logged but no matching transaction yet"})
 
-    # Mark completed
-    matched_tx.status = 'completed'
-    matched_tx.verified_transaction_id = f"CONF-JAVA-{uuid.uuid4().hex[:10].upper()}"
-    matched_tx.save()
+    # Atomic claim — this endpoint (Java worker) and the Kivy wallet-sync endpoint
+    # above can both independently match the same incoming payment; only the call
+    # that actually flips pending->completed proceeds to issue a token.
+    verified_id = f"CONF-JAVA-{uuid.uuid4().hex[:10].upper()}"
+    claimed = Transaction.objects.filter(pk=matched_tx.pk, status='pending').update(
+        status='completed',
+        verified_transaction_id=verified_id,
+    )
+    if claimed == 0:
+        return JsonResponse({"success": True, "message": "Logged but transaction already processed"})
 
     # Generate token
     token_str = str(uuid.uuid4())
@@ -790,27 +809,32 @@ def paymob_webhook_view(request):
     if success is True and merchant_order_id:
         try:
             transaction = Transaction.objects.get(transaction_id=merchant_order_id, status='pending')
-            transaction.status = 'completed'
-            transaction.gateway_transaction_id = paymob_tx_id
-            transaction.verified_transaction_id = f"PAYMOB-{paymob_tx_id}"
-            transaction.save()
 
-            token_str = str(uuid.uuid4())
-            WPConnectionToken.objects.create(
-                token=token_str,
-                customer=transaction.customer,
-                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
+            # Paymob may redeliver the same webhook (retry on slow/failed response).
+            # This atomic claim ensures only the delivery that actually flips the
+            # status proceeds to issue a token — a redelivered webhook is a no-op.
+            claimed = Transaction.objects.filter(pk=transaction.pk, status='pending').update(
+                status='completed',
+                gateway_transaction_id=paymob_tx_id,
+                verified_transaction_id=f"PAYMOB-{paymob_tx_id}",
             )
+            if claimed:
+                token_str = str(uuid.uuid4())
+                WPConnectionToken.objects.create(
+                    token=token_str,
+                    customer=transaction.customer,
+                    client_name=transaction.customer.user.first_name or transaction.customer.user.username,
+                    package_daily_limit=transaction.package.daily_limit,
+                    expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
+                )
 
-            send_whatsapp_payment_success(
-                phone_number=transaction.customer.whatsapp_number,
-                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                package_name=transaction.package.name,
-                token_code=token_str,
-                days=_token_expiry_days(transaction)
-            )
+                send_whatsapp_payment_success(
+                    phone_number=transaction.customer.whatsapp_number,
+                    client_name=transaction.customer.user.first_name or transaction.customer.user.username,
+                    package_name=transaction.package.name,
+                    token_code=token_str,
+                    days=_token_expiry_days(transaction)
+                )
         except Transaction.DoesNotExist:
             pass
     elif success is False and merchant_order_id:

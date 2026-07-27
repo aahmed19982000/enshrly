@@ -7,7 +7,30 @@
             {% csrf_token %}
             <div class="field">
                 <label>رقم الواتساب</label>
-                <input type="text" name="whatsapp" placeholder="01xxxxxxxxx" required>
+                <div style="display: flex; gap: 0.5rem; direction: ltr;">
+                    <select id="countryCode" style="width: 35%; border: 1px solid var(--border, #ccc); border-radius: 4px; padding: 0.5rem; background-color: var(--card, #fff); color: var(--foreground, #000); font-size: 14px; outline: none;" required>
+                        <option value="20">+20 (مصر)</option>
+                        <option value="966">+966 (السعودية)</option>
+                        <option value="971">+971 (الإمارات)</option>
+                        <option value="965">+965 (الكويت)</option>
+                        <option value="974">+974 (قطر)</option>
+                        <option value="973">+973 (البحرين)</option>
+                        <option value="968">+968 (عمان)</option>
+                        <option value="962">+962 (الأردن)</option>
+                        <option value="964">+964 (العراق)</option>
+                        <option value="213">+213 (الجزائر)</option>
+                        <option value="212">+212 (المغرب)</option>
+                        <option value="216">+216 (تونس)</option>
+                        <option value="218">+218 (ليبيا)</option>
+                        <option value="249">+249 (السودان)</option>
+                        <option value="970">+970 (فلسطين)</option>
+                        <option value="963">+963 (سوريا)</option>
+                        <option value="961">+961 (لبنان)</option>
+                        <option value="967">+967 (اليمن)</option>
+                    </select>
+                    <input type="tel" id="phoneNumber" placeholder="مثال: 10xxxxxxxxx" required style="width: 65%; border: 1px solid var(--border, #ccc); border-radius: 4px; padding: 0.5rem; background-color: var(--background, #fff); color: var(--foreground, #000); font-family: inherit; font-size: inherit; outline: none;" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                    <input type="hidden" name="whatsapp" id="fullWhatsapp">
+                </div>
             </div>
             <div class="field">
                 <label>كلمة المرور</label>
@@ -19,4 +42,14 @@
         <p class="text-center" style="margin-top: 0.5rem; color: var(--muted);">ليس لديك حساب؟ <a href="{% url 'accounts:signup' %}">إنشاء حساب جديد</a></p>
     </div>
 </div>
+
+<script>
+    document.querySelector('form').addEventListener('submit', function(e) {
+        var cc = document.getElementById('countryCode').value;
+        var phone = document.getElementById('phoneNumber').value;
+        // إزالة الأصفار البادئة لو المستخدم كتبها، لمطابقة نفس الصيغة المخزّنة وقت التسجيل
+        phone = phone.replace(/^0+/, '');
+        document.getElementById('fullWhatsapp').value = cc + phone;
+    });
+</script>
 {% endblock %}

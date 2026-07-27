@@ -2,6 +2,7 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 from django.core.mail import send_mail
+from decimal import Decimal
 import logging
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,35 @@ def send_whatsapp_payment_success(phone_number, client_name, package_name, token
         f"🔑 كود الربط الخاص بك (Token):\n`{token_code}`\n\n"
         f"📅 صلاحية الكود: {days} يوماً من تاريخ اليوم.\n\n"
         f"يرجى نسخ هذا الكود ووضعه في لوحة تحكم موقعك الووردبريس (إضافة Sahafi Hub Connector) لبدء النشر التلقائي فوراً."
+    )
+    return _send_via_whatsapp_bot(phone_number, message_text)
+
+def send_whatsapp_underpayment_notice(phone_number, client_name, package_name, required_amount, received_amount, currency):
+    """
+    Sent when an incoming 'local' wallet transfer is matched to a pending
+    transaction by sender phone but falls short of the required amount —
+    without this, an underpaid transfer just sits pending with no
+    explanation of why it was never auto-confirmed.
+    """
+    shortfall = Decimal(str(required_amount)) - Decimal(str(received_amount))
+    message_text = (
+        f"عزيزي {client_name}، استلمنا تحويلك بمبلغ {received_amount} {currency}، "
+        f"لكن المبلغ المطلوب لتفعيل باقة \"{package_name}\" هو {required_amount} {currency}. ⚠️\n\n"
+        f"يرجى تحويل المبلغ المتبقي وقدره {shortfall} {currency} على نفس رقم المحفظة لإتمام تفعيل اشتراكك."
+    )
+    return _send_via_whatsapp_bot(phone_number, message_text)
+
+def send_whatsapp_page_closed_notice(phone_number, client_name, amount, currency, wallet_number):
+    """
+    Sent when a customer navigates away from / closes the local-wallet pending
+    checkout page before their transfer was confirmed — reassures them the
+    order is still open and confirmation will happen automatically once the
+    transfer arrives, instead of leaving them thinking they need to restart.
+    """
+    message_text = (
+        f"عزيزي {client_name}، لاحظنا إنك غادرت صفحة الدفع قبل تأكيد التحويل. 📌\n\n"
+        f"يرجى تحويل مبلغ {amount} {currency} إلى رقم المحفظة {wallet_number} إن لم تكن حوّلته بعد، "
+        f"وسيتم تأكيد طلبك تلقائياً فور استلام التحويل — هتلاقي التحديث هنا في الواتساب."
     )
     return _send_via_whatsapp_bot(phone_number, message_text)
 

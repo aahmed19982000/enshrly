@@ -41,6 +41,7 @@
 <script>
     const transactionId = "{{ transaction.transaction_id }}";
     let seconds = 0;
+    let paymentConfirmed = false;
     const secondsEl = document.getElementById('seconds-count');
 
     setInterval(() => {
@@ -54,6 +55,7 @@
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'completed') {
+                    paymentConfirmed = true;
                     clearInterval(interval);
                     document.getElementById('status-text').innerText = "تم تأكيد الدفع بنجاح! يتم تحويلك الآن...";
                     setTimeout(() => {
@@ -65,5 +67,15 @@
             console.error("Error checking transaction status:", error);
         }
     }, 3000);
+
+    {% if transaction.gateway == 'local' %}
+    // Let the customer know their order is still open if they leave before the
+    // transfer is confirmed, instead of leaving them to assume they must restart.
+    window.addEventListener('pagehide', () => {
+        if (!paymentConfirmed) {
+            navigator.sendBeacon(`/payments/checkout/pending/${transactionId}/closed/`);
+        }
+    });
+    {% endif %}
 </script>
 {% endblock %}

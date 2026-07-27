@@ -13,6 +13,7 @@ urlpatterns = [
     path('paymob/callback/', views.paymob_callback_view, name='paymob_callback'),
     path('paymob/webhook/', views.paymob_webhook_view, name='paymob_webhook'),
     path('checkout/pending/<uuid:transaction_id>/', views.checkout_pending_view, name='checkout_pending'),
+    path('checkout/pending/<uuid:transaction_id>/closed/', views.payment_page_closed_beacon, name='payment_page_closed'),
     path('checkout/status/<uuid:transaction_id>/', views.check_payment_status_api, name='check_payment_status'),
     path('pair/', views.pair_qr_view, name='pair_qr'),
     path('pair/status/', views.pairing_status, name='pairing_status'),

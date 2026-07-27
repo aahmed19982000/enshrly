@@ -146,6 +146,11 @@ class Transaction(models.Model):
         verbose_name="تم إرسال رسالة التأكيد اليدوي",
         help_text="لتفادي إرسال رسالة واتساب مكررة لطلب سكرين شوت التحويل عند انقطاع اتصال تطبيق المراقبة"
     )
+    page_closed_notified = models.BooleanField(
+        default=False,
+        verbose_name="تم إرسال رسالة إغلاق صفحة الدفع",
+        help_text="لتفادي إرسال رسالة واتساب مكررة لو العميل أغلق/أعاد فتح صفحة الدفع أكثر من مرة"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

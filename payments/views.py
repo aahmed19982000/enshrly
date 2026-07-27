@@ -12,11 +12,42 @@ import json
 from decimal import Decimal
 from django.utils import timezone
 from datetime import timedelta
-from .tasks import send_payment_success_whatsapp, send_payment_failed_whatsapp
+from .tasks import (
+    send_payment_success_whatsapp,
+    send_payment_failed_whatsapp,
+    send_underpayment_whatsapp,
+    send_page_closed_whatsapp,
+)
 
 def _token_expiry_days(transaction):
     """مدة صلاحية كود الربط الناتج عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
     return SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
+
+def _get_wallet_number():
+    from syndicator.models import AISettings
+    try:
+        return AISettings.get_settings().wallet_number or getattr(settings, 'WALLET_NUMBER', '')
+    except Exception:
+        return getattr(settings, 'WALLET_NUMBER', '')
+
+def _find_underpaid_transaction(received_amount, phone_last_digits=None):
+    """
+    Looks for a pending 'local' wallet transaction that requires MORE than what
+    was just received, matched by the sender's phone last digits. Used so an
+    underpaid transfer gets an explanatory WhatsApp message instead of just
+    sitting pending with no automatic match and no explanation.
+    """
+    if not phone_last_digits:
+        return None
+    candidates = Transaction.objects.filter(
+        status='pending', gateway='local', amount__gt=received_amount
+    ).order_by('created_at')
+    for tx in candidates:
+        if tx.sender_phone:
+            tx_phone = tx.sender_phone.replace('+', '').replace(' ', '')
+            if tx_phone.endswith(phone_last_digits):
+                return tx
+    return None
 
 def packages_view(request):
     packages = SubscriptionPackage.objects.filter(is_active=True).order_by('price')
@@ -284,19 +315,49 @@ def confirm_paypal_payment(request):
 @login_required
 def checkout_pending_view(request, transaction_id):
     transaction = get_object_or_404(Transaction, transaction_id=transaction_id, customer=request.user.customer_profile)
-    from syndicator.models import AISettings
-    try:
-        wallet_number = AISettings.get_settings().wallet_number or getattr(settings, 'WALLET_NUMBER', '')
-    except Exception:
-        wallet_number = getattr(settings, 'WALLET_NUMBER', '')
-    
+
     if transaction.status == 'completed':
         return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
-        
+
     return render(request, 'payments/pending.html', {
         'transaction': transaction,
-        'wallet_number': wallet_number
+        'wallet_number': _get_wallet_number()
     })
+
+@csrf_exempt
+@login_required
+def payment_page_closed_beacon(request, transaction_id):
+    """
+    Fired via navigator.sendBeacon when a customer navigates away from/closes
+    the local-wallet pending checkout page before their transfer was confirmed.
+    Reassures them via WhatsApp that the order is still open and will confirm
+    automatically, instead of leaving them assuming they need to start over.
+    csrf_exempt because sendBeacon cannot attach the CSRF header; ownership is
+    still enforced via the authenticated customer_profile lookup below.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"success": False}, status=405)
+
+    try:
+        transaction = Transaction.objects.get(
+            transaction_id=transaction_id,
+            customer=request.user.customer_profile,
+            status='pending',
+            gateway='local',
+        )
+    except Transaction.DoesNotExist:
+        return JsonResponse({"success": True})
+
+    claimed = Transaction.objects.filter(pk=transaction.pk, page_closed_notified=False).update(page_closed_notified=True)
+    if claimed:
+        send_page_closed_whatsapp.delay(
+            phone_number=transaction.customer.whatsapp_number,
+            client_name=transaction.customer.user.first_name or transaction.customer.user.username,
+            amount=str(transaction.amount),
+            currency=transaction.currency,
+            wallet_number=_get_wallet_number(),
+        )
+    return JsonResponse({"success": True})
 
 @login_required
 def check_payment_status_api(request, transaction_id):
@@ -382,6 +443,16 @@ def mobile_post_transaction(request):
         matched_tx = pending_txs.first()
 
     if not matched_tx:
+        underpaid_tx = _find_underpaid_transaction(amount_dec, normalized_counterpart[-4:] if normalized_counterpart else None)
+        if underpaid_tx:
+            send_underpayment_whatsapp.delay(
+                phone_number=underpaid_tx.customer.whatsapp_number,
+                client_name=underpaid_tx.customer.user.first_name or underpaid_tx.customer.user.username,
+                package_name=underpaid_tx.package.name,
+                required_amount=str(underpaid_tx.amount),
+                received_amount=str(amount_dec),
+                currency=underpaid_tx.currency,
+            )
         return JsonResponse({"success": False, "message": "No matching pending transaction found"}, status=200)
 
     # Atomic claim: only one caller (this endpoint, the Java worker endpoint below,
@@ -582,6 +653,16 @@ def confirm_payment_api(request):
         matched_tx = pending_txs.filter(models.Q(sender_phone__isnull=True) | models.Q(sender_phone='')).first()
 
     if not matched_tx:
+        underpaid_tx = _find_underpaid_transaction(amount_dec, sender_last4)
+        if underpaid_tx:
+            send_underpayment_whatsapp.delay(
+                phone_number=underpaid_tx.customer.whatsapp_number,
+                client_name=underpaid_tx.customer.user.first_name or underpaid_tx.customer.user.username,
+                package_name=underpaid_tx.package.name,
+                required_amount=str(underpaid_tx.amount),
+                received_amount=str(amount_dec),
+                currency=underpaid_tx.currency,
+            )
         return JsonResponse({"success": True, "message": "Logged but no matching transaction yet"})
 
     # Atomic claim — this endpoint (Java worker) and the Kivy wallet-sync endpoint

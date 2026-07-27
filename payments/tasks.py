@@ -73,3 +73,19 @@ def send_payment_failed_whatsapp(self, phone_number, client_name, package_name):
     sent = send_whatsapp_payment_failed(phone_number, client_name, package_name)
     if not sent:
         raise self.retry()
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def send_underpayment_whatsapp(self, phone_number, client_name, package_name, required_amount, received_amount, currency):
+    from accounts.utils import send_whatsapp_underpayment_notice
+    sent = send_whatsapp_underpayment_notice(phone_number, client_name, package_name, required_amount, received_amount, currency)
+    if not sent:
+        raise self.retry()
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def send_page_closed_whatsapp(self, phone_number, client_name, amount, currency, wallet_number):
+    from accounts.utils import send_whatsapp_page_closed_notice
+    sent = send_whatsapp_page_closed_notice(phone_number, client_name, amount, currency, wallet_number)
+    if not sent:
+        raise self.retry()

@@ -10,6 +10,9 @@
             <span style="font-family: var(--font-display); font-weight: 700; color: var(--gold);" id="display-price">${{ package.price }}</span>
         </div>
         <span style="color: var(--muted); font-size: 0.85rem;">نشر حتى {{ package.daily_limit }} مقال يومياً</span>
+        {% if package.monthly_articles_limit > 0 %}
+            <span style="color: var(--muted); font-size: 0.85rem;">وحتى {{ package.monthly_articles_limit }} مقال شهرياً</span>
+        {% endif %}
     </div>
 
     <form method="post" action="{% url 'payments:checkout' package.id %}" style="display: flex; flex-direction: column; gap: 1.25rem;">

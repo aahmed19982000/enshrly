@@ -241,6 +241,9 @@
                     <span class="discount-badge" id="discount-{{ pkg.id }}"></span>
                 </div>
                 <div class="daily-limit-row">نشر حتى {{ pkg.daily_limit }} مقال يومياً</div>
+                {% if pkg.monthly_articles_limit > 0 %}
+                    <div class="daily-limit-row">وحتى {{ pkg.monthly_articles_limit }} مقال شهرياً</div>
+                {% endif %}
                 <ul class="feature-list">
                     {% for feature in pkg.features.splitlines %}
                         {% if feature %}<li>{{ feature }}</li>{% endif %}

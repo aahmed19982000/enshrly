@@ -18,17 +18,6 @@ def _token_expiry_days(transaction):
     """مدة صلاحية كود الربط الناتج عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
     return SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
 
-def _period_prices_for_package(package):
-    """خريطة السعر ونسبة الخصم لكل فترة اشتراك متاحة لهذه الباقة، محسوبة على السيرفر."""
-    return {
-        period: {
-            'usd': str(package.price_for_period(period, 'USD')),
-            'egp': str(package.price_for_period(period, 'EGP')),
-            'discount': package.discount_percent_for_period(period),
-        }
-        for period, _ in SubscriptionPackage.BILLING_PERIOD_CHOICES
-    }
-
 def packages_view(request):
     packages = SubscriptionPackage.objects.filter(is_active=True).order_by('price')
     has_used_trial = False
@@ -38,7 +27,7 @@ def packages_view(request):
         except Exception:
             pass
 
-    period_prices = {pkg.id: _period_prices_for_package(pkg) for pkg in packages}
+    period_prices = {pkg.id: pkg.all_period_prices() for pkg in packages}
 
     return render(request, 'payments/packages.html', {
         'packages': packages,
@@ -152,7 +141,7 @@ def checkout_view(request, package_id):
 
     return render(request, 'payments/checkout.html', {
         'package': package,
-        'period_prices': _period_prices_for_package(package),
+        'period_prices': package.all_period_prices(),
         'initial_period': initial_period,
     })
 

@@ -75,6 +75,17 @@ class SubscriptionPackage(models.Model):
         total = base * months * (Decimal(100) - discount) / Decimal(100)
         return total.quantize(Decimal('0.01'))
 
+    def all_period_prices(self):
+        """خريطة السعر ونسبة الخصم لكل فترة اشتراك متاحة، لعرضها في صفحات التسعير."""
+        return {
+            period: {
+                'usd': str(self.price_for_period(period, 'USD')),
+                'egp': str(self.price_for_period(period, 'EGP')),
+                'discount': self.discount_percent_for_period(period),
+            }
+            for period, _ in self.BILLING_PERIOD_CHOICES
+        }
+
 class DevicePairing(models.Model):
     """
     Singleton tracking whether the currently displayed pairing QR (see

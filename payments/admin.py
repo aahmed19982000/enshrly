@@ -3,8 +3,8 @@ from .models import SubscriptionPackage, Transaction
 
 @admin.register(SubscriptionPackage)
 class SubscriptionPackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'daily_limit', 'monthly_articles_limit', 'is_active', 'is_custom')
-    list_filter = ('is_active', 'is_custom')
+    list_display = ('name', 'price', 'daily_limit', 'monthly_articles_limit', 'is_recommended', 'is_active', 'is_custom')
+    list_filter = ('is_active', 'is_custom', 'is_recommended')
     search_fields = ('name',)
     fieldsets = (
         ('معلومات السعر الأساسية', {
@@ -17,7 +17,7 @@ class SubscriptionPackageAdmin(admin.ModelAdmin):
             'fields': ('quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent'),
         }),
         ('الحالة', {
-            'fields': ('is_active', 'is_custom'),
+            'fields': ('is_recommended', 'is_active', 'is_custom'),
         }),
     )
 

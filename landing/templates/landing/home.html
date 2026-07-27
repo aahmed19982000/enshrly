@@ -52,6 +52,7 @@
     .pricing-grid { direction: ltr; }
     .pricing-card {
         direction: rtl;
+        position: relative;
         background: var(--surface);
         border: 1px solid rgba(33, 28, 20, 0.28);
         border-radius: var(--radius-md);
@@ -59,6 +60,29 @@
         display: flex;
         flex-direction: column;
         gap: 1.2rem;
+    }
+    .pricing-card.recommended {
+        border: 2px solid var(--gold);
+        box-shadow: 0 10px 30px rgba(181, 101, 29, 0.18);
+        transform: scale(1.04);
+        z-index: 1;
+    }
+    .recommended-badge {
+        position: absolute;
+        top: -14px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--gold);
+        color: var(--text-on-gold);
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.3rem 1.1rem;
+        border-radius: 999px;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    @media (max-width: 640px) {
+        .pricing-card.recommended { transform: none; }
     }
     .pricing-card .package-name { font-weight: 700; font-size: 1.2rem; color: var(--text); }
     .pricing-card .package-price { display: flex; flex-direction: column; gap: 0.15rem; }
@@ -233,7 +257,8 @@
 
     <div class="grid-auto pricing-grid">
         {% for pkg in packages|dictsortreversed:"price" %}
-            <div class="pricing-card">
+            <div class="pricing-card{% if pkg.is_recommended %} recommended{% endif %}">
+                {% if pkg.is_recommended %}<span class="recommended-badge">الأكثر شعبية</span>{% endif %}
                 <span class="package-name">{{ pkg.name }}</span>
                 <div class="package-price">
                     <span class="amount" id="amount-{{ pkg.id }}">${{ pkg.price }}</span>

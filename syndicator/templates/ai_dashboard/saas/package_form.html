@@ -52,6 +52,10 @@
 
         <div class="flex items-center space-x-6 space-x-reverse">
             <label class="flex items-center space-x-3 space-x-reverse cursor-pointer">
+                <input type="checkbox" name="is_recommended" class="w-5 h-5 rounded border-slate-700 text-primary-500 focus:ring-primary-500 bg-slate-800" {% if object.is_recommended %}checked{% endif %}>
+                <span class="text-slate-300">الأكثر شعبية (تُميَّز في صفحات الأسعار)</span>
+            </label>
+            <label class="flex items-center space-x-3 space-x-reverse cursor-pointer">
                 <input type="checkbox" name="is_custom" class="w-5 h-5 rounded border-slate-700 text-primary-500 focus:ring-primary-500 bg-slate-800" {% if object.is_custom %}checked{% endif %}>
                 <span class="text-slate-300">باقة مخصصة للشركات (تتطلب تواصل)</span>
             </label>

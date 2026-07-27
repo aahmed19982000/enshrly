@@ -28,6 +28,11 @@ class SubscriptionPackage(models.Model):
     features = models.TextField(verbose_name="المميزات", help_text="كل ميزة في سطر منفصل")
     is_active = models.BooleanField(default=True, verbose_name="مفعلة")
     is_custom = models.BooleanField(default=False, verbose_name="مخصصة للشركات (تتطلب تواصل)")
+    is_recommended = models.BooleanField(
+        default=False,
+        verbose_name="الأكثر شعبية",
+        help_text="تُميَّز هذه الباقة بشارة \"الأكثر شعبية\" وتُبرز بصرياً في صفحات الأسعار. يفضّل تفعيلها لباقة واحدة فقط في نفس الوقت."
+    )
 
     quarterly_discount_percent = models.PositiveIntegerField(
         default=0, validators=[MaxValueValidator(100)],

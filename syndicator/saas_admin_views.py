@@ -3,9 +3,12 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
+from django.utils import timezone
+from datetime import timedelta
 
 from accounts.models import CustomerProfile
 from payments.models import SubscriptionPackage, Transaction
+from payments.tasks import send_payment_success_whatsapp
 from syndicator.models import WPConnectionToken
 import uuid
 
@@ -74,16 +77,34 @@ class ConfirmTransactionView(StaffRequiredMixin, View):
     """ Allows manual confirmation of a pending transaction and issues a WP Token. """
     def post(self, request, pk, *args, **kwargs):
         transaction = get_object_or_404(Transaction, pk=pk)
-        if transaction.status != 'completed':
-            transaction.status = 'completed'
-            transaction.save()
-            
-            # Issue token upon manual confirmation
+
+        # Atomic claim, same as the automated confirmation paths in payments/views.py —
+        # avoids a double-click (or a race with an automated confirmation landing at
+        # the same moment) from issuing two tokens for one transaction.
+        claimed = Transaction.objects.filter(pk=transaction.pk, status='pending').update(status='completed')
+        if claimed:
+            days = SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
+            client_name = transaction.customer.user.first_name or transaction.customer.user.username
+
+            # Issue token upon manual confirmation. Must be linked to the customer
+            # (previously wasn't) so it actually shows up on their dashboard.
             token_str = str(uuid.uuid4())
             WPConnectionToken.objects.create(
                 token=token_str,
-                client_name=transaction.customer.user.first_name or transaction.customer.user.username,
+                customer=transaction.customer,
+                client_name=client_name,
                 package_daily_limit=transaction.package.daily_limit,
+                expires_at=timezone.now() + timedelta(days=days),
             )
-            messages.success(request, f"تم تأكيد المعاملة بنجاح وإنشاء كود الربط للعميل {transaction.customer.user.first_name}.")
+
+            send_payment_success_whatsapp.delay(
+                phone_number=transaction.customer.whatsapp_number,
+                client_name=client_name,
+                package_name=transaction.package.name,
+                token_code=token_str,
+                days=days,
+            )
+            messages.success(request, f"تم تأكيد المعاملة بنجاح وإنشاء كود الربط للعميل {client_name}.")
+        else:
+            messages.info(request, "هذه المعاملة مؤكدة بالفعل.")
         return redirect('news_ai:saas_transactions')

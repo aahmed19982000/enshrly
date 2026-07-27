@@ -12,7 +12,7 @@ import json
 from decimal import Decimal
 from django.utils import timezone
 from datetime import timedelta
-from accounts.utils import send_whatsapp_payment_success, send_whatsapp_payment_failed
+from .tasks import send_payment_success_whatsapp, send_payment_failed_whatsapp
 
 def _token_expiry_days(transaction):
     """مدة صلاحية كود الربط الناتج عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
@@ -260,7 +260,7 @@ def confirm_paypal_payment(request):
             )
 
             # Send WhatsApp confirmation
-            send_whatsapp_payment_success(
+            send_payment_success_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=request.user.first_name or request.user.username,
                 package_name=transaction.package.name,
@@ -270,7 +270,7 @@ def confirm_paypal_payment(request):
 
             return JsonResponse({"success": True, "redirect_url": success_url})
         else:
-            send_whatsapp_payment_failed(
+            send_payment_failed_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=request.user.first_name or request.user.username,
                 package_name=transaction.package.name
@@ -405,7 +405,7 @@ def mobile_post_transaction(request):
     )
 
     # Send WhatsApp confirmation
-    send_whatsapp_payment_success(
+    send_payment_success_whatsapp.delay(
         phone_number=matched_tx.customer.whatsapp_number,
         client_name=matched_tx.customer.user.first_name or matched_tx.customer.user.username,
         package_name=matched_tx.package.name,
@@ -443,7 +443,7 @@ def payment_success_view(request, transaction_id):
             )
 
             # Send WhatsApp confirmation
-            send_whatsapp_payment_success(
+            send_payment_success_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=request.user.first_name or request.user.username,
                 package_name=transaction.package.name,
@@ -606,7 +606,7 @@ def confirm_payment_api(request):
     )
 
     # Send WhatsApp confirmation
-    send_whatsapp_payment_success(
+    send_payment_success_whatsapp.delay(
         phone_number=matched_tx.customer.whatsapp_number,
         client_name=matched_tx.customer.user.first_name or matched_tx.customer.user.username,
         package_name=matched_tx.package.name,
@@ -828,7 +828,7 @@ def paymob_webhook_view(request):
                     expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
                 )
 
-                send_whatsapp_payment_success(
+                send_payment_success_whatsapp.delay(
                     phone_number=transaction.customer.whatsapp_number,
                     client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                     package_name=transaction.package.name,
@@ -844,7 +844,7 @@ def paymob_webhook_view(request):
             transaction.gateway_transaction_id = paymob_tx_id
             transaction.save()
 
-            send_whatsapp_payment_failed(
+            send_payment_failed_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
                 package_name=transaction.package.name

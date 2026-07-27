@@ -48,3 +48,28 @@ def notify_stale_pending_local_transactions():
     if notified:
         logger.info(f"Sent manual-confirmation-request WhatsApp message for {notified} stale pending transaction(s)")
     return f"Notified {notified} stale pending transaction(s)"
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def send_payment_success_whatsapp(self, phone_number, client_name, package_name, token_code, days):
+    """
+    Sends the payment-success WhatsApp message off the request/webhook thread.
+    The WhatsApp bot has been observed to hang on individual /send calls —
+    running this inline inside a payment webhook risks delaying the HTTP
+    response long enough for the gateway to retry the whole webhook, which is
+    exactly what previously caused duplicate WPConnectionToken issuance.
+    Retries a few times since a bot hang/timeout is typically transient.
+    """
+    from accounts.utils import send_whatsapp_payment_success
+    sent = send_whatsapp_payment_success(phone_number, client_name, package_name, token_code, days)
+    if not sent:
+        raise self.retry()
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def send_payment_failed_whatsapp(self, phone_number, client_name, package_name):
+    """Same rationale as send_payment_success_whatsapp — never block a payment webhook on the WhatsApp bot."""
+    from accounts.utils import send_whatsapp_payment_failed
+    sent = send_whatsapp_payment_failed(phone_number, client_name, package_name)
+    if not sent:
+        raise self.retry()

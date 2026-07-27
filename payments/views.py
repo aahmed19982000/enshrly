@@ -18,6 +18,17 @@ def _token_expiry_days(transaction):
     """مدة صلاحية كود الربط الناتج عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
     return SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
 
+def _period_prices_for_package(package):
+    """خريطة السعر ونسبة الخصم لكل فترة اشتراك متاحة لهذه الباقة، محسوبة على السيرفر."""
+    return {
+        period: {
+            'usd': str(package.price_for_period(period, 'USD')),
+            'egp': str(package.price_for_period(period, 'EGP')),
+            'discount': package.discount_percent_for_period(period),
+        }
+        for period, _ in SubscriptionPackage.BILLING_PERIOD_CHOICES
+    }
+
 def packages_view(request):
     packages = SubscriptionPackage.objects.filter(is_active=True).order_by('price')
     has_used_trial = False
@@ -26,7 +37,14 @@ def packages_view(request):
             has_used_trial = request.user.customer_profile.has_used_trial
         except Exception:
             pass
-    return render(request, 'payments/packages.html', {'packages': packages, 'has_used_trial': has_used_trial})
+
+    period_prices = {pkg.id: _period_prices_for_package(pkg) for pkg in packages}
+
+    return render(request, 'payments/packages.html', {
+        'packages': packages,
+        'has_used_trial': has_used_trial,
+        'period_prices': period_prices,
+    })
 
 @login_required
 def start_free_trial(request):
@@ -128,15 +146,15 @@ def checkout_view(request, package_id):
         # For crypto or other simulated successes
         return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
 
-    period_prices = {
-        period: {
-            'usd': str(package.price_for_period(period, 'USD')),
-            'egp': str(package.price_for_period(period, 'EGP')),
-            'discount': package.discount_percent_for_period(period),
-        }
-        for period, _ in SubscriptionPackage.BILLING_PERIOD_CHOICES
-    }
-    return render(request, 'payments/checkout.html', {'package': package, 'period_prices': period_prices})
+    initial_period = request.GET.get('period', 'monthly')
+    if initial_period not in dict(SubscriptionPackage.BILLING_PERIOD_CHOICES):
+        initial_period = 'monthly'
+
+    return render(request, 'payments/checkout.html', {
+        'package': package,
+        'period_prices': _period_prices_for_package(package),
+        'initial_period': initial_period,
+    })
 
 import requests
 

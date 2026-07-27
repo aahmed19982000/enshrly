@@ -21,6 +21,12 @@
     .pricing-card .package-price { display: flex; flex-direction: column; gap: 0.15rem; }
     .pricing-card .package-price .amount { font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
     .pricing-card .package-price .sub { font-size: 0.9rem; color: var(--muted); font-family: var(--font-body); font-weight: normal; white-space: nowrap; }
+    .pricing-card .discount-badge {
+        display: none;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--rust);
+    }
     .pricing-card .daily-limit-row {
         color: var(--rust);
         font-weight: 600;
@@ -30,6 +36,8 @@
         border-bottom: 1px solid var(--rule);
     }
     .pricing-card .btn { margin-top: auto; }
+    .period-selector { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin: 0 auto 2rem; max-width: 600px; }
+    .period-selector .toggle-chip { flex: initial; padding: 0.5rem 1.25rem; }
 </style>
 {% endblock %}
 
@@ -48,13 +56,33 @@
     </div>
     {% endif %}
 
+    <div class="period-selector">
+        <label class="toggle-chip selected">
+            <input type="radio" name="display_period" value="monthly" checked onchange="updateDisplayedPrices()">
+            شهري
+        </label>
+        <label class="toggle-chip">
+            <input type="radio" name="display_period" value="quarterly" onchange="updateDisplayedPrices()">
+            ربع سنوي
+        </label>
+        <label class="toggle-chip">
+            <input type="radio" name="display_period" value="semiannual" onchange="updateDisplayedPrices()">
+            نصف سنوي
+        </label>
+        <label class="toggle-chip">
+            <input type="radio" name="display_period" value="annual" onchange="updateDisplayedPrices()">
+            سنوي
+        </label>
+    </div>
+
     <div class="grid-auto pricing-grid">
         {% for pkg in packages|dictsortreversed:"price" %}
             <div class="pricing-card">
                 <span class="package-name">{{ pkg.name }}</span>
                 <div class="package-price">
-                    <span class="amount">${{ pkg.price }}</span>
-                    <span class="sub">/ أو {{ pkg.price_egp }} ج.م / شهرياً</span>
+                    <span class="amount" id="amount-{{ pkg.id }}">${{ pkg.price }}</span>
+                    <span class="sub" id="sub-{{ pkg.id }}">/ أو {{ pkg.price_egp }} ج.م / شهرياً</span>
+                    <span class="discount-badge" id="discount-{{ pkg.id }}"></span>
                 </div>
                 <div class="daily-limit-row">نشر حتى {{ pkg.daily_limit }} مقال يومياً</div>
                 <ul class="feature-list">
@@ -62,11 +90,48 @@
                         {% if feature %}<li>{{ feature }}</li>{% endif %}
                     {% endfor %}
                 </ul>
-                <a href="{% url 'payments:checkout' pkg.id %}" class="btn btn-primary btn-block">اشترك الآن</a>
+                <a href="{% url 'payments:checkout' pkg.id %}" class="btn btn-primary btn-block" id="subscribe-{{ pkg.id }}" data-base-href="{% url 'payments:checkout' pkg.id %}">اشترك الآن</a>
             </div>
         {% empty %}
             <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">لا توجد باقات متاحة حالياً.</p>
         {% endfor %}
     </div>
 </div>
+
+{{ period_prices|json_script:"period-prices-data" }}
+<script>
+const PACKAGE_PERIOD_PRICES = JSON.parse(document.getElementById('period-prices-data').textContent);
+const PERIOD_LABELS = {
+    monthly: 'شهرياً',
+    quarterly: 'كل 3 أشهر',
+    semiannual: 'كل 6 أشهر',
+    annual: 'سنوياً',
+};
+
+function updateDisplayedPrices() {
+    const period = document.querySelector('input[name="display_period"]:checked').value;
+    const label = PERIOD_LABELS[period];
+
+    for (const pkgId in PACKAGE_PERIOD_PRICES) {
+        const priceInfo = PACKAGE_PERIOD_PRICES[pkgId][period];
+        if (!priceInfo) continue;
+
+        document.getElementById('amount-' + pkgId).innerText = '$' + priceInfo.usd;
+        document.getElementById('sub-' + pkgId).innerText = '/ أو ' + priceInfo.egp + ' ج.م / ' + label;
+
+        const badge = document.getElementById('discount-' + pkgId);
+        if (priceInfo.discount > 0) {
+            badge.style.display = 'block';
+            badge.innerText = 'وفّر ' + priceInfo.discount + '%';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        const subscribeLink = document.getElementById('subscribe-' + pkgId);
+        subscribeLink.href = subscribeLink.dataset.baseHref + '?period=' + period;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', updateDisplayedPrices);
+</script>
 {% endblock %}

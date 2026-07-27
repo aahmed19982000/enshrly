@@ -18,20 +18,20 @@
         <div class="panel">
             <span class="card-title">فترة الاشتراك</span>
             <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
-                <label class="toggle-chip selected">
-                    <input type="radio" name="billing_period" value="monthly" checked onchange="updatePrice()">
+                <label class="toggle-chip{% if initial_period == 'monthly' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="monthly" {% if initial_period == 'monthly' %}checked{% endif %} onchange="updatePrice()">
                     شهري
                 </label>
-                <label class="toggle-chip">
-                    <input type="radio" name="billing_period" value="quarterly" onchange="updatePrice()">
+                <label class="toggle-chip{% if initial_period == 'quarterly' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="quarterly" {% if initial_period == 'quarterly' %}checked{% endif %} onchange="updatePrice()">
                     ربع سنوي
                 </label>
-                <label class="toggle-chip">
-                    <input type="radio" name="billing_period" value="semiannual" onchange="updatePrice()">
+                <label class="toggle-chip{% if initial_period == 'semiannual' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="semiannual" {% if initial_period == 'semiannual' %}checked{% endif %} onchange="updatePrice()">
                     نصف سنوي
                 </label>
-                <label class="toggle-chip">
-                    <input type="radio" name="billing_period" value="annual" onchange="updatePrice()">
+                <label class="toggle-chip{% if initial_period == 'annual' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="annual" {% if initial_period == 'annual' %}checked{% endif %} onchange="updatePrice()">
                     سنوي
                 </label>
             </div>

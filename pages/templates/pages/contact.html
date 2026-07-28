@@ -28,7 +28,9 @@
 
         <p>يمكنك أيضاً التواصل معنا مباشرة:</p>
         <ul>
-            <li><strong>الواتساب:</strong> [رقم الواتساب — يُستكمل]</li>
+            {% if support_whatsapp_number %}
+            <li><strong>الواتساب:</strong> <a href="https://wa.me/{{ support_whatsapp_number }}" target="_blank" rel="noopener">{{ support_whatsapp_number }}</a></li>
+            {% endif %}
             <li><strong>البريد الإلكتروني:</strong> [البريد الإلكتروني — يُستكمل]</li>
         </ul>
 

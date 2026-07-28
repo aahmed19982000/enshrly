@@ -6,6 +6,14 @@ from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
+
+def _alert_whatsapp_send_exhausted(context, phone_number, client_name):
+    """Best-effort Telegram alert to admins once a WhatsApp notification has exhausted all retries and will not be delivered."""
+    from syndicator.ai_utils import send_telegram_alert
+    send_telegram_alert(
+        f"⚠️ فشل إرسال إشعار واتساب ({context}) للعميل {client_name} ({phone_number}) بعد استنفاد كل المحاولات."
+    )
+
 # Any pending 'local' wallet transaction older than this with no automatic
 # confirmation is assumed to mean the mobile monitor app is offline/disconnected.
 PENDING_CONFIRMATION_GRACE_MINUTES = 5
@@ -63,7 +71,11 @@ def send_payment_success_whatsapp(self, phone_number, client_name, package_name,
     from accounts.utils import send_whatsapp_payment_success
     sent = send_whatsapp_payment_success(phone_number, client_name, package_name, token_code, days)
     if not sent:
-        raise self.retry()
+        try:
+            raise self.retry()
+        except self.MaxRetriesExceededError:
+            _alert_whatsapp_send_exhausted("تأكيد الدفع", phone_number, client_name)
+            raise
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
@@ -72,7 +84,11 @@ def send_payment_failed_whatsapp(self, phone_number, client_name, package_name):
     from accounts.utils import send_whatsapp_payment_failed
     sent = send_whatsapp_payment_failed(phone_number, client_name, package_name)
     if not sent:
-        raise self.retry()
+        try:
+            raise self.retry()
+        except self.MaxRetriesExceededError:
+            _alert_whatsapp_send_exhausted("فشل الدفع", phone_number, client_name)
+            raise
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
@@ -80,7 +96,11 @@ def send_underpayment_whatsapp(self, phone_number, client_name, package_name, re
     from accounts.utils import send_whatsapp_underpayment_notice
     sent = send_whatsapp_underpayment_notice(phone_number, client_name, package_name, required_amount, received_amount, currency)
     if not sent:
-        raise self.retry()
+        try:
+            raise self.retry()
+        except self.MaxRetriesExceededError:
+            _alert_whatsapp_send_exhausted("نقص في المبلغ المحول", phone_number, client_name)
+            raise
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
@@ -88,4 +108,8 @@ def send_page_closed_whatsapp(self, phone_number, client_name, amount, currency,
     from accounts.utils import send_whatsapp_page_closed_notice
     sent = send_whatsapp_page_closed_notice(phone_number, client_name, amount, currency, wallet_number)
     if not sent:
-        raise self.retry()
+        try:
+            raise self.retry()
+        except self.MaxRetriesExceededError:
+            _alert_whatsapp_send_exhausted("إغلاق صفحة الدفع", phone_number, client_name)
+            raise

@@ -41,37 +41,50 @@
             <span id="discount-note" style="display: none; color: var(--gold); font-size: 0.85rem;"></span>
         </div>
 
+        {% if enable_paypal_gateway or enable_paymob_gateway or enable_local_wallet_gateway %}
         <div class="panel">
             <span class="card-title">العملة</span>
             <div style="display: flex; gap: 0.75rem;">
+                {% if enable_paypal_gateway %}
                 <label class="toggle-chip selected">
                     <input type="radio" name="currency" value="USD" checked onchange="updatePrice()">
                     دولار (USD)
                 </label>
-                <label class="toggle-chip">
-                    <input type="radio" name="currency" value="EGP" onchange="updatePrice()">
+                {% endif %}
+                {% if enable_paymob_gateway or enable_local_wallet_gateway %}
+                <label class="toggle-chip{% if not enable_paypal_gateway %} selected{% endif %}">
+                    <input type="radio" name="currency" value="EGP" {% if not enable_paypal_gateway %}checked{% endif %} onchange="updatePrice()">
                     جنيه مصري (EGP)
                 </label>
+                {% endif %}
             </div>
         </div>
 
         <div class="panel">
             <span class="card-title">طريقة الدفع</span>
 
+            {% if enable_paypal_gateway %}
             <label id="paypal-opt" class="select-row selected">
                 <input type="radio" name="gateway" id="gw-paypal" value="paypal" required onclick="togglePhoneInput(false)">
                 <span class="select-row-label">PayPal / بطاقة ائتمانية دولية</span>
             </label>
+            {% endif %}
 
+            {% if enable_paymob_gateway %}
             <label id="paymob-opt" class="select-row" style="display: none;">
                 <input type="radio" name="gateway" id="gw-paymob" value="paymob" onclick="togglePhoneInput(false)">
                 <span class="select-row-label">البطاقات البنكية المصرية (Visa / Mastercard / Meeza)</span>
             </label>
+            {% endif %}
 
+            {% if enable_local_wallet_gateway %}
             <label id="local-opt" class="select-row" style="display: none;">
                 <input type="radio" name="gateway" id="gw-local" value="local" onclick="togglePhoneInput(true)">
                 <span class="select-row-label">محافظ محلية (Vodafone Cash / فوري)</span>
             </label>
+            {% endif %}
+
+            <p id="no-gateway-note" style="display: none; color: var(--rust);">لا توجد طريقة دفع متاحة حالياً بهذه العملة، جرّب عملة أخرى.</p>
 
             <div id="phone-input-group" class="field" style="display: none;">
                 <label for="sender_phone">رقم المحفظة التي ستحول منها:</label>
@@ -81,9 +94,15 @@
         </div>
 
         <button type="submit" class="btn btn-primary btn-block btn-lg">متابعة الدفع</button>
+        {% else %}
+        <div class="panel">
+            <p style="color: var(--rust);">عذراً، لا توجد طريقة دفع متاحة حالياً. برجاء التواصل معنا لإتمام الاشتراك.</p>
+        </div>
+        {% endif %}
     </form>
 </div>
 
+{% if enable_paypal_gateway or enable_paymob_gateway or enable_local_wallet_gateway %}
 {{ period_prices|json_script:"period-prices-data" }}
 <script>
 const PERIOD_PRICES = JSON.parse(document.getElementById('period-prices-data').textContent);
@@ -95,14 +114,7 @@ function updatePrice() {
 
     const display = document.getElementById('display-price');
     const discountNote = document.getElementById('discount-note');
-
-    const paypalOpt = document.getElementById('paypal-opt');
-    const paymobOpt = document.getElementById('paymob-opt');
-    const localOpt = document.getElementById('local-opt');
-
-    const gwPaypal = document.getElementById('gw-paypal');
-    const gwPaymob = document.getElementById('gw-paymob');
-    const gwLocal = document.getElementById('gw-local');
+    const noGatewayNote = document.getElementById('no-gateway-note');
 
     if (priceInfo.discount > 0) {
         discountNote.style.display = 'inline';
@@ -111,36 +123,30 @@ function updatePrice() {
         discountNote.style.display = 'none';
     }
 
-    if (currency === 'USD') {
-        display.innerText = '$' + priceInfo.usd;
+    display.innerText = currency === 'USD' ? '$' + priceInfo.usd : priceInfo.egp + ' ج.م';
 
-        paypalOpt.style.display = 'block';
-        paymobOpt.style.display = 'none';
-        localOpt.style.display = 'none';
+    const usdGateways = [{ opt: document.getElementById('paypal-opt'), input: document.getElementById('gw-paypal') }];
+    const egpGateways = [
+        { opt: document.getElementById('paymob-opt'), input: document.getElementById('gw-paymob') },
+        { opt: document.getElementById('local-opt'), input: document.getElementById('gw-local') },
+    ];
 
-        gwPaypal.required = true;
-        gwPaypal.checked = true;
-        gwPaymob.required = false;
-        gwPaymob.checked = false;
-        gwLocal.required = false;
-        gwLocal.checked = false;
+    // Only gateways enabled by the admin were rendered into the DOM at all, so opt/input can be null here.
+    usdGateways.concat(egpGateways).forEach(g => {
+        if (g.opt) g.opt.style.display = 'none';
+        if (g.input) { g.input.required = false; g.input.checked = false; }
+    });
 
-        togglePhoneInput(false);
+    const activeGateways = (currency === 'USD' ? usdGateways : egpGateways).filter(g => g.opt && g.input);
+
+    if (activeGateways.length > 0) {
+        noGatewayNote.style.display = 'none';
+        activeGateways.forEach(g => { g.opt.style.display = 'block'; });
+        activeGateways[0].input.required = true;
+        activeGateways[0].input.checked = true;
+        togglePhoneInput(activeGateways[0].input.id === 'gw-local');
     } else {
-        display.innerText = priceInfo.egp + ' ج.م';
-
-        paypalOpt.style.display = 'none';
-        paymobOpt.style.display = 'block';
-        localOpt.style.display = 'block';
-
-        gwPaypal.required = false;
-        gwPaypal.checked = false;
-
-        gwPaymob.required = true;
-        gwPaymob.checked = true;
-        gwLocal.required = false;
-        gwLocal.checked = false;
-
+        noGatewayNote.style.display = 'block';
         togglePhoneInput(false);
     }
 }
@@ -161,4 +167,5 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePrice();
 });
 </script>
+{% endif %}
 {% endblock %}

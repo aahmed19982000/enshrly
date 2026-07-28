@@ -364,3 +364,22 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0; }
   color: var(--muted);
   font-size: var(--text-small);
 }
+
+/* Floating WhatsApp contact button */
+.whatsapp-float {
+  position: fixed;
+  bottom: 1.5rem;
+  inset-inline-end: 1.5rem;
+  z-index: 1000;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: #25D366;
+  color: #FAF6EC;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width) solid var(--rule);
+  transition: transform 0.15s ease;
+}
+.whatsapp-float:hover { transform: scale(1.08); color: #FAF6EC; }

@@ -49,7 +49,7 @@ class DashboardIndexView(StaffRequiredMixin, TemplateView):
 
 class SettingsUpdateView(StaffRequiredMixin, UpdateView):
     model = AISettings
-    fields = ['gemini_api_key', 'telegram_bot_token', 'telegram_allowed_chats', 'wallet_number', 'articles_per_day', 'max_words', 'is_active', 'publish_to_main_site', 'daily_cost_limit_usd']
+    fields = ['gemini_api_key', 'telegram_bot_token', 'telegram_allowed_chats', 'wallet_number', 'support_whatsapp_number', 'enable_paypal_gateway', 'enable_paymob_gateway', 'enable_local_wallet_gateway', 'articles_per_day', 'max_words', 'is_active', 'publish_to_main_site', 'daily_cost_limit_usd']
     template_name = 'ai_dashboard/settings.html'
     success_url = reverse_lazy('news_ai:index')
 

@@ -127,13 +127,22 @@ def checkout_view(request, package_id):
 
     package = get_object_or_404(SubscriptionPackage, id=package_id)
 
+    from syndicator.models import AISettings
+    ai_settings = AISettings.get_settings()
+    enabled_gateways = {
+        'paypal': ai_settings.enable_paypal_gateway,
+        'paymob': ai_settings.enable_paymob_gateway,
+        'local': ai_settings.enable_local_wallet_gateway,
+        'crypto': True,
+    }
+
     if request.method == 'POST':
         gateway = request.POST.get('gateway')
         currency = request.POST.get('currency', 'USD')
         billing_period = request.POST.get('billing_period', 'monthly')
         sender_phone = request.POST.get('sender_phone', '').strip()
 
-        if gateway not in dict(Transaction.GATEWAY_CHOICES):
+        if gateway not in dict(Transaction.GATEWAY_CHOICES) or not enabled_gateways.get(gateway):
             messages.error(request, "يرجى اختيار بوابة دفع صحيحة.")
             return redirect('payments:checkout', package_id=package.id)
 
@@ -190,6 +199,9 @@ def checkout_view(request, package_id):
         'package': package,
         'period_prices': package.all_period_prices(),
         'initial_period': initial_period,
+        'enable_paypal_gateway': ai_settings.enable_paypal_gateway,
+        'enable_paymob_gateway': ai_settings.enable_paymob_gateway,
+        'enable_local_wallet_gateway': ai_settings.enable_local_wallet_gateway,
     })
 
 import requests

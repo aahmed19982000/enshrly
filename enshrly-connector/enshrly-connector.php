@@ -116,20 +116,30 @@ class Enshrly_Connector {
 
                 // Category Mapping
                 $category_mapping = [];
+                $secondary_by_key = [];
                 foreach ($_POST as $k => $v) {
-                    if (strpos($k, 'cat_group_') === 0) {
-                        $val = intval($v);
-                        if ($val > 0) {
-                            $mapped_key = substr($k, 4); // removes 'cat_'
-                            $category_mapping[$mapped_key] = $val;
+                    if (strpos($k, 'cat_') !== 0) continue;
+                    if (substr($k, -10) === '_secondary') {
+                        if (is_array($v)) {
+                            $mapped_key = substr($k, 4, -10); // strips leading 'cat_' and trailing '_secondary'
+                            $secondary_by_key[$mapped_key] = array_values(array_filter(array_map('intval', $v)));
                         }
-                    } elseif (strpos($k, 'cat_') === 0) {
+                    } else {
                         $val = intval($v);
                         if ($val > 0) {
                             $mapped_key = substr($k, 4); // removes 'cat_'
                             $category_mapping[$mapped_key] = $val;
                         }
                     }
+                }
+                // Merge in any additional (secondary) categories as {"primary": X, "secondary": [Y, Z]}
+                foreach ($secondary_by_key as $mapped_key => $secondary_ids) {
+                    if (empty($secondary_ids)) continue;
+                    $entry = array('secondary' => $secondary_ids);
+                    if (!empty($category_mapping[$mapped_key])) {
+                        $entry['primary'] = $category_mapping[$mapped_key];
+                    }
+                    $category_mapping[$mapped_key] = $entry;
                 }
                 update_option('enshrly_category_mapping', $category_mapping);
 
@@ -151,7 +161,7 @@ class Enshrly_Connector {
                 $wp_author_ids = isset($_POST['wp_author_ids']) && is_array($_POST['wp_author_ids']) ? implode(',', array_map('intval', $_POST['wp_author_ids'])) : '';
                 update_option('enshrly_wp_author_ids', $wp_author_ids);
 
-                $result = $this->connect_to_enshrly($token, $server_url, $category_mapping, $source_groups, $schedules, $wp_author_ids);
+                $result = $this->connect_to_enshrly($token, $server_url, $category_mapping, $source_groups, $schedules, $wp_author_ids, $enabled_price_articles);
                 if (is_wp_error($result)) {
                     $error = $result->get_error_message();
                 } else {
@@ -168,6 +178,7 @@ class Enshrly_Connector {
         $categories = get_categories(['hide_empty' => false]);
         $saved_mapping = get_option('enshrly_category_mapping', []);
         $saved_source_groups = get_option('enshrly_source_groups', []);
+        $saved_enabled_price_articles = get_option('enshrly_enabled_price_articles', []);
         $saved_schedules = get_option('enshrly_schedules', []);
         $saved_author_ids = get_option('enshrly_wp_author_ids', '');
         
@@ -288,56 +299,12 @@ class Enshrly_Connector {
                 </div>
 
                 <div class="postbox" style="padding: 20px; margin-top: 20px;">
-                    <h2>3. تفعيل مقالات الأسعار</h2>
-                    <p class="description">حدد المقالات التي تريد أن يقوم النظام بتوليدها ونشرها أوتوماتيكياً في موقعك.</p>
-                    <table class="form-table">
-                        <tr>
-                            <td colspan="2">
-                                <?php 
-                                $saved_enabled_price_articles = get_option('enshrly_enabled_price_articles', []);
-                                if (!empty($plugin_data['content_types'])) {
-                                    foreach ($plugin_data['content_types'] as $ct) {
-                                        if ($ct['id'] === 'regular') continue;
-                                        $checked = in_array($ct['id'], $saved_enabled_price_articles) ? 'checked' : '';
-                                        echo '<label style="display:inline-block; margin-left:20px; margin-bottom:10px;">';
-                                        echo '<input type="checkbox" name="enabled_price_articles[]" value="' . esc_attr($ct['id']) . '" ' . $checked . ' /> ' . esc_html($ct['name']);
-                                        echo '</label>';
-                                    }
-                                } else {
-                                    echo '<p style="color:orange;">يرجى إدخال رابط النظام وكود الربط والضغط على حفظ لتظهر أنواع المقالات المتاحة.</p>';
-                                }
-                                ?>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-
-                <div class="postbox" style="padding: 20px; margin-top: 20px;">
-                    <h2>4. توجيه الأقسام (Category Mapping)</h2>
-                    <p class="description">حدد القسم في موقعك الذي سيتم نشر كل نوع من الأخبار فيه.</p>
+                    <h2>3. توجيه الأقسام (Category Mapping)</h2>
+                    <p class="description">حدد القسم الأساسي (وأي أقسام إضافية إن أردت) في موقعك الذي سيتم نشر كل نوع من الأخبار فيه.</p>
                     <table class="form-table">
                         <tbody id="dynamic-category-mapping"></tbody>
-                        <?php 
-                        if (!empty($plugin_data['content_types'])):
-                            foreach ($plugin_data['content_types'] as $ct): 
-                                if ($ct['id'] === 'regular') continue;
-                                $key = $ct['id'];
-                                $label = $ct['name'];
-                                $selected = $saved_mapping[$key] ?? 0;
-                        ?>
-                        <tr valign="top">
-                            <th scope="row"><label><?php echo esc_html($label); ?></label></th>
-                            <td>
-                                <select name="cat_<?php echo esc_attr($key); ?>">
-                                    <option value="0">-- اختر القسم --</option>
-                                    <?php foreach ($categories as $cat): ?>
-                                        <option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($selected, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                        </tr>
-                        <?php endforeach; endif; ?>
                     </table>
+                    <p class="description">تظهر هنا فقط الأقسام المطابقة للأسعار والمجموعات التي حددتها أعلاه.</p>
                 </div>
 
                 <?php if ($fetch_error): ?>
@@ -346,16 +313,53 @@ class Enshrly_Connector {
 
                 <?php if (!empty($plugin_data['source_groups'])): ?>
                 <div class="postbox" style="padding: 20px; margin-top: 20px;">
-                    <h2>5. مجموعات المصادر المفضلة</h2>
+                    <h2>4. مجموعات المصادر المفضلة</h2>
                     <p class="description">حدد مجموعات المصادر التي تريد استلام الأخبار منها.</p>
                     <table class="form-table">
                         <tr valign="top">
                             <td colspan="2">
-                                <?php foreach ($plugin_data['source_groups'] as $group): ?>
-                                    <label style="display:inline-block; margin-left:20px; margin-bottom:10px;">
-                                        <input type="checkbox" name="source_groups[]" value="<?php echo esc_attr($group['id']); ?>" <?php checked(in_array($group['id'], $saved_source_groups)); ?> />
-                                        <?php echo esc_html($group['name']); ?>
-                                    </label>
+                                <?php
+                                $all_source_groups = $plugin_data['source_groups'];
+                                $top_level_groups = array_filter($all_source_groups, function($g) { return empty($g['parent_id']); });
+                                foreach ($top_level_groups as $parent_group):
+                                    $child_groups = array_filter($all_source_groups, function($g) use ($parent_group) {
+                                        return !empty($g['parent_id']) && $g['parent_id'] == $parent_group['id'];
+                                    });
+                                ?>
+                                    <div style="margin-bottom:15px;">
+                                        <label style="display:block; font-weight:600; margin-bottom:6px;">
+                                            <input type="checkbox" name="source_groups[]" value="<?php echo esc_attr($parent_group['id']); ?>" <?php checked(in_array($parent_group['id'], $saved_source_groups)); ?> />
+                                            <?php echo esc_html($parent_group['name']); ?>
+                                        </label>
+                                        <?php if (!empty($child_groups)): ?>
+                                            <div style="margin-right:28px;">
+                                                <?php foreach ($child_groups as $child_group): ?>
+                                                    <label style="display:inline-block; margin-left:20px; margin-bottom:8px;">
+                                                        <input type="checkbox" name="source_groups[]" value="<?php echo esc_attr($child_group['id']); ?>" <?php checked(in_array($child_group['id'], $saved_source_groups)); ?> />
+                                                        <?php echo esc_html($child_group['name']); ?>
+                                                    </label>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php
+                                        $price_group = null;
+                                        foreach ($child_groups as $g) {
+                                            if (!empty($g['is_price_articles_group'])) { $price_group = $g; break; }
+                                        }
+                                        if (!$price_group && !empty($parent_group['is_price_articles_group'])) { $price_group = $parent_group; }
+                                        ?>
+                                        <?php if ($price_group && !empty($plugin_data['content_types'])): ?>
+                                            <div style="margin-right:48px; margin-top:6px; padding-right:12px; border-right:3px solid #ccc;">
+                                                <p class="description" style="margin:4px 0;">حدد أسعار "<?php echo esc_html($price_group['name']); ?>" التي تريد توليدها ونشرها أوتوماتيكياً بالتفصيل:</p>
+                                                <?php foreach ($plugin_data['content_types'] as $ct): if ($ct['id'] === 'regular') continue; ?>
+                                                    <label style="display:inline-block; margin-left:20px; margin-bottom:8px;">
+                                                        <input type="checkbox" name="enabled_price_articles[]" value="<?php echo esc_attr($ct['id']); ?>" <?php checked(in_array($ct['id'], $saved_enabled_price_articles)); ?> />
+                                                        <?php echo esc_html($ct['name']); ?>
+                                                    </label>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 <?php endforeach; ?>
                             </td>
                         </tr>
@@ -365,7 +369,7 @@ class Enshrly_Connector {
 
                 <?php if (!empty($plugin_data['content_types'])): ?>
                 <div class="postbox" style="padding: 20px; margin-top: 20px;">
-                    <h2>6. جدولة النشر (Schedules)</h2>
+                    <h2>5. جدولة النشر (Schedules)</h2>
                     <p class="description">حدد أوقات النشر الآلي وأنواع المحتوى المطلوبة في كل فترة.</p>
                     <div id="enshrly-schedules-container"></div>
                     <button type="button" class="button" id="add-schedule-btn" style="margin-top: 10px;">+ إضافة فترة نشر</button>
@@ -384,7 +388,9 @@ class Enshrly_Connector {
                         contentTypes = contentTypes.filter(function(ct) { return ct.id !== 'regular'; });
 
                         function getDynamicContentTypes() {
-                            var cts = [...contentTypes];
+                            var enabledPriceIds = [];
+                            $('input[name="enabled_price_articles[]"]:checked').each(function() { enabledPriceIds.push($(this).val()); });
+                            var cts = contentTypes.filter(function(ct) { return enabledPriceIds.indexOf(ct.id) !== -1; });
                             $('input[name="source_groups[]"]:checked').each(function() {
                                 var groupId = $(this).val();
                                 var groupName = $(this).parent().text().trim();
@@ -396,6 +402,38 @@ class Enshrly_Connector {
                         function renderCategoryMapping() {
                             var tbody = $('#dynamic-category-mapping');
                             tbody.empty();
+
+                            var enabledPriceIds = [];
+                            $('input[name="enabled_price_articles[]"]:checked').each(function() { enabledPriceIds.push($(this).val()); });
+
+                            contentTypes.forEach(function(ct) {
+                                if (enabledPriceIds.indexOf(ct.id) === -1) return;
+
+                                var mappingVal = savedMapping[ct.id] || 0;
+                                var primarySelected = 0, secondarySelected = [];
+                                if (mappingVal && typeof mappingVal === 'object') {
+                                    primarySelected = parseInt(mappingVal.primary || 0, 10);
+                                    secondarySelected = (mappingVal.secondary || []).map(function(v) { return parseInt(v, 10); });
+                                } else {
+                                    primarySelected = parseInt(mappingVal || 0, 10);
+                                }
+
+                                var html = '<tr valign="top"><th scope="row"><label>' + ct.name + '</label></th><td>';
+                                html += '<select name="cat_' + ct.id + '"><option value="0">-- اختر القسم الأساسي --</option>';
+                                wpCategories.forEach(function(c) {
+                                    var isSelected = (primarySelected === c.id) ? 'selected' : '';
+                                    html += '<option value="' + c.id + '" ' + isSelected + '>' + c.name + '</option>';
+                                });
+                                html += '</select>';
+                                html += '<div style="margin-top:8px;"><p class="description" style="margin:4px 0;">أقسام إضافية (اختياري، يُنشر الخبر فيها أيضاً):</p>';
+                                wpCategories.forEach(function(c) {
+                                    var checked = (secondarySelected.indexOf(c.id) !== -1) ? 'checked' : '';
+                                    html += '<label style="display:inline-block; margin-left:15px; margin-bottom:6px;"><input type="checkbox" name="cat_' + ct.id + '_secondary[]" value="' + c.id + '" ' + checked + ' /> ' + c.name + '</label>';
+                                });
+                                html += '</div></td></tr>';
+                                tbody.append(html);
+                            });
+
                             $('input[name="source_groups[]"]:checked').each(function() {
                                 var groupId = $(this).val();
                                 var groupName = $(this).parent().text().trim();
@@ -431,6 +469,11 @@ class Enshrly_Connector {
                         }
 
                         $('input[name="source_groups[]"]').on('change', function() {
+                            renderCategoryMapping();
+                            updateContentTypesInSchedules();
+                        });
+
+                        $('input[name="enabled_price_articles[]"]').on('change', function() {
                             renderCategoryMapping();
                             updateContentTypesInSchedules();
                         });
@@ -520,7 +563,7 @@ class Enshrly_Connector {
         <?php
     }
 
-    private function connect_to_enshrly($token, $server_url, $category_mapping, $source_groups, $schedules, $wp_author_ids) {
+    private function connect_to_enshrly($token, $server_url, $category_mapping, $source_groups, $schedules, $wp_author_ids, $enabled_price_articles = []) {
         if (!class_exists('WP_Application_Passwords')) {
             return new WP_Error('app_passwords_missing', 'خاصية Application Passwords غير متوفرة.');
         }
@@ -545,21 +588,13 @@ class Enshrly_Connector {
             'site_url' => get_site_url(),
             'username' => $user->user_login,
             'application_password' => $new_password,
+            'enabled_price_articles' => $enabled_price_articles,
             'settings' => array(
                 'use_rich_formatting' => get_option('enshrly_use_rich_formatting'),
                 'heading_color' => get_option('enshrly_heading_color'),
                 'use_internal_links' => get_option('enshrly_use_internal_links'),
                 'use_explainer_style' => get_option('enshrly_use_explainer_style'),
                 'site_tags' => get_option('enshrly_site_tags'),
-                'generate_gold_price_articles' => get_option('enshrly_generate_gold_price_articles'),
-                'generate_silver_price_articles' => get_option('enshrly_generate_silver_price_articles'),
-                'generate_dollar_price_articles' => get_option('enshrly_generate_dollar_price_articles'),
-                'generate_iron_price_articles' => get_option('enshrly_generate_iron_price_articles'),
-                'generate_cement_price_articles' => get_option('enshrly_generate_cement_price_articles'),
-                'generate_poultry_price_articles' => get_option('enshrly_generate_poultry_price_articles'),
-                'generate_fish_price_articles' => get_option('enshrly_generate_fish_price_articles'),
-                'generate_vegetable_price_articles' => get_option('enshrly_generate_vegetable_price_articles'),
-                'generate_arab_currencies_articles' => get_option('enshrly_generate_arab_currencies_articles'),
                 'category_mapping' => wp_json_encode($category_mapping),
                 'source_groups' => $source_groups,
                 'schedules' => $schedules,

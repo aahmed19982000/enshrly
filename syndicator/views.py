@@ -966,7 +966,7 @@ def wp_connect_api_view(request):
 def wp_plugin_data_api_view(request):
     try:
         from .models import AISourceGroup, WordPressScheduleSlot, WPConnectionToken
-        groups = AISourceGroup.objects.all().values('id', 'name')
+        groups = AISourceGroup.objects.all().values('id', 'name', 'parent_id', 'is_price_articles_group')
         
         content_types = [
             {'id': key, 'name': label} 

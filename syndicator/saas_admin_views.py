@@ -13,6 +13,8 @@ from syndicator.models import WPConnectionToken
 import uuid
 
 class StaffRequiredMixin(UserPassesTestMixin):
+    login_url = reverse_lazy('news_ai:staff_login')
+
     def test_func(self):
         return self.request.user.is_staff
 

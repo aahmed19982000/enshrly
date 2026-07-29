@@ -1,4 +1,6 @@
 from django.urls import path
+from django.contrib.auth.views import LogoutView
+from django.urls import reverse_lazy
 from . import views as views_ai
 from . import saas_admin_views
 from . import views_facebook_connect
@@ -6,6 +8,8 @@ from . import views_facebook_connect
 app_name = 'news_ai'
 
 urlpatterns = [
+    path('login/', views_ai.staff_login_view, name='staff_login'),
+    path('logout/', LogoutView.as_view(next_page=reverse_lazy('news_ai:staff_login')), name='staff_logout'),
     path('api/ai-settings/', views_ai.AISettingsAPIView.as_view(), name='ai_settings'),
     path('api/wp-connect/', views_ai.wp_connect_api_view, name='wp_connect'),
     path('', views_ai.DashboardIndexView.as_view(), name='index'),

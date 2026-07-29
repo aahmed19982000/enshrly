@@ -23,12 +23,39 @@
                 {% endif %}
             </div>
 
+            <!-- Parent Group -->
+            <div class="space-y-2">
+                <label for="id_parent" class="block text-sm font-semibold text-slate-300">القسم الرئيسي (اختياري)</label>
+                <select name="parent" id="id_parent" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                    <option value="">بدون قسم رئيسي - هذه مجموعة رئيسية بذاتها</option>
+                    {% for group in form.fields.parent.queryset %}
+                    <option value="{{ group.id }}" {% if form.parent.value|stringformat:"s" == group.id|stringformat:"s" %}selected{% endif %}>{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+                {% if form.parent.errors %}
+                    <p class="text-xs text-rose-400">{{ form.parent.errors.as_text }}</p>
+                {% endif %}
+                <p class="text-[10px] text-slate-500">اختر مجموعة رئيسية لجعل هذه مجموعة فرعية تابعة لها (مسموح بمستويين فقط: رئيسي وفرعي).</p>
+            </div>
+
             <!-- Group Description -->
             <div class="space-y-2">
                 <label for="id_description" class="block text-sm font-semibold text-slate-300">الوصف (اختياري)</label>
                 <textarea name="description" id="id_description" rows="4" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="اكتب وصفاً قصيراً لهذه المجموعة...">{{ form.description.value|default:'' }}</textarea>
                 {% if form.description.errors %}
                     <p class="text-xs text-rose-400">{{ form.description.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Price Articles Group -->
+            <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <input type="checkbox" name="is_price_articles_group" id="id_is_price_articles_group" {% if form.is_price_articles_group.value %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">
+                <div class="flex-1">
+                    <label for="id_is_price_articles_group" class="block text-sm font-bold text-slate-200">مجموعة مقالات الأسعار</label>
+                    <p class="text-xs text-slate-500">فعّلها لقسم فرعي واحد فقط (مثال: الأسواق المحلية). عند التفعيل، تُستخدم تصنيفات ووردبريس المرتبطة بهذا القسم تلقائياً لتصنيف مقالات الأسعار الحية (الذهب، الفضة، الدولار، وغيرها) عند نشرها لكل موقع.</p>
+                </div>
+                {% if form.is_price_articles_group.errors %}
+                    <p class="text-xs text-rose-400">{{ form.is_price_articles_group.errors.as_text }}</p>
                 {% endif %}
             </div>
 

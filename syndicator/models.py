@@ -344,14 +344,40 @@ class AISettings(models.Model):
 class AISourceGroup(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="اسم المجموعة")
     description = models.TextField(blank=True, null=True, verbose_name="الوصف")
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='children', verbose_name="القسم الرئيسي",
+        help_text="اتركه فارغاً إذا كانت هذه مجموعة رئيسية. اختر مجموعة رئيسية لجعل هذه مجموعة فرعية تابعة لها.",
+    )
+    is_price_articles_group = models.BooleanField(
+        default=False, verbose_name="مجموعة مقالات الأسعار",
+        help_text="عند التفعيل، تُستخدم تصنيفات ووردبريس المرتبطة بهذا القسم الفرعي تلقائياً لتصنيف مقالات "
+                   "الأسعار الحية (الذهب، الفضة، الدولار، الحديد، الإسمنت، الدواجن، الأسماك، الخضار، "
+                   "العملات العربية) عند نشرها. يجب أن يكون قسماً فرعياً واحداً فقط في كل مرة.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "مجموعة مصادر الأخبار"
         verbose_name_plural = "مجموعات مصادر الأخبار"
+        ordering = ['parent__name', 'name']
 
     def __str__(self):
+        if self.parent_id:
+            return f"{self.parent.name} > {self.name}"
         return self.name
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.parent_id and self.parent_id == self.pk:
+            raise ValidationError("لا يمكن أن تكون المجموعة أباً لنفسها.")
+        if self.parent_id and self.parent.parent_id:
+            raise ValidationError("لا يمكن اختيار مجموعة فرعية كقسم رئيسي (مسموح بمستويين فقط: رئيسي وفرعي).")
+        if self.is_price_articles_group:
+            if self.parent_id is None:
+                raise ValidationError("لا يمكن استخدام مجموعة رئيسية كمجموعة أسعار - اختر قسماً فرعياً.")
+            if AISourceGroup.objects.filter(is_price_articles_group=True).exclude(pk=self.pk).exists():
+                raise ValidationError("توجد بالفعل مجموعة مخصّصة لمقالات الأسعار. عطّل الخيار في المجموعة الأخرى أولاً.")
 
 
 class AISource(models.Model):
@@ -525,6 +551,17 @@ class WordPressSite(models.Model):
         except Exception:
             return {}
 
+    def get_wp_category_ids_for_group(self, group):
+        """Real WordPress category id(s) configured on this site for the given
+        AISourceGroup sub-category, via SourceGroupWPCategoryMap. Returns []
+        when unset - callers should fall back to their own default behavior
+        (letting Gemini pick freely, or the legacy category_mapping/name
+        matching) rather than treating an empty list as an error."""
+        if not group:
+            return []
+        mapping = self.source_group_category_maps.filter(source_group=group).first()
+        return mapping.get_ids_list() if mapping else []
+
     def get_site_tags_list(self):
         return [t.strip() for t in self.site_tags.split(',') if t.strip()]
 
@@ -552,6 +589,40 @@ class WordPressSite(models.Model):
             from django.utils import timezone
             return timezone.now() <= self.facebook_addon_trial_ends_at
         return True
+
+
+class SourceGroupWPCategoryMap(models.Model):
+    """
+    Per-site link between a source-group sub-category (e.g. "أسواق المال
+    والبورصة") and the real WordPress category id(s) on one specific
+    WordPressSite that correspond to it. Kept per-site because each
+    customer's WordPress install has its own, differently-numbered category
+    taxonomy - the same sub-category can map to a different id (or several
+    ids at once) on every site.
+    """
+    wp_site = models.ForeignKey(WordPressSite, on_delete=models.CASCADE, related_name='source_group_category_maps', verbose_name="الموقع")
+    source_group = models.ForeignKey(AISourceGroup, on_delete=models.CASCADE, related_name='wp_category_maps', limit_choices_to={'parent__isnull': False}, verbose_name="القسم الفرعي")
+    wp_category_ids = models.CharField(
+        max_length=255, blank=True, default='', verbose_name="معرّفات تصنيفات ووردبريس",
+        help_text="معرّفات (IDs) تصنيفات الووردبريس المطابقة لهذا القسم الفرعي على هذا الموقع، مفصولة بفاصلة. "
+                   "أول معرّف يُستخدم كتصنيف أساسي (SEO) والباقي كتصنيفات إضافية. مثال: 5,12,20",
+    )
+
+    class Meta:
+        unique_together = ('wp_site', 'source_group')
+        verbose_name = "ربط قسم فرعي بتصنيف ووردبريس"
+        verbose_name_plural = "روابط الأقسام الفرعية بتصنيفات ووردبريس"
+
+    def get_ids_list(self):
+        ids = []
+        for part in self.wp_category_ids.split(','):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+        return ids
+
+    def __str__(self):
+        return f"{self.wp_site.name} - {self.source_group.name}"
 
 
 class SocialSharePost(models.Model):

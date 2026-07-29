@@ -1,10 +1,16 @@
 from django.contrib import admin
-from .models import AISourceGroup, AISource, AISettings, WordPressSite, AIImportLog, WPConnectionToken
+from .models import AISourceGroup, AISource, AISettings, WordPressSite, AIImportLog, WPConnectionToken, SourceGroupWPCategoryMap
 
 @admin.register(AISourceGroup)
 class AISourceGroupAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at')
+    list_display = ('name', 'parent', 'is_price_articles_group', 'created_at')
+    list_filter = ('parent', 'is_price_articles_group')
     search_fields = ('name',)
+
+@admin.register(SourceGroupWPCategoryMap)
+class SourceGroupWPCategoryMapAdmin(admin.ModelAdmin):
+    list_display = ('wp_site', 'source_group', 'wp_category_ids')
+    list_filter = ('wp_site', 'source_group')
 
 @admin.register(AISource)
 class AISourceAdmin(admin.ModelAdmin):

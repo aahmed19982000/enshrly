@@ -30,17 +30,30 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
-                {% for group in groups %}
-                <tr class="hover:bg-slate-800/30 transition duration-150">
-                    <td class="px-6 py-4 font-semibold text-slate-100">{{ group.name }}</td>
+                {% for group in parent_groups %}
+                <tr class="hover:bg-slate-800/30 transition duration-150 bg-slate-900/30">
+                    <td class="px-6 py-4 font-bold text-slate-100"><i class="fa-solid fa-folder-tree text-teal-400 ml-2 text-xs"></i>{{ group.name }}</td>
                     <td class="px-6 py-4 text-xs text-slate-400">{{ group.description|default:"لا يوجد وصف" }}</td>
                     <td class="px-6 py-4 text-center">
                         <div class="flex items-center justify-center space-x-2 space-x-reverse">
+                            <a href="{% url 'news_ai:source_group_add' %}?parent={{ group.pk }}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="إضافة قسم فرعي"><i class="fa-solid fa-plus"></i></a>
                             <a href="{% url 'news_ai:source_group_edit' group.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="تعديل"><i class="fa-solid fa-pen"></i></a>
                             <a href="{% url 'news_ai:source_group_delete' group.pk %}" class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="حذف"><i class="fa-solid fa-trash-can"></i></a>
                         </div>
                     </td>
                 </tr>
+                {% for child in group.children.all %}
+                <tr class="hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-6 py-4 font-semibold text-slate-300"><span class="inline-block w-6"></span><i class="fa-solid fa-arrow-turn-up fa-rotate-90 text-slate-600 ml-2 text-xs"></i>{{ child.name }}{% if child.is_price_articles_group %} <span class="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5 mr-1">مجموعة الأسعار</span>{% endif %}</td>
+                    <td class="px-6 py-4 text-xs text-slate-400">{{ child.description|default:"لا يوجد وصف" }}</td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center space-x-2 space-x-reverse">
+                            <a href="{% url 'news_ai:source_group_edit' child.pk %}" class="text-xs text-slate-400 hover:text-teal-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="تعديل"><i class="fa-solid fa-pen"></i></a>
+                            <a href="{% url 'news_ai:source_group_delete' child.pk %}" class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition" title="حذف"><i class="fa-solid fa-trash-can"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
                 {% endfor %}
             </tbody>
         </table>

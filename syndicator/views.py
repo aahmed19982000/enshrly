@@ -2,6 +2,7 @@ from datetime import datetime
 from django.shortcuts import render, redirect
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, View, TemplateView
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth import authenticate, login as auth_login
 from django.urls import reverse_lazy, reverse
 from django.contrib import messages
 from django.shortcuts import get_object_or_404
@@ -12,15 +13,51 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 from django.conf import settings
-from .models import AISettings, AISource, AIImportLog, Category, Article, WordPressSite, WordPressScheduleSlot, WordPressSiteGroup, SocialSharePost, WPConnectionToken
+from .models import AISettings, AISource, AISourceGroup, AIImportLog, Category, Article, WordPressSite, WordPressScheduleSlot, WordPressSiteGroup, SocialSharePost, WPConnectionToken, SourceGroupWPCategoryMap
 from .tasks import scrape_and_generate_news_task
+from accounts.utils import check_rate_limit, get_client_ip
 
 class StaffRequiredMixin(UserPassesTestMixin):
     """
-    Mixin that ensures the user is logged in and is a staff member.
+    Mixin that ensures the user is logged in and is a staff member. Uses the
+    dashboard's own dedicated staff login page (news_ai:staff_login) instead
+    of the global LOGIN_URL, which is the customer-facing WhatsApp login -
+    staff accounts aren't expected to have a WhatsApp/customer profile.
     """
+    login_url = reverse_lazy('news_ai:staff_login')
+
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.is_staff
+
+
+def staff_login_view(request):
+    """
+    Dedicated username/password login for the /ai-dashboard/ staff area,
+    kept separate from accounts.login_view's WhatsApp-based customer login -
+    staff accounts don't necessarily have a CustomerProfile/WhatsApp number.
+    """
+    if request.user.is_authenticated and request.user.is_staff:
+        return redirect('news_ai:index')
+
+    next_url = request.GET.get('next') or request.POST.get('next') or ''
+
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        client_ip = get_client_ip(request)
+
+        if check_rate_limit(f'stafflogin:{client_ip}:{username}', limit=5, window_seconds=600):
+            messages.error(request, "عدد محاولات كبير جداً، يرجى الانتظار قليلاً ثم إعادة المحاولة.")
+        else:
+            user = authenticate(request, username=username, password=password)
+            if user is not None and user.is_staff:
+                auth_login(request, user)
+                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                    return redirect(next_url)
+                return redirect('news_ai:index')
+            messages.error(request, "اسم المستخدم أو كلمة المرور غير صحيحة، أو لا تملك صلاحية الوصول للوحة الإدارة.")
+
+    return render(request, 'ai_dashboard/staff_login.html', {'next': next_url})
 
 
 class DashboardIndexView(StaffRequiredMixin, TemplateView):
@@ -285,15 +322,50 @@ class WordPressSiteListView(StaffRequiredMixin, ListView):
 WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'merge_group', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_logo', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token', 'facebook_addon_trial_ends_at']
 
 
+def _source_group_parents_with_cat_values(wp_site=None):
+    """
+    Every top-level AISourceGroup with its children (sub-categories)
+    prefetched, each child annotated with a `.wp_cat_value` attribute
+    holding this specific wp_site's existing comma-separated WP category id
+    mapping (or '' if unmapped / wp_site is None for the add form).
+    """
+    cat_map = {}
+    if wp_site is not None:
+        cat_map = {m.source_group_id: m.wp_category_ids for m in wp_site.source_group_category_maps.all()}
+    parents = list(AISourceGroup.objects.filter(parent__isnull=True).prefetch_related('children').order_by('name'))
+    for parent in parents:
+        for child in parent.children.all():
+            child.wp_cat_value = cat_map.get(child.id, '')
+    return parents
+
+
+def _save_source_group_category_maps(wp_site, request):
+    for group in AISourceGroup.objects.filter(parent__isnull=False):
+        raw = request.POST.get(f'source_group_cat_{group.id}', '').strip()
+        if raw:
+            SourceGroupWPCategoryMap.objects.update_or_create(
+                wp_site=wp_site, source_group=group, defaults={'wp_category_ids': raw},
+            )
+        else:
+            SourceGroupWPCategoryMap.objects.filter(wp_site=wp_site, source_group=group).delete()
+
+
 class WordPressSiteCreateView(StaffRequiredMixin, CreateView):
     model = WordPressSite
     fields = WP_SITE_FORM_FIELDS
     template_name = 'ai_dashboard/wp_site_form.html'
     success_url = reverse_lazy('news_ai:wp_sites')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['source_group_parents'] = _source_group_parents_with_cat_values()
+        return context
+
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _save_source_group_category_maps(self.object, self.request)
         messages.success(self.request, f"تمت إضافة الموقع '{form.instance.name}' بنجاح.")
-        return super().form_valid(form)
+        return response
 
 
 class WordPressSiteUpdateView(StaffRequiredMixin, UpdateView):
@@ -305,6 +377,7 @@ class WordPressSiteUpdateView(StaffRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['has_schedule_slots'] = self.object.schedule_slots.filter(is_active=True).exists()
+        context['source_group_parents'] = _source_group_parents_with_cat_values(self.object)
         try:
             from .views_facebook_connect import make_facebook_connect_token
             if getattr(settings, 'FACEBOOK_APP_ID', None):
@@ -317,8 +390,10 @@ class WordPressSiteUpdateView(StaffRequiredMixin, UpdateView):
         return context
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _save_source_group_category_maps(self.object, self.request)
         messages.success(self.request, f"تم تحديث الموقع '{form.instance.name}' بنجاح.")
-        return super().form_valid(form)
+        return response
 
 
 class WordPressSiteDeleteView(StaffRequiredMixin, DeleteView):
@@ -598,24 +673,49 @@ class SourceGroupListView(StaffRequiredMixin, ListView):
     template_name = 'ai_dashboard/source_groups_list.html'
     context_object_name = 'groups'
 
+    def get_queryset(self):
+        return AISourceGroup.objects.select_related('parent').prefetch_related('children')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['parent_groups'] = [g for g in context['groups'] if g.parent_id is None]
+        return context
+
 class SourceGroupCreateView(StaffRequiredMixin, CreateView):
     model = AISourceGroup
-    fields = ['name', 'description']
+    fields = ['name', 'description', 'parent', 'is_price_articles_group']
     template_name = 'ai_dashboard/source_group_form.html'
     success_url = reverse_lazy('news_ai:source_groups')
 
+    def get_initial(self):
+        initial = super().get_initial()
+        parent_id = self.request.GET.get('parent')
+        if parent_id and parent_id.isdigit():
+            initial['parent'] = parent_id
+        return initial
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['parent'].queryset = AISourceGroup.objects.filter(parent__isnull=True)
+        return form
+
     def form_valid(self, form):
-        messages.success(self.request, f"??? ????? ???????? '{form.instance.name}' ?????.")
+        messages.success(self.request, f"تم إنشاء مجموعة المصادر '{form.instance.name}' بنجاح.")
         return super().form_valid(form)
 
 class SourceGroupUpdateView(StaffRequiredMixin, UpdateView):
     model = AISourceGroup
-    fields = ['name', 'description']
+    fields = ['name', 'description', 'parent', 'is_price_articles_group']
     template_name = 'ai_dashboard/source_group_form.html'
     success_url = reverse_lazy('news_ai:source_groups')
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['parent'].queryset = AISourceGroup.objects.filter(parent__isnull=True).exclude(pk=self.object.pk)
+        return form
+
     def form_valid(self, form):
-        messages.success(self.request, f"?? ????? ???????? '{form.instance.name}' ?????.")
+        messages.success(self.request, f"تم تعديل مجموعة المصادر '{form.instance.name}' بنجاح.")
         return super().form_valid(form)
 
 class SourceGroupDeleteView(StaffRequiredMixin, DeleteView):
@@ -625,7 +725,7 @@ class SourceGroupDeleteView(StaffRequiredMixin, DeleteView):
 
     def delete(self, request, *args, **kwargs):
         obj = self.get_object()
-        messages.success(self.request, f"?? ??? ???????? '{obj.name}' ?????.")
+        messages.success(self.request, f"تم حذف مجموعة المصادر '{obj.name}' بنجاح.")
         return super().delete(request, *args, **kwargs)
 
 

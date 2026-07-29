@@ -168,9 +168,17 @@
                     <p class="text-xs text-slate-500">مدير النظام</p>
                 </div>
             </div>
-            <a href="/" class="text-slate-500 hover:text-red-400 p-2 transition duration-150" title="الرجوع للموقع الأساسي">
-                <i class="fa-solid fa-arrow-right-from-bracket text-lg"></i>
-            </a>
+            <div class="flex items-center">
+                <a href="/" class="text-slate-500 hover:text-teal-400 p-2 transition duration-150" title="الرجوع للموقع الأساسي">
+                    <i class="fa-solid fa-house text-lg"></i>
+                </a>
+                <form action="{% url 'news_ai:staff_logout' %}" method="post" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-slate-500 hover:text-red-400 p-2 transition duration-150" title="تسجيل الخروج">
+                        <i class="fa-solid fa-arrow-right-from-bracket text-lg"></i>
+                    </button>
+                </form>
+            </div>
         </div>
     </aside>
 

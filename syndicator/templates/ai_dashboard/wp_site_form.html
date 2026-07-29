@@ -149,6 +149,29 @@
                 </div>
             </div>
 
+            <!-- Source Sub-category -> WordPress Category mapping -->
+            <div class="space-y-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                <div>
+                    <label class="block text-sm font-bold text-slate-200">ربط الأقسام الفرعية بتصنيفات ووردبريس</label>
+                    <p class="text-xs text-slate-500 mt-1">لكل قسم فرعي (من صفحة "مجموعات المصادر")، اكتب معرّف تصنيف ووردبريس على هذا الموقع تحديداً، أو عدة معرّفات مفصولة بفاصلة إذا كان القسم يقابل أكثر من تصنيف واحد (مثال: 5,12). اتركه فارغاً لعدم فرض تصنيف محدد لهذا القسم.</p>
+                </div>
+                {% for parent in source_group_parents %}
+                    {% if parent.children.all %}
+                    <div class="border-t border-slate-800/60 pt-3 first:border-t-0 first:pt-0">
+                        <p class="text-xs font-bold text-teal-400 mb-2">{{ parent.name }}</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {% for child in parent.children.all %}
+                            <div class="space-y-1">
+                                <label for="id_source_group_cat_{{ child.id }}" class="block text-[11px] text-slate-400">{{ child.name }}{% if child.is_price_articles_group %} <span class="text-amber-400">(مجموعة الأسعار)</span>{% endif %}</label>
+                                <input type="text" name="source_group_cat_{{ child.id }}" id="id_source_group_cat_{{ child.id }}" value="{{ child.wp_cat_value }}" class="block w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-200 text-xs font-mono transition duration-150" placeholder="مثال: 5 أو 5,12">
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
             <!-- Active Checkbox -->
             <div class="flex items-center space-x-3 space-x-reverse bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
                 <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value or not object %}checked{% endif %} class="w-5 h-5 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2 focus:ring-offset-0">

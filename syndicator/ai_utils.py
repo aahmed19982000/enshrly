@@ -602,6 +602,58 @@ def _scrape_image_from_article_page(link_url, headers):
     return ""
 
 
+def _scrape_title_and_image_from_article_page(link_url, headers):
+    """
+    Fallback for sitemap entries that carry no title at all (a plain
+    WordPress/Yoast sitemap.xml, unlike a Google News sitemap which at
+    least has <news:title>) - fetches the article page once and recovers
+    both the title (og:title, else <title>) and a cover image together,
+    to avoid a second request on top of _scrape_image_from_article_page.
+    Returns ('', '') if the page can't be fetched or has neither.
+    """
+    title_text = ""
+    image_url = ""
+    try:
+        page_res = requests.get(link_url, headers=headers, timeout=8)
+        if page_res.status_code != 200:
+            return title_text, image_url
+        page_soup = BeautifulSoup(page_res.content, 'html.parser')
+
+        og_title = page_soup.find('meta', attrs={'property': 'og:title'})
+        if og_title and og_title.get('content'):
+            title_text = og_title['content'].strip()
+        elif page_soup.title and page_soup.title.string:
+            title_text = page_soup.title.string.strip()
+
+        # Many sites' <title>/og:title are "Article Title | Site Name" -
+        # keep only the article's own half.
+        if ' | ' in title_text:
+            title_text = title_text.split(' | ')[0].strip()
+
+        for tag_name, attrs in _IMAGE_META_SELECTORS:
+            tag = page_soup.find(tag_name, attrs=attrs)
+            value = tag.get('content') or tag.get('href') if tag else None
+            if value:
+                image_url = value
+                break
+
+        if not image_url:
+            content_root = (
+                page_soup.find('article')
+                or page_soup.find('main')
+                or page_soup.find(class_=re.compile(r'article-body|post-content|entry-content'))
+            )
+            if content_root:
+                for img in content_root.find_all('img'):
+                    src = img.get('src') or img.get('data-src') or ''
+                    if src and not any(hint in src.lower() for hint in _SKIP_IMAGE_HINTS):
+                        image_url = urljoin(link_url, src)
+                        break
+    except Exception as pe:
+        logger.warning(f"Failed to scrape a title/cover image from {link_url}: {pe}")
+    return title_text, image_url
+
+
 def _minify_html_for_scraping(html_content, base_url):
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -774,9 +826,11 @@ def fetch_news_items_from_source(source_url):
                 if first_loc and first_loc.text.strip():
                     return fetch_news_items_from_source(first_loc.text.strip())
             elif url_entries:
-                # Google News-style XML sitemap: <url><loc> + <news:title>,
-                # with no body/image at all - both have to be scraped from
-                # the article page itself.
+                # XML sitemap: <url><loc>, with either a Google News
+                # <news:title> (no image either way) or, for a plain
+                # WordPress/Yoast sitemap.xml, nothing but the URL itself.
+                # Either way the article page has to be scraped for
+                # whatever is missing.
                 for url_entry in url_entries[:15]:
                     loc = url_entry.find('loc')
                     if not loc or not loc.text.strip():
@@ -785,10 +839,13 @@ def fetch_news_items_from_source(source_url):
 
                     news_title = url_entry.find('news:title')
                     title_text = news_title.text.strip() if news_title else ""
-                    if not title_text:
-                        continue
 
-                    image_url = _scrape_image_from_article_page(link_text, headers)
+                    if title_text:
+                        image_url = _scrape_image_from_article_page(link_text, headers)
+                    else:
+                        title_text, image_url = _scrape_title_and_image_from_article_page(link_text, headers)
+                        if not title_text:
+                            continue
 
                     items.append({
                         'title': title_text,

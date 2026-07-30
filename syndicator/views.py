@@ -153,6 +153,11 @@ class SourceCreateView(StaffRequiredMixin, CreateView):
     template_name = 'ai_dashboard/source_form.html'
     success_url = reverse_lazy('news_ai:sources')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['grouped_source_groups'] = _source_group_parents_with_cat_values()
+        return context
+
     def form_valid(self, form):
         messages.success(self.request, f"تمت إضافة المصدر '{form.instance.name}' بنجاح.")
         return super().form_valid(form)
@@ -163,6 +168,11 @@ class SourceUpdateView(StaffRequiredMixin, UpdateView):
     fields = ['name', 'url', 'language', 'group', 'is_active']
     template_name = 'ai_dashboard/source_form.html'
     success_url = reverse_lazy('news_ai:sources')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['grouped_source_groups'] = _source_group_parents_with_cat_values()
+        return context
 
     def form_valid(self, form):
         messages.success(self.request, f"تم تحديث المصدر '{form.instance.name}' بنجاح.")

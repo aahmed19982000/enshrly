@@ -52,10 +52,13 @@
                     <label for="id_group" class="block text-sm font-semibold text-slate-300">المجموعة / التصنيف</label>
                     <select name="group" id="id_group" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
                         <option value="">---------</option>
-                        {% for val, text in form.fields.group.choices %}
-                            {% if val %}
-                                <option value="{{ val }}" {% if form.group.value|stringformat:"s" == val|stringformat:"s" %}selected{% endif %}>{{ text }}</option>
-                            {% endif %}
+                        {% for parent in grouped_source_groups %}
+                            <optgroup label="{{ parent.name }}">
+                                <option value="{{ parent.id }}" {% if form.group.value|stringformat:"s" == parent.id|stringformat:"s" %}selected{% endif %}>{{ parent.name }} (عام)</option>
+                                {% for child in parent.children.all %}
+                                    <option value="{{ child.id }}" {% if form.group.value|stringformat:"s" == child.id|stringformat:"s" %}selected{% endif %}>{{ child.name }}</option>
+                                {% endfor %}
+                            </optgroup>
                         {% endfor %}
                     </select>
                     {% if form.group.errors %}

@@ -762,39 +762,73 @@ def fetch_news_items_from_source(source_url):
                     'guid': guid_text
                 })
         else:
-            # Standard Webpage format (fallback HTML parsing)
-            html_soup = BeautifulSoup(content, 'html.parser')
-            # Look for article links or common news containers
-            articles = html_soup.find_all('article') or html_soup.find_all('div', class_=re.compile(r'post|article|news-item'))
-            if articles:
-                for idx, art in enumerate(articles[:10]):
-                    link_tag = art.find('a', href=True)
-                    title_tag = art.find(['h1', 'h2', 'h3', 'h4']) or art.find(class_=re.compile(r'title'))
-                    img_tag = art.find('img')
-                    
-                    if link_tag and title_tag:
-                        title_text = title_tag.get_text().strip()
-                        link_text = link_tag['href']
-                        if not link_text.startswith('http'):
-                            # Resolve relative links
-                            from urllib.parse import urljoin
-                            link_text = urljoin(source_url, link_text)
-                        
-                        image_url = img_tag.get('src') if img_tag else ""
-                        if image_url and not image_url.startswith('http'):
-                            from urllib.parse import urljoin
-                            image_url = urljoin(source_url, image_url)
-                            
-                        items.append({
-                            'title': title_text,
-                            'link': link_text,
-                            'description': title_text,
-                            'image_url': image_url,
-                            'guid': link_text
-                        })
+            sitemap_index_entries = soup.find_all('sitemap')
+            url_entries = soup.find_all('url')
+
+            if sitemap_index_entries and not url_entries:
+                # A <sitemapindex> pointing at paginated sub-sitemaps (e.g. Google
+                # News sitemaps split by ?page=N) - the sub-sitemaps carry the
+                # actual article entries, so recurse into the first one (these
+                # feeds are conventionally ordered newest-page-first).
+                first_loc = sitemap_index_entries[0].find('loc')
+                if first_loc and first_loc.text.strip():
+                    return fetch_news_items_from_source(first_loc.text.strip())
+            elif url_entries:
+                # Google News-style XML sitemap: <url><loc> + <news:title>,
+                # with no body/image at all - both have to be scraped from
+                # the article page itself.
+                for url_entry in url_entries[:15]:
+                    loc = url_entry.find('loc')
+                    if not loc or not loc.text.strip():
+                        continue
+                    link_text = loc.text.strip()
+
+                    news_title = url_entry.find('news:title')
+                    title_text = news_title.text.strip() if news_title else ""
+                    if not title_text:
+                        continue
+
+                    image_url = _scrape_image_from_article_page(link_text, headers)
+
+                    items.append({
+                        'title': title_text,
+                        'link': link_text,
+                        'description': title_text,
+                        'image_url': image_url,
+                        'guid': link_text
+                    })
             else:
-                logger.info(f"Standard HTML parsing yielded no items for {source_url}. Activating Gemini Intelligent Scraper.")
-                items = scrape_webpage_articles_via_gemini(content, source_url)
+                # Standard Webpage format (fallback HTML parsing)
+                html_soup = BeautifulSoup(content, 'html.parser')
+                # Look for article links or common news containers
+                articles = html_soup.find_all('article') or html_soup.find_all('div', class_=re.compile(r'post|article|news-item'))
+                if articles:
+                    for idx, art in enumerate(articles[:10]):
+                        link_tag = art.find('a', href=True)
+                        title_tag = art.find(['h1', 'h2', 'h3', 'h4']) or art.find(class_=re.compile(r'title'))
+                        img_tag = art.find('img')
+
+                        if link_tag and title_tag:
+                            title_text = title_tag.get_text().strip()
+                            link_text = link_tag['href']
+                            if not link_text.startswith('http'):
+                                # Resolve relative links
+                                link_text = urljoin(source_url, link_text)
+
+                            image_url = img_tag.get('src') if img_tag else ""
+                            if image_url and not image_url.startswith('http'):
+                                image_url = urljoin(source_url, image_url)
+
+                            items.append({
+                                'title': title_text,
+                                'link': link_text,
+                                'description': title_text,
+                                'image_url': image_url,
+                                'guid': link_text
+                            })
+                else:
+                    logger.info(f"Standard HTML parsing yielded no items for {source_url}. Activating Gemini Intelligent Scraper.")
+                    items = scrape_webpage_articles_via_gemini(content, source_url)
     except Exception as e:
         logger.error(f"Error fetching news from source {source_url}: {e}")
         

@@ -47,6 +47,71 @@ def is_excluded_price_topic(title, description=""):
     return any(keyword in text for keyword in EXCLUDED_PRICE_TOPIC_KEYWORDS)
 
 
+def _find_duplicate_recent_article_for_site(wp_site, source, item, api_key, window_hours=48, max_candidates=15):
+    """
+    True if `item` covers the same real-world story as one of `wp_site`'s
+    recently-published articles - guards against a site linked to two
+    different AISources that both cover the same event (different URLs,
+    different wording, so the exact-URL/slug checks upstream never catch
+    it). Only meaningful for sites with 2+ linked sources; callers should
+    gate on that to skip the AI call entirely for single-source sites.
+    """
+    cutoff = timezone.now() - timedelta(hours=window_hours)
+    recent_titles = list(
+        AIImportLog.objects.filter(wp_site=wp_site, status='success', created_at__gte=cutoff)
+        .exclude(title__isnull=True).exclude(title='')
+        .order_by('-created_at').values_list('title', flat=True)[:max_candidates]
+    )
+    if not recent_titles:
+        return False
+
+    numbered_titles = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(recent_titles))
+    prompt = f"""
+أنت محرر أخبار متمرّس. إليك عنوان خبر جديد مرشّح للنشر على موقع معيّن، وقائمة بعناوين أخبار نُشرت بالفعل
+على نفس الموقع مؤخراً. حدد هل الخبر الجديد يغطي نفس الحدث الإخباري الحقيقي الذي تغطيه إحدى هذه العناوين
+(حتى لو الصياغة مختلفة تماماً وجاءت من مصدر آخر)، أم أنه خبر مختلف فعلاً.
+
+الخبر الجديد: {item['title']}
+
+العناوين المنشورة مؤخراً على هذا الموقع:
+{numbered_titles}
+
+أجب بصيغة JSON فقط دون أي نص أو علامات markdown إضافية: {{"is_duplicate": true أو false}}
+"""
+    try:
+        ai_response, ai_usage = call_gemini_api(prompt, api_key=api_key)
+        if not ai_response:
+            return False
+
+        # Record this classification call's real token cost so it counts
+        # toward the daily Gemini cost cap (is_daily_cost_cap_exceeded) just
+        # like every article-generation call - otherwise these dedup checks
+        # would be a genuine, unaccounted-for cost leak. source_url is
+        # deliberately never an exact match for item['link'] so this can
+        # never be picked up by the separate exact-URL duplicate-import
+        # check elsewhere; wp_site is left unset so it doesn't inflate that
+        # site's own daily article-count cap (wp_site_counts only counts
+        # wp_site__isnull=False rows).
+        AIImportLog.objects.create(
+            source=source,
+            source_url=f"{item['link']}#dedup-check",
+            title=f"[فحص تكرار] {item['title']}",
+            status='success',
+            input_tokens=ai_usage.get('input_tokens'),
+            output_tokens=ai_usage.get('output_tokens'),
+        )
+
+        cleaned = ai_response.strip()
+        if "```json" in cleaned:
+            cleaned = cleaned.split("```json")[1].split("```")[0].strip()
+        elif "```" in cleaned:
+            cleaned = cleaned.split("```")[1].split("```")[0].strip()
+        return bool(json.loads(cleaned).get('is_duplicate'))
+    except Exception as e:
+        logger.warning(f"Same-story dedup check failed for site {wp_site.id}, treating as not a duplicate: {e}")
+        return False
+
+
 # Article body is rendered with the `|safe` template filter, so AI output must be
 # restricted to a small safe subset before it's ever saved.
 ALLOWED_BODY_TAGS = ['p', 'br', 'strong', 'em', 'b', 'i']
@@ -2846,15 +2911,13 @@ def generate_regular_article_for_site(wp_site, source, item, ai_settings, api_ke
                                        categories_list_str, get_wp_primary_categories):
     """
     Generates a fully unique AI-rewritten article for one WordPress site and pushes it.
-    Used both for standalone sites and as the "master" generation for a merge group
-    (WordPressSiteGroup) - siblings in the group reuse this result via
-    reword_regular_article_for_site() instead of calling Gemini from scratch, to cut cost.
+    Called independently for every site - no site's article is ever derived from
+    another site's generated output, even sites sharing a merge_group.
 
     Returns None only when nothing usable came back (API failure or JSON parse failure) -
     in that case the caller must not increment generated_count, matching legacy behavior.
     On any parsed response (even if the WP push itself failed) returns a dict with
-    'published' (bool) plus everything reword_regular_article_for_site() needs to build a
-    lighter, reworded sibling article without another full Gemini generation call.
+    'published' (bool) and the rest of the generated fields.
     """
     if wp_site.use_rich_formatting:
         body_format_instruction = f"محتوى الخبر الكامل مقسماً بأسلوب متوافق مع السيو (SEO): {HEADING_STRUCTURE_INSTRUCTION}"
@@ -3099,175 +3162,6 @@ def generate_regular_article_for_site(wp_site, source, item, ai_settings, api_ke
         return None
 
 
-def reword_regular_article_for_site(wp_site, source, item, master, ai_settings, api_key,
-                                     get_wp_primary_categories, get_wp_category_id):
-    """
-    Lighter-weight sibling of generate_regular_article_for_site(): reuses an
-    already-generated "master" article's category/tags/SEO fields (chosen once per
-    merge group, via a WordPressSiteGroup, to cut Gemini calls) and only asks Gemini
-    to reword the title/body/excerpt for this specific site in a distinct style -
-    every site in a group still publishes its own unique wording, only the research/
-    categorization work is shared to reduce cost (a partial, not full, cost reduction).
-    """
-    if wp_site.use_rich_formatting:
-        body_format_instruction = f"محتوى الخبر الكامل مقسماً بأسلوب متوافق مع السيو (SEO): {HEADING_STRUCTURE_INSTRUCTION}"
-    else:
-        body_format_instruction = "محتوى الخبر الكامل بالتنسيق الصحفي مقسماً إلى فقرات باستخدام وسوم HTML للفقرات <p>...</p> حصراً."
-
-    master_plain_text = BeautifulSoup(master['body'], 'html.parser').get_text(separator=' ', strip=True)
-
-    prompt = (
-        f"بصفتك محررًا صحفيًا محترفًا باللغة العربية، لديك خبر صحفي جاهز، والمطلوب منك إعادة صياغته بالكامل "
-        f"بأسلوب مختلف تماماً (مفردات وتراكيب جديدة) ليُنشر على موقع مختلف، مع الحفاظ التام على المعنى والمعلومات "
-        f"والحقائق كما هي دون أي إضافة أو حذف:\n"
-        f"العنوان الحالي: {master['title']}\n"
-        f"نص الخبر الحالي: {master_plain_text}\n\n"
-        f"الرجاء الالتزام التام بالتعليمات التالية:\n"
-        f"1. أعد صياغة الخبر بالكامل بأسلوب صحفي متميز وجذاب ومحايد يختلف تماماً عن الصياغة الحالية من حيث "
-        f"المفردات وترتيب الجمل، مع الحفاظ على نفس المعنى والمعلومات تماماً. {READABILITY_INSTRUCTION}\n"
-        f"2. اكتب عنواناً بصياغة مختلفة تماماً عن العنوان الحالي يحمل نفس المعنى. {STRONG_TITLE_INSTRUCTION}\n"
-        f"3. اكتب ملخصًا قصيرًا وموجزًا للخبر (Excerpt) مكون من سطرين إلى ثلاثة أسطر بصياغة جديدة.\n"
-        f"4. قم بإرجاع الإجابة بتنسيق JSON حصريًا دون أي علامات markdown أو علامات برمجية إضافية مثل ```json. "
-        f"يجب أن يكون ملف الـ JSON يحتوي على المفاتيح التالية تماماً باللغة الإنجليزية:\n"
-        f"- \"title\": العنوان الجديد بالصياغة المختلفة\n"
-        f"- \"excerpt\": الملخص الجديد\n"
-        f"- \"body\": {body_format_instruction}\n\n"
-        f"5. {NO_SOURCE_NAME_INSTRUCTION} إن كان النص الأصلي أعلاه يذكر اسم أي موقع أو وكالة إخبارية بالخطأ، "
-        f"احذف الإشارة إليها تماماً في الصياغة الجديدة دون الإخلال بالمعنى.\n\n"
-        f"هام جداً: يجب أن تكون الصياغة فريدة تماماً ومختلفة عن النص الأصلي أعلاه لموقع الويب المحدد: {wp_site.name}، "
-        f"مع عدم تغيير أي معلومة أو رقم أو حقيقة واردة في النص الأصلي."
-    )
-
-    ai_response, ai_usage = call_gemini_api(prompt, api_key=api_key)
-    if not ai_response:
-        return None
-
-    try:
-        cleaned_response = ai_response.strip()
-        if cleaned_response.startswith("```json"):
-            cleaned_response = cleaned_response[7:]
-        if cleaned_response.endswith("```"):
-            cleaned_response = cleaned_response[:-3]
-        cleaned_response = cleaned_response.strip()
-
-        data = json.loads(cleaned_response)
-        new_title = sanitize_ai_text(data.get("title", "").strip())
-        new_excerpt = sanitize_ai_text(data.get("excerpt", "").strip())
-        new_body = sanitize_ai_body(
-            data.get("body", "").strip(),
-            allow_headings=wp_site.use_rich_formatting or wp_site.use_explainer_style,
-            allow_links=False,
-            link_base_url=wp_site.url,
-        )
-        if wp_site.use_rich_formatting:
-            new_body = apply_heading_color(new_body, wp_site.heading_color)
-
-        if not new_title or not new_body:
-            raise ValueError("بيانات العنوان أو المحتوى فارغة.")
-        if title_contains_source_name(new_title, source.name):
-            raise ValueError("العنوان يحتوي على اسم المصدر.")
-        if title_contains_source_name(new_body, source.name):
-            raise ValueError("محتوى الخبر يحتوي على اسم المصدر.")
-
-        site_primary_cats = get_wp_primary_categories(wp_site)
-        wp_category_id_for_push = None
-        if site_primary_cats:
-            wp_category_id_for_push = get_wp_category_id(wp_site, master['category_name'])
-            if wp_category_id_for_push is None:
-                wp_category_id_for_push = site_primary_cats[0]['id']
-        category = master['local_category']
-
-        # This sibling site may have its own SourceGroupWPCategoryMap entry
-        # for the same source group, distinct from the master's - resolve it
-        # directly instead of relying on cross-site name matching above.
-        forced_category_ids = get_forced_wp_category_ids(wp_site, source)
-        if forced_category_ids:
-            wp_category_id_for_push = forced_category_ids[0]
-
-        from .core_utils import translate_text
-        title_en = translate_text(new_title)
-        body_en = translate_text(new_body)
-        excerpt_en = translate_text(new_excerpt)
-
-        author = pick_default_author(ai_settings)
-        article = Article(
-            title=new_title,
-            title_ar=new_title,
-            title_en=title_en,
-            slug=generate_slug_for_title(new_title),
-            body=new_body,
-            body_ar=new_body,
-            body_en=body_en,
-            excerpt=new_excerpt,
-            excerpt_ar=new_excerpt,
-            excerpt_en=excerpt_en,
-            author=author,
-            category=category,
-            cover_image_alt=master.get('image_alt', ''),
-            status='draft',
-            published_at=timezone.now(),
-            is_featured=False,
-            is_breaking=False,
-            auto_translate=False
-        )
-        img_file = fetch_image_file(item['image_url']) if item.get('image_url') else None
-        if not img_file:
-            from .core_utils import translate_text
-            translated_title = translate_text(new_title)
-            commons_url = _find_topical_image(translated_title, translated_title)
-            img_file = fetch_image_file(commons_url) if commons_url else None
-        if img_file:
-            article.cover_image = img_file
-        else:
-            attach_default_cover_image(article, 'general_news')
-
-        article.save()
-
-        published_url = None
-        wp_error_detail = None
-        try:
-            tag_names = (master['tags'] if master['tags'] else ([category.name] if category else [])) + wp_site.get_site_tags_list()
-            published_url = push_article_to_wordpress(
-                wp_site, article, extra_tag_names=tag_names,
-                focus_keyword=master['focus_keyword'], meta_description=master['meta_description'],
-                wp_category_id=wp_category_id_for_push,
-                wp_category_ids=forced_category_ids
-            )
-        except Exception as wpe:
-            logger.error(f"Error syndicating reworded article to WP site {wp_site.name}: {wpe}")
-            wp_error_detail = str(wpe)
-
-        AIImportLog.objects.create(
-            source=source,
-            article=article,
-            wp_site=wp_site,
-            source_url=item['link'],
-            published_url=published_url or '',
-            title=new_title,
-            status='success' if published_url else 'failed',
-            error_message='' if published_url else (wp_error_detail or 'فشل النشر على ووردبريس'),
-            wp_category_id=wp_category_id_for_push,
-            wp_category_name=master['category_name'],
-            focus_keyword=master['focus_keyword'],
-            tag_names=','.join(tag_names) if tag_names else '',
-            input_tokens=ai_usage.get('input_tokens'),
-            output_tokens=ai_usage.get('output_tokens'),
-        )
-        return {'published': bool(published_url)}
-    except Exception as ex:
-        logger.error(f"Failed to reword article for {wp_site.name}: {ex}")
-        AIImportLog.objects.create(
-            source=source,
-            source_url=item['link'],
-            title=item['title'],
-            status='failed',
-            error_message=f"فشل إعادة صياغة الخبر لـ {wp_site.name}: {str(ex)}",
-            input_tokens=ai_usage.get('input_tokens'),
-            output_tokens=ai_usage.get('output_tokens'),
-        )
-        return None
-
-
 def get_today_total_cost():
     """
     Sum of AIImportLog.estimated_cost across every site/source for today,
@@ -3398,6 +3292,14 @@ def run_ai_generation_cycle(target_site_id=None):
     # Separate from wp_site_counts (today's total): tracks how many articles this
     # specific cycle invocation has generated per site, capped by articles_per_run.
     wp_site_run_counts = {}
+
+    # Sites linked to 2+ AISources are the only ones that can actually receive
+    # the same real-world story twice from different sources - gates the
+    # per-site same-story AI dedup check so single-source sites skip that
+    # extra Gemini call entirely.
+    multi_source_site_ids = set(
+        WordPressSite.objects.annotate(src_count=Count('sources')).filter(src_count__gt=1).values_list('id', flat=True)
+    )
 
     # Precompute this cycle's regular-news (RSS/Trends) cap per WP site once, so
     # it stays consistent across every source/item processed in this cycle. Sites
@@ -3626,25 +3528,10 @@ def run_ai_generation_cycle(target_site_id=None):
                     )
             
             # Case 2: External WordPress sites connected!
-            # Generate a unique article for each site - unless several sites are
-            # linked to the same active WordPressSiteGroup (merge group), in which
-            # case only one "master" article is generated via Gemini and the rest
-            # of the group gets a cheaper reword pass instead of a full generation,
-            # to reduce cost while each site still publishes its own unique wording.
+            # Every site always gets its own fully independent Gemini
+            # generation - no site's article is ever derived/reworded from
+            # another site's output, even sites sharing a merge_group.
             if wp_sites:
-                standalone_sites = []
-                grouped_sites = {}
-                for wp_site in wp_sites:
-                    if generated_count >= limit:
-                        break
-                    if wp_site_counts.get(wp_site.id, 0) >= wp_site.daily_limit or wp_site_run_counts.get(wp_site.id, 0) >= regular_news_caps.get(wp_site.id, 0):
-                        continue
-                    group = wp_site.merge_group
-                    if group and group.is_active:
-                        grouped_sites.setdefault(group.id, []).append(wp_site)
-                    else:
-                        standalone_sites.append(wp_site)
-
                 def _apply_publish_result(wp_site, result):
                     nonlocal generated_count
                     if result is None:
@@ -3656,35 +3543,18 @@ def run_ai_generation_cycle(target_site_id=None):
                             mark_slot_run(regular_due_slots[wp_site.id], 'regular')
                     generated_count += 1
 
-                for wp_site in standalone_sites:
+                for wp_site in wp_sites:
                     if generated_count >= limit:
                         break
+                    if wp_site_counts.get(wp_site.id, 0) >= wp_site.daily_limit or wp_site_run_counts.get(wp_site.id, 0) >= regular_news_caps.get(wp_site.id, 0):
+                        continue
+                    if wp_site.id in multi_source_site_ids and _find_duplicate_recent_article_for_site(wp_site, source, item, api_key):
+                        continue
                     result = generate_regular_article_for_site(
                         wp_site, source, item, ai_settings, api_key, allowed_cats,
                         categories_list_str, get_wp_primary_categories,
                     )
                     _apply_publish_result(wp_site, result)
-
-                for group_sites in grouped_sites.values():
-                    if generated_count >= limit:
-                        break
-                    master_site = group_sites[0]
-                    master_result = generate_regular_article_for_site(
-                        master_site, source, item, ai_settings, api_key, allowed_cats,
-                        categories_list_str, get_wp_primary_categories,
-                    )
-                    _apply_publish_result(master_site, master_result)
-                    if master_result is None:
-                        continue
-
-                    for wp_site in group_sites[1:]:
-                        if generated_count >= limit:
-                            break
-                        reword_result = reword_regular_article_for_site(
-                            wp_site, source, item, master_result, ai_settings, api_key,
-                            get_wp_primary_categories, get_wp_category_id,
-                        )
-                        _apply_publish_result(wp_site, reword_result)
 
     # Live gold price articles: independent of RSS sources. Sites with no
     # schedule slots keep firing every cycle (legacy behavior); sites with

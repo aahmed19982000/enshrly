@@ -181,23 +181,6 @@
                 </div>
             </div>
 
-            <!-- Merge Group (cost reduction) -->
-            <div class="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
-                <div class="flex items-center justify-between">
-                    <label for="id_merge_group" class="block text-sm font-bold text-slate-200">مجموعة الدمج (لتقليل التكلفة)</label>
-                    <a href="{% url 'news_ai:wp_site_groups' %}" class="text-xs text-teal-400 hover:text-teal-300">إدارة المجموعات ←</a>
-                </div>
-                <select name="merge_group" id="id_merge_group" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
-                    <option value="">بدون دمج - يبقى الموقع مستقلاً بأخباره وأسلوبه الخاص</option>
-                    {% for group in form.fields.merge_group.queryset %}
-                    <option value="{{ group.id }}" {% if form.merge_group.value|stringformat:"s" == group.id|stringformat:"s" %}selected{% endif %}>{{ group.name }}{% if not group.is_active %} (متوقفة){% endif %}</option>
-                    {% endfor %}
-                </select>
-                <p class="text-[10px] text-slate-500">إذا انضم موقعان أو أكثر لنفس المجموعة النشطة، يُولَّد الخبر مرة واحدة (Master) ثم تُعاد صياغته بشكل أخف وأرخص لباقي أعضاء المجموعة بدلاً من توليد كامل ومستقل لكل موقع.</p>
-                {% if form.merge_group.errors %}
-                    <p class="text-xs text-rose-400">{{ form.merge_group.errors.as_text }}</p>
-                {% endif %}
-            </div>
 
             <!-- Rich Formatting (SEO headings + tags) -->
             <div class="space-y-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">

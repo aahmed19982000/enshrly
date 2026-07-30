@@ -18,7 +18,7 @@ class APITokenAuthentication(BaseAuthentication):
         settings_obj = AISettings.get_settings()
         if settings_obj.api_token and token == settings_obj.api_token:
             # Authenticate as the default author, or first superuser/staff
-            user = settings_obj.default_author
+            user = settings_obj.default_authors.first()
             if not user:
                 user = User.objects.filter(is_superuser=True).first()
             if not user:

@@ -30,3 +30,6 @@ bleach
 cryptography
 arabic-reshaper
 python-bidi
+
+# Dev-only: local load testing (see locustfile.py), not a production runtime dependency.
+locust

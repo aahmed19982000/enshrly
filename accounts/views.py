@@ -281,3 +281,51 @@ def dashboard_view(request):
     }
     return render(request, 'accounts/dashboard.html', context)
 
+
+from django.http import Http404
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
+from syndicator.models import WordPressSite, SocialSharePost
+
+
+def _customer_site_ids(profile):
+    """Sites the logged-in customer actually owns, via their used connection
+    tokens — mirrors dashboard_view's ownership check (no direct customer FK
+    on WordPressSite)."""
+    return WPConnectionToken.objects.filter(
+        customer=profile, is_used=True, wp_site__isnull=False
+    ).values_list('wp_site_id', flat=True)
+
+
+@login_required
+def facebook_dashboard_view(request):
+    profile = getattr(request.user, 'customer_profile', None)
+    sites = WordPressSite.objects.filter(id__in=_customer_site_ids(profile))
+
+    sites_data = []
+    for site in sites:
+        sites_data.append({
+            'site': site,
+            'is_connected': site.facebook_auto_publish_enabled,
+            'addon_active': site.facebook_addon_is_active,
+            'posts': SocialSharePost.objects.filter(wp_site=site).order_by('-created_at')[:20],
+        })
+
+    return render(request, 'accounts/facebook_dashboard.html', {'sites_data': sites_data})
+
+
+@login_required
+def facebook_connect_redirect_view(request, wp_site_id):
+    profile = getattr(request.user, 'customer_profile', None)
+    if wp_site_id not in _customer_site_ids(profile):
+        raise Http404
+    site = get_object_or_404(WordPressSite, pk=wp_site_id)
+
+    if not site.facebook_addon_is_active:
+        messages.error(request, "خدمة النشر التلقائي على فيسبوك غير مفعّلة لهذا الموقع.")
+        return redirect('accounts:facebook_dashboard')
+
+    from syndicator.views_facebook_connect import make_facebook_connect_token
+    token = make_facebook_connect_token(site.pk)
+    return redirect(reverse('news_ai:facebook_connect_start', kwargs={'token': token}))
+

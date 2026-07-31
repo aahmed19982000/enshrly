@@ -12,5 +12,7 @@ urlpatterns = [
     path('forgot-password/', views.forgot_password_view, name='forgot_password'),
     path('reset-password/', views.reset_password_view, name='reset_password'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
+    path('facebook/', views.facebook_dashboard_view, name='facebook_dashboard'),
+    path('facebook/<int:wp_site_id>/connect/', views.facebook_connect_redirect_view, name='facebook_connect_redirect'),
     path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
 ]

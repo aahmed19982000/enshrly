@@ -1,0 +1,91 @@
+{% extends 'landing/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .fb-header { margin-bottom: 1.75rem; }
+    .fb-header p { color: var(--muted); margin: 0.3rem 0 0; }
+
+    .fb-site-cards { display: flex; flex-direction: column; gap: 1.25rem; }
+    .fb-site-card { background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .fb-site-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+    .fb-site-head .name { font-weight: 700; color: var(--text); }
+
+    .status-text.status-connected { color: var(--moss); }
+    .status-text.status-disconnected { color: var(--muted); }
+    .status-text.status-posted { color: var(--moss); }
+    .status-text.status-failed { color: var(--rust); }
+    .status-text.status-generated { color: var(--muted); }
+
+    .empty-state { padding: 3rem 1.5rem; text-align: center; display: flex; flex-direction: column; gap: 0.5rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 2rem 1rem;">
+    <div class="fb-header">
+        <h1>النشر على فيسبوك</h1>
+        <p>اربط صفحة فيسبوك بموقعك ليتم نشر بطاقة كل خبر جديد عليها تلقائياً، وتابع سجل النشر من هنا.</p>
+    </div>
+
+    {% if sites_data %}
+    <div class="fb-site-cards">
+        {% for data in sites_data %}
+            <div class="fb-site-card">
+                <div class="fb-site-head">
+                    <span class="name">{{ data.site.name }}</span>
+
+                    {% if not data.addon_active %}
+                        <span class="status-text status-disconnected">خدمة النشر على فيسبوك غير مفعّلة لهذا الموقع — تواصل معنا للتفعيل</span>
+                    {% elif data.is_connected %}
+                        <span class="status-text status-connected">متصل بصفحة فيسبوك</span>
+                    {% else %}
+                        <a href="{% url 'accounts:facebook_connect_redirect' data.site.pk %}" class="btn btn-primary btn-sm">ربط صفحتي على فيسبوك</a>
+                    {% endif %}
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="table-flat" style="min-width: 560px;">
+                        <thead>
+                            <tr>
+                                <th>الخبر</th>
+                                <th>القالب</th>
+                                <th>الحالة</th>
+                                <th>تاريخ النشر</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for post in data.posts %}
+                                <tr>
+                                    <td>{{ post.article_title|default:"—" }}</td>
+                                    <td>{{ post.get_template_used_display }}</td>
+                                    <td>
+                                        {% if post.status == 'posted' %}
+                                            <span class="status-text status-posted">{{ post.get_status_display }}</span>
+                                        {% elif post.status == 'failed' %}
+                                            <span class="status-text status-failed" title="{{ post.error_message }}">{{ post.get_status_display }}</span>
+                                        {% else %}
+                                            <span class="status-text status-generated">{{ post.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="color: var(--muted);">
+                                        {% if post.posted_at %}{{ post.posted_at|date:"Y-m-d H:i" }}{% else %}{{ post.created_at|date:"Y-m-d H:i" }}{% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="4" style="color: var(--muted);">لا يوجد سجل نشر بعد لهذا الموقع.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <div class="empty-state">
+            <span>لا يوجد لديك أي مواقع مربوطة بعد.</span>
+            <a href="{% url 'accounts:dashboard' %}">الرجوع للوحة التحكم</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

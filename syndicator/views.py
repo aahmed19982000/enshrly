@@ -395,7 +395,7 @@ class WordPressSiteUpdateView(StaffRequiredMixin, UpdateView):
             if getattr(settings, 'FACEBOOK_APP_ID', None):
                 token = make_facebook_connect_token(self.object.pk)
                 context['facebook_connect_link'] = self.request.build_absolute_uri(
-                    reverse('facebook_connect_start', kwargs={'token': token})
+                    reverse('news_ai:facebook_connect_start', kwargs={'token': token})
                 )
         except ImportError:
             pass

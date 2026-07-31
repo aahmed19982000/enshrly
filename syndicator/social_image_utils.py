@@ -74,6 +74,26 @@ def _wrap_title(title, font, max_width, max_lines=3):
     return lines[:max_lines]
 
 
+def _fit_title(title, max_width, max_height, max_size, min_size, line_height_ratio=1.27, max_lines_cap=6, step=2):
+    """Auto-sizes the headline: tries font sizes from max_size down to
+    min_size and returns the largest one whose wrapped text still fits
+    max_height without needing the '…' truncation - so a short title
+    renders big enough to fill the space, and a long one shrinks (down to
+    min_size) instead of getting cut off at a fixed size."""
+    total_words = len(title.split())
+    fallback = None
+    for size in range(max_size, min_size - 1, -step):
+        font = _font(size)
+        line_h = int(size * line_height_ratio)
+        max_lines = max(1, min(max_lines_cap, max_height // line_h))
+        lines = _wrap_title(title, font, max_width, max_lines=max_lines)
+        consumed_words = sum(len(l.rstrip(' …').split()) for l in lines)
+        fallback = (font, lines, line_h)
+        if consumed_words >= total_words:
+            return fallback
+    return fallback
+
+
 def _draw_centered_lines(draw, lines, font, canvas_width, y_start, line_height, fill):
     y = y_start
     for line in lines:
@@ -191,23 +211,6 @@ def _cover_resize(img, target_w, target_h):
     return img.crop((left, top, left + target_w, top + target_h))
 
 
-def _paste_logo(canvas, wp_site, bottom, right=40, max_height=70):
-    """Pastes the site's logo (if configured) bottom-right of the given
-    baseline, alpha-composited so transparent PNG logos blend cleanly."""
-    if not wp_site.social_logo:
-        return
-    try:
-        with wp_site.social_logo.open('rb') as f:
-            logo = Image.open(io.BytesIO(f.read())).convert('RGBA')
-        ratio = max_height / logo.height
-        logo = logo.resize((int(logo.width * ratio), max_height), Image.LANCZOS)
-        x = canvas.width - right - logo.width
-        y = bottom - logo.height - 24
-        canvas.paste(logo, (x, y), logo)
-    except Exception as e:
-        logger.warning(f"Could not paste social_logo for {wp_site.name}: {e}")
-
-
 def _render_bottom_banner(photo, title, wp_site):
     banner_h = 360
     photo_h = CANVAS_HEIGHT - banner_h
@@ -215,12 +218,10 @@ def _render_bottom_banner(photo, title, wp_site):
     canvas.paste(_cover_resize(photo, CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0))
     _translucent_overlay(canvas, (0, photo_h, CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_primary_color), TEXT_BG_ALPHA)
     draw = ImageDraw.Draw(canvas)
-    font = _font(56)
-    lines = _wrap_title(title, font, CANVAS_WIDTH - 120, max_lines=4)
-    line_h = 70
+    font, lines, line_h = _fit_title(title, CANVAS_WIDTH - 120, banner_h - 40, max_size=68, min_size=38)
     y_start = photo_h + (banner_h - line_h * len(lines)) / 2
     _draw_centered_lines(draw, lines, font, CANVAS_WIDTH, y_start, line_h, WHITE)
-    _paste_logo(canvas, wp_site, bottom=CANVAS_HEIGHT)
+    _logo_badge_top_left(canvas, wp_site)
     return canvas
 
 
@@ -235,12 +236,10 @@ def _render_boxed_card(photo, title, wp_site):
     _translucent_overlay(canvas, overlay_box, _hex_to_rgb(wp_site.social_secondary_color), TEXT_BG_ALPHA)
 
     draw = ImageDraw.Draw(canvas)
-    font = _font(52)
-    lines = _wrap_title(title, font, CANVAS_WIDTH - 180, max_lines=4)
-    line_h = 66
+    font, lines, line_h = _fit_title(title, CANVAS_WIDTH - 180, overlay_h - 50, max_size=66, min_size=36)
     y_start = CANVAS_HEIGHT - border - overlay_h + (overlay_h - line_h * len(lines)) / 2
     _draw_centered_lines(draw, lines, font, CANVAS_WIDTH, y_start, line_h, WHITE)
-    _paste_logo(canvas, wp_site, bottom=CANVAS_HEIGHT - border)
+    _logo_badge_top_left(canvas, wp_site)
     return canvas
 
 
@@ -252,12 +251,10 @@ def _render_split_block(photo, title, wp_site):
     draw = ImageDraw.Draw(canvas)
     draw.rectangle([0, photo_h, CANVAS_WIDTH, photo_h + 6], fill=_hex_to_rgb(wp_site.social_primary_color))
     _translucent_overlay(canvas, (0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color), TEXT_BG_ALPHA)
-    font = _font(54)
-    lines = _wrap_title(title, font, CANVAS_WIDTH - 140, max_lines=4)
-    line_h = 68
+    font, lines, line_h = _fit_title(title, CANVAS_WIDTH - 140, block_h - 46, max_size=66, min_size=36)
     y_start = photo_h + 6 + (block_h - 6 - line_h * len(lines)) / 2
     _draw_centered_lines(draw, lines, font, CANVAS_WIDTH, y_start, line_h, WHITE)
-    _paste_logo(canvas, wp_site, bottom=CANVAS_HEIGHT)
+    _logo_badge_top_left(canvas, wp_site)
     return canvas
 
 
@@ -279,10 +276,8 @@ def _render_news_ribbon(photo, title, wp_site):
     badge_top = CANVAS_HEIGHT - gradient_h + 60
     badge_bottom = _draw_badge(draw, badge_text, badge_font, badge_top, _hex_to_rgb(wp_site.social_primary_color), x_right=CANVAS_WIDTH - 56)
 
-    title_font = _font(56)
-    lines = _wrap_title(title, title_font, CANVAS_WIDTH - 112, max_lines=4)
-    line_h = 70
     y_start = badge_bottom + 36
+    title_font, lines, line_h = _fit_title(title, CANVAS_WIDTH - 112, CANVAS_HEIGHT - 40 - y_start, max_size=70, min_size=38)
     _draw_centered_lines(draw, lines, title_font, CANVAS_WIDTH, y_start, line_h, WHITE)
     return canvas
 
@@ -307,10 +302,8 @@ def _render_breaking_news(photo, title, wp_site):
     badge_top = photo_h + 40
     badge_bottom = _draw_badge(draw, badge_text, badge_font, badge_top, _hex_to_rgb(wp_site.social_primary_color), x_right=CANVAS_WIDTH - 56)
 
-    title_font = _font(52)
-    lines = _wrap_title(title, title_font, CANVAS_WIDTH - 112, max_lines=4)
-    line_h = 66
     y_start = badge_bottom + 30
+    title_font, lines, line_h = _fit_title(title, CANVAS_WIDTH - 112, CANVAS_HEIGHT - 40 - y_start, max_size=64, min_size=36)
     _draw_right_aligned_lines(draw, lines, title_font, CANVAS_WIDTH - 56, y_start, line_h, WHITE)
     return canvas
 

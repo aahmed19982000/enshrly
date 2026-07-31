@@ -539,7 +539,7 @@ class WordPressSite(models.Model):
     social_template = models.CharField(max_length=20, choices=SOCIAL_TEMPLATE_CHOICES, default='news_ribbon', verbose_name="قالب تصميم الصورة")
     social_badge_text = models.CharField(max_length=30, blank=True, default='', verbose_name="نص الوسم فوق العنوان", help_text="يظهر في قالبي \"إخباري احترافي\" و\"عاجل\" فوق العنوان مباشرةً، مثال: تقرير، عاجل، حصري. اتركه فارغاً لاستخدام \"خبر\" (أو \"عاجل\" تلقائياً في قالب العاجل).")
     social_logo = models.ImageField(upload_to='site_logos/', blank=True, null=True, verbose_name="لوجو الموقع", help_text="يُفضَّل صورة PNG بخلفية شفافة.")
-    social_logo_position = models.CharField(max_length=20, choices=SOCIAL_LOGO_POSITION_CHOICES, default='top_left', verbose_name="مكان اللوجو في التصميم", help_text="يتحكم في مكان لوجو الموقع في قالبي \"إخباري احترافي\" و\"عاجل\" فقط.")
+    social_logo_position = models.CharField(max_length=20, choices=SOCIAL_LOGO_POSITION_CHOICES, default='top_left', verbose_name="مكان اللوجو في التصميم", help_text="يتحكم في مكان لوجو الموقع أعلى التصميم، في كل القوالب.")
     social_primary_color = models.CharField(max_length=7, default='#0d9488', verbose_name="اللون الأساسي للتصميم", help_text="كود اللون السداسي عشري (Hex)، مثال: #0d9488")
     social_secondary_color = models.CharField(max_length=7, default='#0f172a', verbose_name="اللون الثانوي للتصميم", help_text="كود اللون السداسي عشري (Hex)، مثال: #0f172a")
     facebook_page_id = models.CharField(max_length=100, blank=True, default='', verbose_name="معرّف صفحة فيسبوك (Page ID)", help_text="اتركه فارغاً لتعطيل النشر التلقائي على فيسبوك مع إبقاء توليد الصورة فقط.")

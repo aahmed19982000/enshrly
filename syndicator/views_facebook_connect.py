@@ -11,6 +11,8 @@ registered at developers.facebook.com) and, for pages the developer account
 doesn't itself manage, that app to have passed Meta's App Review for the
 pages_show_list / pages_read_engagement / pages_manage_posts permissions.
 """
+import logging
+
 import requests
 from django.conf import settings
 from django.core import signing
@@ -19,6 +21,8 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .models import WordPressSite
+
+logger = logging.getLogger(__name__)
 
 GRAPH_VERSION = 'v21.0'
 TOKEN_SALT = 'facebook_connect'
@@ -36,7 +40,8 @@ def _resolve_wp_site(token):
         return WordPressSite.objects.get(pk=wp_site_id), None
     except signing.SignatureExpired:
         return None, 'انتهت صلاحية رابط الربط (صالح لمدة 30 يوماً). يرجى طلب رابط جديد.'
-    except (signing.BadSignature, WordPressSite.DoesNotExist):
+    except (signing.BadSignature, WordPressSite.DoesNotExist) as e:
+        logger.error(f"Facebook connect token resolve failed: token={token!r} error={type(e).__name__}: {e}")
         return None, 'رابط الربط غير صالح.'
 
 

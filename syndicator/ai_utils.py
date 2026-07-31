@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import glob
 import time
 import random
 import logging
@@ -1094,18 +1095,41 @@ DEFAULT_COVER_IMAGE_TYPES = {
 }
 
 
+def _default_cover_image_pool(content_type):
+    """
+    Returns every available file for this content type - the base
+    '{type}.jpg' plus any '{type}_2.jpg', '{type}_3.jpg', ... variants -
+    sorted so the rotation in attach_default_cover_image is deterministic.
+    """
+    base = os.path.join(DEFAULT_COVER_IMAGE_DIR, f'{content_type}.jpg')
+    variants = sorted(glob.glob(os.path.join(DEFAULT_COVER_IMAGE_DIR, f'{content_type}_*.jpg')))
+    return ([base] if os.path.exists(base) else []) + variants
+
+
 def attach_default_cover_image(article, content_type):
-    """Attaches the generic illustrative cover image for this price-article content type, if one is configured."""
+    """
+    Attaches an illustrative cover image for this price-article content type,
+    if any are configured. When more than one real photo variant exists for
+    this type, rotates between them by day-of-year (Cairo date) so the same
+    article type doesn't publish with the identical photo every single time -
+    still purely visual, every number in these articles keeps coming
+    exclusively from the official price APIs.
+    """
     if content_type not in DEFAULT_COVER_IMAGE_TYPES:
         return
-    path = os.path.join(DEFAULT_COVER_IMAGE_DIR, f'{content_type}.jpg')
+    pool = _default_cover_image_pool(content_type)
+    if not pool:
+        logger.warning(f"Default cover image missing for '{content_type}'")
+        return
+    day_of_year = timezone.now().astimezone(CAIRO_TZ).timetuple().tm_yday
+    path = pool[day_of_year % len(pool)]
     try:
         with open(path, 'rb') as f:
             raw_bytes = f.read()
     except OSError as e:
         logger.warning(f"Default cover image missing for '{content_type}': {e}")
         return
-    article.cover_image = _process_cover_image_bytes(raw_bytes, f'{content_type}.jpg')
+    article.cover_image = _process_cover_image_bytes(raw_bytes, os.path.basename(path))
 
 
 def generate_slug_for_title(title):

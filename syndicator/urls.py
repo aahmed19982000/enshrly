@@ -67,8 +67,12 @@ urlpatterns = [
     path('api/pending-image-articles/<int:log_id>/submit-image/', views_ai.submit_pending_image_api_view, name='submit_pending_image_api'),
     path('api/published-articles-log/', views_ai.published_articles_log_api_view, name='published_articles_log_api'),
 
-    # Facebook Page self-serve connect (OAuth)
-    path('facebook/connect/<str:token>/', views_facebook_connect.facebook_connect_start, name='facebook_connect_start'),
+    # Facebook Page self-serve connect (OAuth) — the literal 'callback/' and
+    # 'choose-page/' paths must come before the generic '<str:token>/'
+    # pattern, otherwise Django matches "callback"/"choose-page" as the token
+    # value against the first (most general) pattern and the dedicated views
+    # below are never reached.
     path('facebook/connect/callback/', views_facebook_connect.facebook_connect_callback, name='facebook_connect_callback'),
     path('facebook/connect/<str:token>/choose-page/', views_facebook_connect.facebook_connect_choose_page, name='facebook_connect_choose_page'),
+    path('facebook/connect/<str:token>/', views_facebook_connect.facebook_connect_start, name='facebook_connect_start'),
 ]

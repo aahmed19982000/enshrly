@@ -21,9 +21,11 @@ from PIL import Image, ImageDraw, ImageFont
 logger = logging.getLogger(__name__)
 
 FONT_PATH = settings.BASE_DIR / 'static' / 'fonts' / 'Amiri-Bold.ttf'
-CANVAS_WIDTH = 1200
+CANVAS_WIDTH = 1080
+CANVAS_HEIGHT = 1350  # 4:5 - Facebook/Instagram's mobile-optimized feed ratio
 WHITE = (255, 255, 255)
 FACEBOOK_GRAPH_VERSION = 'v21.0'
+DEFAULT_BADGE_TEXT = 'خبر'
 
 # This Pillow build ships with libraqm (HarfBuzz + FriBidi), so draw.text()
 # already shapes/reorders Arabic correctly on its own - text must be passed
@@ -80,6 +82,71 @@ def _draw_centered_lines(draw, lines, font, canvas_width, y_start, line_height, 
     return y
 
 
+def _draw_right_aligned_lines(draw, lines, font, x_right, y_start, line_height, fill):
+    """RTL-appropriate ragged-left block: every line's right edge lines up on
+    x_right, same look as Al Jazeera-style caption blocks."""
+    y = y_start
+    for line in lines:
+        width = font.getlength(line)
+        draw.text((x_right - width, y), line, font=font, fill=fill)
+        y += line_height
+    return y
+
+
+def _bottom_gradient(canvas, height, rgb_color, max_alpha=230, curve=1.3):
+    """Composites a transparent-to-rgb_color vertical gradient over the
+    bottom `height` px of canvas, for legible text over a busy photo."""
+    grad = Image.linear_gradient('L').resize((canvas.width, height))
+    grad = grad.point(lambda p: int((p / 255) ** curve * max_alpha))
+    overlay = Image.new('RGBA', (canvas.width, height), rgb_color + (0,))
+    overlay.putalpha(grad)
+    region = canvas.crop((0, canvas.height - height, canvas.width, canvas.height)).convert('RGBA')
+    blended = Image.alpha_composite(region, overlay).convert('RGB')
+    canvas.paste(blended, (0, canvas.height - height))
+
+
+def _draw_badge(draw, text, font, y, bg_color, x_left=None, x_right=None, text_color=WHITE, pad_x=22, pad_y=14, radius=10):
+    """Draws a rounded, filled label (e.g. 'عاجل' / 'تقرير') anchored either
+    from its left edge (x_left) or right edge (x_right) - exactly one must be
+    given. Returns the label's bottom y coordinate."""
+    ascent, descent = font.getmetrics()
+    box_h = ascent + descent + pad_y * 2
+    width = font.getlength(text) + pad_x * 2
+    x0 = x_left if x_left is not None else x_right - width
+    draw.rounded_rectangle([x0, y, x0 + width, y + box_h], radius=radius, fill=bg_color)
+    draw.text((x0 + pad_x, y + pad_y), text, font=font, fill=text_color)
+    return y + box_h
+
+
+def _logo_badge_top_left(canvas, wp_site, x=44, y=44, box_h=88):
+    """Pastes the site's logo (or, lacking one, its name as text) inside a
+    solid white rounded card top-left - the masthead mark seen in
+    news-agency style share cards."""
+    draw = ImageDraw.Draw(canvas)
+    pad_x, pad_y = 22, 14
+    if wp_site.social_logo:
+        try:
+            with wp_site.social_logo.open('rb') as f:
+                logo = Image.open(io.BytesIO(f.read())).convert('RGBA')
+            inner_h = box_h - pad_y * 2
+            ratio = inner_h / logo.height
+            logo = logo.resize((int(logo.width * ratio), inner_h), Image.LANCZOS)
+            box_w = logo.width + pad_x * 2
+            draw.rounded_rectangle([x, y, x + box_w, y + box_h], radius=16, fill=WHITE)
+            canvas.paste(logo, (x + pad_x, y + pad_y), logo)
+            return
+        except Exception as e:
+            logger.warning(f"Could not paste social_logo for {wp_site.name}: {e}")
+
+    font = _font(30)
+    name = wp_site.name[:18]
+    box_w = font.getlength(name) + pad_x * 2
+    draw.rounded_rectangle([x, y, x + box_w, y + box_h], radius=16, fill=WHITE)
+    ascent, descent = font.getmetrics()
+    text_y = y + (box_h - ascent - descent) / 2
+    draw.text((x + pad_x, text_y), name, font=font, fill=_hex_to_rgb(wp_site.social_secondary_color))
+
+
 def _cover_resize(img, target_w, target_h):
     """CSS object-fit: cover equivalent - fills the target box, cropping any
     overflow, so the source photo's aspect ratio never gets distorted."""
@@ -115,53 +182,110 @@ def _paste_logo(canvas, wp_site, bottom, right=40, max_height=70):
 
 
 def _render_bottom_banner(photo, title, wp_site):
-    banner_h = 220
-    canvas = Image.new('RGB', (CANVAS_WIDTH, 630 + banner_h), _hex_to_rgb(wp_site.social_secondary_color))
-    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, 630), (0, 0))
+    banner_h = 360
+    photo_h = CANVAS_HEIGHT - banner_h
+    canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, photo_h), (0, 0))
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle([0, 630, CANVAS_WIDTH, 630 + banner_h], fill=_hex_to_rgb(wp_site.social_primary_color))
-    font = _font(52)
-    lines = _wrap_title(title, font, CANVAS_WIDTH - 100)
-    line_h = 64
-    y_start = 630 + (banner_h - line_h * len(lines)) / 2
+    draw.rectangle([0, photo_h, CANVAS_WIDTH, CANVAS_HEIGHT], fill=_hex_to_rgb(wp_site.social_primary_color))
+    font = _font(56)
+    lines = _wrap_title(title, font, CANVAS_WIDTH - 120, max_lines=4)
+    line_h = 70
+    y_start = photo_h + (banner_h - line_h * len(lines)) / 2
     _draw_centered_lines(draw, lines, font, CANVAS_WIDTH, y_start, line_h, WHITE)
-    _paste_logo(canvas, wp_site, bottom=630 + banner_h)
+    _paste_logo(canvas, wp_site, bottom=CANVAS_HEIGHT)
     return canvas
 
 
 def _render_boxed_card(photo, title, wp_site):
-    border = 16
-    canvas = Image.new('RGB', (CANVAS_WIDTH, 750), _hex_to_rgb(wp_site.social_primary_color))
-    inner = _cover_resize(photo, CANVAS_WIDTH - border * 2, 750 - border * 2)
+    border = 18
+    canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_primary_color))
+    inner = _cover_resize(photo, CANVAS_WIDTH - border * 2, CANVAS_HEIGHT - border * 2)
     canvas.paste(inner, (border, border))
 
-    overlay_h = 240
-    overlay = Image.new('RGBA', (CANVAS_WIDTH - border * 2, overlay_h), (*_hex_to_rgb(wp_site.social_secondary_color), 210))
-    canvas.paste(Image.alpha_composite(canvas.crop((border, 750 - border - overlay_h, CANVAS_WIDTH - border, 750 - border)).convert('RGBA'), overlay).convert('RGB'), (border, 750 - border - overlay_h))
+    overlay_h = 420
+    overlay = Image.new('RGBA', (CANVAS_WIDTH - border * 2, overlay_h), (*_hex_to_rgb(wp_site.social_secondary_color), 215))
+    region = canvas.crop((border, CANVAS_HEIGHT - border - overlay_h, CANVAS_WIDTH - border, CANVAS_HEIGHT - border)).convert('RGBA')
+    canvas.paste(Image.alpha_composite(region, overlay).convert('RGB'), (border, CANVAS_HEIGHT - border - overlay_h))
 
     draw = ImageDraw.Draw(canvas)
-    font = _font(48)
-    lines = _wrap_title(title, font, CANVAS_WIDTH - 160)
-    line_h = 60
-    y_start = 750 - border - overlay_h + (overlay_h - line_h * len(lines)) / 2
+    font = _font(52)
+    lines = _wrap_title(title, font, CANVAS_WIDTH - 180, max_lines=4)
+    line_h = 66
+    y_start = CANVAS_HEIGHT - border - overlay_h + (overlay_h - line_h * len(lines)) / 2
     _draw_centered_lines(draw, lines, font, CANVAS_WIDTH, y_start, line_h, WHITE)
-    _paste_logo(canvas, wp_site, bottom=750 - border)
+    _paste_logo(canvas, wp_site, bottom=CANVAS_HEIGHT - border)
     return canvas
 
 
 def _render_split_block(photo, title, wp_site):
-    block_h = 230
-    canvas = Image.new('RGB', (CANVAS_WIDTH, 630 + block_h), _hex_to_rgb(wp_site.social_secondary_color))
-    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, 630), (0, 0))
+    block_h = 370
+    photo_h = CANVAS_HEIGHT - block_h
+    canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, photo_h), (0, 0))
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle([0, 630, CANVAS_WIDTH, 636], fill=_hex_to_rgb(wp_site.social_primary_color))
-    draw.rectangle([0, 636, CANVAS_WIDTH, 630 + block_h], fill=_hex_to_rgb(wp_site.social_secondary_color))
-    font = _font(50)
-    lines = _wrap_title(title, font, CANVAS_WIDTH - 120)
-    line_h = 62
-    y_start = 636 + (block_h - 6 - line_h * len(lines)) / 2
+    draw.rectangle([0, photo_h, CANVAS_WIDTH, photo_h + 6], fill=_hex_to_rgb(wp_site.social_primary_color))
+    draw.rectangle([0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT], fill=_hex_to_rgb(wp_site.social_secondary_color))
+    font = _font(54)
+    lines = _wrap_title(title, font, CANVAS_WIDTH - 140, max_lines=4)
+    line_h = 68
+    y_start = photo_h + 6 + (block_h - 6 - line_h * len(lines)) / 2
     _draw_centered_lines(draw, lines, font, CANVAS_WIDTH, y_start, line_h, WHITE)
-    _paste_logo(canvas, wp_site, bottom=630 + block_h)
+    _paste_logo(canvas, wp_site, bottom=CANVAS_HEIGHT)
+    return canvas
+
+
+def _render_news_ribbon(photo, title, wp_site):
+    """General-news style card (Youm7-esque): full-bleed photo, masthead
+    logo top-left, a colored category ribbon, and the headline set over a
+    bottom gradient for legibility."""
+    canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0))
+
+    gradient_h = 640
+    _bottom_gradient(canvas, gradient_h, _hex_to_rgb(wp_site.social_secondary_color), max_alpha=235)
+
+    draw = ImageDraw.Draw(canvas)
+    _logo_badge_top_left(canvas, wp_site)
+
+    badge_font = _font(32)
+    badge_text = (wp_site.social_badge_text or DEFAULT_BADGE_TEXT).strip()
+    badge_top = CANVAS_HEIGHT - gradient_h + 60
+    badge_bottom = _draw_badge(draw, badge_text, badge_font, badge_top, _hex_to_rgb(wp_site.social_primary_color), x_right=CANVAS_WIDTH - 56)
+
+    title_font = _font(56)
+    lines = _wrap_title(title, title_font, CANVAS_WIDTH - 112, max_lines=4)
+    line_h = 70
+    y_start = badge_bottom + 36
+    _draw_centered_lines(draw, lines, title_font, CANVAS_WIDTH, y_start, line_h, WHITE)
+    return canvas
+
+
+def _render_breaking_news(photo, title, wp_site):
+    """Breaking-news style card (Al Jazeera-esque): photo on top, a solid
+    color block below carrying an 'عاجل'-style badge and a right-aligned
+    ragged headline."""
+    block_h = 480
+    photo_h = CANVAS_HEIGHT - block_h
+    canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, photo_h), (0, 0))
+
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle([0, photo_h, CANVAS_WIDTH, photo_h + 6], fill=_hex_to_rgb(wp_site.social_primary_color))
+    draw.rectangle([0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT], fill=_hex_to_rgb(wp_site.social_secondary_color))
+
+    _logo_badge_top_left(canvas, wp_site)
+
+    badge_font = _font(34)
+    badge_text = (wp_site.social_badge_text or 'عاجل').strip()
+    badge_top = photo_h + 40
+    badge_bottom = _draw_badge(draw, badge_text, badge_font, badge_top, _hex_to_rgb(wp_site.social_primary_color), x_right=CANVAS_WIDTH - 56)
+
+    title_font = _font(52)
+    lines = _wrap_title(title, title_font, CANVAS_WIDTH - 112, max_lines=4)
+    line_h = 66
+    y_start = badge_bottom + 30
+    _draw_right_aligned_lines(draw, lines, title_font, CANVAS_WIDTH - 56, y_start, line_h, WHITE)
     return canvas
 
 
@@ -169,6 +293,8 @@ _TEMPLATE_RENDERERS = {
     'bottom_banner': _render_bottom_banner,
     'boxed_card': _render_boxed_card,
     'split_block': _render_split_block,
+    'news_ribbon': _render_news_ribbon,
+    'breaking_news': _render_breaking_news,
 }
 
 

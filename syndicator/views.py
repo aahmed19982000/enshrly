@@ -331,7 +331,7 @@ class WordPressSiteListView(StaffRequiredMixin, ListView):
         )
 
 
-WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_logo', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token', 'facebook_addon_trial_ends_at']
+WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_badge_text', 'social_logo', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token', 'facebook_addon_trial_ends_at']
 
 
 def _source_group_parents_with_cat_values(wp_site=None):

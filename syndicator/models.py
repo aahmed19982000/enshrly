@@ -524,12 +524,15 @@ class WordPressSite(models.Model):
 
     # --- Social share image generation (Facebook cards) ---
     SOCIAL_TEMPLATE_CHOICES = [
+        ('news_ribbon', 'إخباري احترافي (لوجو أعلى + وسم + تدرج سفلي فوق العنوان)'),
+        ('breaking_news', 'عاجل (كتلة لون سفلية بوسم وعنوان محاذى لليمين)'),
         ('bottom_banner', 'شريط سفلي (صورة كاملة + شريط عنوان أسفل)'),
         ('boxed_card', 'بطاقة مؤطرة (صورة مع إطار وصندوق عنوان)'),
         ('split_block', 'تقسيم علوي/سفلي (صورة أعلى وكتلة لون بالعنوان أسفل)'),
     ]
     social_image_enabled = models.BooleanField(default=False, verbose_name="تفعيل توليد صور السوشال ميديا", help_text="عند التفعيل، يُولَّد تصميم صورة تلقائياً (صورة الخبر + عنوان + لوجو الموقع) عند نشر كل خبر جديد لهذا الموقع.")
-    social_template = models.CharField(max_length=20, choices=SOCIAL_TEMPLATE_CHOICES, default='bottom_banner', verbose_name="قالب تصميم الصورة")
+    social_template = models.CharField(max_length=20, choices=SOCIAL_TEMPLATE_CHOICES, default='news_ribbon', verbose_name="قالب تصميم الصورة")
+    social_badge_text = models.CharField(max_length=30, blank=True, default='', verbose_name="نص الوسم فوق العنوان", help_text="يظهر في قالبي \"إخباري احترافي\" و\"عاجل\" فوق العنوان مباشرةً، مثال: تقرير، عاجل، حصري. اتركه فارغاً لاستخدام \"خبر\" (أو \"عاجل\" تلقائياً في قالب العاجل).")
     social_logo = models.ImageField(upload_to='site_logos/', blank=True, null=True, verbose_name="لوجو الموقع", help_text="يُفضَّل صورة PNG بخلفية شفافة.")
     social_primary_color = models.CharField(max_length=7, default='#0d9488', verbose_name="اللون الأساسي للتصميم", help_text="كود اللون السداسي عشري (Hex)، مثال: #0d9488")
     social_secondary_color = models.CharField(max_length=7, default='#0f172a', verbose_name="اللون الثانوي للتصميم", help_text="كود اللون السداسي عشري (Hex)، مثال: #0f172a")

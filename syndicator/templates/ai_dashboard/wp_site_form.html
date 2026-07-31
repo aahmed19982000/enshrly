@@ -318,6 +318,15 @@
                         </select>
                     </div>
 
+                    <!-- Badge/Ribbon Text -->
+                    <div class="space-y-2">
+                        <label for="id_social_badge_text" class="block text-sm font-semibold text-slate-300">نص الوسم فوق العنوان</label>
+                        <input type="text" name="social_badge_text" id="id_social_badge_text" value="{{ form.social_badge_text.value|default:'' }}" maxlength="30" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150" placeholder="تقرير">
+                        <p class="text-[10px] text-slate-500">يظهر فقط في قالبي "إخباري احترافي" و"عاجل". اتركه فارغاً لاستخدام "خبر" (أو "عاجل" تلقائياً في قالب العاجل).</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Logo Upload -->
                     <div class="space-y-2">
                         <label for="id_social_logo" class="block text-sm font-semibold text-slate-300">لوجو الموقع</label>

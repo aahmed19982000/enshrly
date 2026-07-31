@@ -2,7 +2,7 @@
 /**
  * Plugin Name: موصل صحفي هب
  * Description: يربط موقع ووردبريس الخاص بك بنظام صحفي هب بسهولة ويدير إعداداته.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: صحفي هب
  */
 
@@ -16,6 +16,46 @@ class Enshrly_Connector {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('admin_head', array($this, 'menu_icon_styles'));
         add_action('transition_post_status', array($this, 'on_post_published'), 10, 3);
+        add_action('wp_ajax_enshrly_submit_pending_image', array($this, 'ajax_submit_pending_image'));
+    }
+
+    /**
+     * Server-side proxy for the "articles needing a photo" section below -
+     * the customer picks a photo via the native WP media picker, and this
+     * forwards the chosen attachment URL to Enshrly using the connection
+     * token stored in this site's own options (never exposed to browser JS)
+     * so the article can finally be pushed to WordPress with that photo.
+     */
+    public function ajax_submit_pending_image() {
+        check_ajax_referer('enshrly_pending_image_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('غير مصرح.');
+        }
+
+        $log_id = isset($_POST['log_id']) ? intval($_POST['log_id']) : 0;
+        $image_url = isset($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : '';
+        $token = get_option('enshrly_token', '');
+        $server_url = get_option('enshrly_server_url', '');
+
+        if (!$log_id || !$image_url || empty($token) || empty($server_url)) {
+            wp_send_json_error('بيانات ناقصة.');
+        }
+
+        $endpoint = rtrim($server_url, '/') . '/api/pending-image-articles/' . $log_id . '/submit-image/';
+        $response = wp_remote_post($endpoint, array(
+            'timeout' => 30,
+            'body' => array('token' => $token, 'image_url' => $image_url),
+        ));
+
+        if (is_wp_error($response)) {
+            wp_send_json_error($response->get_error_message());
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (isset($body['status']) && $body['status'] === 'success') {
+            wp_send_json_success($body);
+        }
+        wp_send_json_error(isset($body['message']) ? $body['message'] : 'فشل غير معروف.');
     }
 
     /**
@@ -64,6 +104,9 @@ class Enshrly_Connector {
             wp_enqueue_style('wp-color-picker');
             wp_enqueue_script('wp-color-picker');
             wp_add_inline_script('wp-color-picker', 'jQuery(document).ready(function($){ $(".color-picker").wpColorPicker(); });');
+            // Needed for the native photo picker in the "articles needing a
+            // photo" section below (wp.media()).
+            wp_enqueue_media();
         }
     }
 
@@ -205,6 +248,37 @@ class Enshrly_Connector {
             }
         }
 
+        // Articles that were fully written but have no usable photo anywhere
+        // (source feed, linked article page, or Wikimedia Commons) - held at
+        // Enshrly until the customer picks one here (see hold_article_pending_image
+        // and pending_image_articles_api_view on the server side).
+        $pending_items = [];
+        if (!empty($saved_token) && !empty($saved_server_url)) {
+            $pending_endpoint = rtrim($saved_server_url, '/') . '/api/pending-image-articles/?token=' . urlencode($saved_token);
+            $pending_response = wp_remote_get($pending_endpoint, array('timeout' => 15));
+            if (!is_wp_error($pending_response)) {
+                $pending_body = json_decode(wp_remote_retrieve_body($pending_response), true);
+                if (isset($pending_body['status']) && $pending_body['status'] === 'success') {
+                    $pending_items = $pending_body['items'];
+                }
+            }
+        }
+
+        // Recent successfully-published articles, so the customer can see
+        // what's actually gone live on their site without logging in to the
+        // Enshrly dashboard separately.
+        $published_log_items = [];
+        if (!empty($saved_token) && !empty($saved_server_url)) {
+            $log_endpoint = rtrim($saved_server_url, '/') . '/api/published-articles-log/?token=' . urlencode($saved_token);
+            $log_response = wp_remote_get($log_endpoint, array('timeout' => 15));
+            if (!is_wp_error($log_response)) {
+                $log_body = json_decode(wp_remote_retrieve_body($log_response), true);
+                if (isset($log_body['status']) && $log_body['status'] === 'success') {
+                    $published_log_items = $log_body['items'];
+                }
+            }
+        }
+
         ?>
         <div class="wrap" style="max-width: 900px; margin-bottom: 50px;">
             <h1 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
@@ -226,9 +300,92 @@ class Enshrly_Connector {
                 </div>
             <?php endif; ?>
 
+            <?php if (!empty($pending_items)): ?>
+            <div class="postbox" style="padding: 20px; margin-top: 20px; border-right: 4px solid #dba617; border-left: none;">
+                <h2>⚠ مقالات بانتظار اختيار صورة (<?php echo count($pending_items); ?>)</h2>
+                <p class="description">هذه الأخبار جاهزة نصياً لكن لم نجد لها صورة مناسبة تلقائياً. اختر صورة لكل خبر لنشره على موقعك.</p>
+                <table class="widefat striped" style="margin-top: 10px;">
+                    <thead><tr><th>العنوان</th><th>الملخص</th><th style="width: 220px;">الإجراء</th></tr></thead>
+                    <tbody id="enshrly-pending-images-tbody">
+                        <?php foreach ($pending_items as $item): ?>
+                            <tr data-log-id="<?php echo esc_attr($item['id']); ?>">
+                                <td><?php echo esc_html($item['title']); ?></td>
+                                <td><?php echo esc_html(mb_substr((string) $item['excerpt'], 0, 100)); ?></td>
+                                <td>
+                                    <button type="button" class="button button-primary enshrly-pick-image-btn">اختر صورة وانشر</button>
+                                    <span class="enshrly-pending-status" style="margin-right: 8px;"></span>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <script>
+            jQuery(document).ready(function($) {
+                $('#enshrly-pending-images-tbody').on('click', '.enshrly-pick-image-btn', function(e) {
+                    e.preventDefault();
+                    var $btn = $(this);
+                    var $row = $btn.closest('tr');
+                    var logId = $row.data('log-id');
+                    var $status = $row.find('.enshrly-pending-status');
+
+                    var frame = wp.media({
+                        title: 'اختر صورة الغلاف لهذا الخبر',
+                        button: { text: 'استخدام هذه الصورة' },
+                        multiple: false,
+                    });
+                    frame.on('select', function() {
+                        var attachment = frame.state().get('selection').first().toJSON();
+                        $btn.prop('disabled', true);
+                        $status.text('جارِ النشر...');
+                        $.post(ajaxurl, {
+                            action: 'enshrly_submit_pending_image',
+                            nonce: '<?php echo esc_js(wp_create_nonce('enshrly_pending_image_nonce')); ?>',
+                            log_id: logId,
+                            image_url: attachment.url,
+                        }).done(function(resp) {
+                            if (resp && resp.success) {
+                                $status.text('تم النشر ✓');
+                                $row.fadeOut(400, function() { $row.remove(); });
+                            } else {
+                                $status.text('فشل: ' + (resp && resp.data ? resp.data : 'خطأ غير معروف'));
+                                $btn.prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            $status.text('تعذّر الاتصال بالخادم.');
+                            $btn.prop('disabled', false);
+                        });
+                    });
+                    frame.open();
+                });
+            });
+            </script>
+            <?php endif; ?>
+
+            <?php if (!empty($published_log_items)): ?>
+            <div class="postbox" style="padding: 20px; margin-top: 20px;">
+                <details>
+                    <summary style="cursor: pointer;"><h2 style="display: inline;">سجل الأخبار المنشورة (آخر <?php echo count($published_log_items); ?>)</h2></summary>
+                    <table class="widefat striped" style="margin-top: 10px;">
+                        <thead><tr><th>العنوان</th><th style="width: 160px;">القسم</th><th style="width: 160px;">التاريخ</th><th style="width: 100px;">رابط</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($published_log_items as $item): ?>
+                            <tr>
+                                <td><?php echo esc_html($item['title']); ?></td>
+                                <td><?php echo esc_html($item['wp_category_name']); ?></td>
+                                <td><?php echo esc_html(mysql2date('Y-m-d H:i', $item['created_at'])); ?></td>
+                                <td><a href="<?php echo esc_url($item['published_url']); ?>" target="_blank" rel="noopener">فتح ↗</a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </details>
+            </div>
+            <?php endif; ?>
+
             <form method="post" action="">
                 <?php wp_nonce_field('enshrly_connect_action', 'enshrly_connect_nonce'); ?>
-                
+
                 <div class="postbox" style="padding: 20px; margin-top: 20px;">
                     <h2>1. بيانات الربط الأساسية</h2>
                     <table class="form-table">

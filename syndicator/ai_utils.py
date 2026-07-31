@@ -969,13 +969,18 @@ MAX_COVER_IMAGE_SIZE = (900, 600)
 MIN_COVER_IMAGE_SIZE = (220, 220)
 
 
-def _process_cover_image_bytes(raw_bytes, filename):
+def _process_cover_image_bytes(raw_bytes, filename, mirror=False):
     """
     Crops the bottom 10% (source watermarks), caps dimensions to
     MAX_COVER_IMAGE_SIZE (shrink only), upscales up to MIN_COVER_IMAGE_SIZE
     if the source photo is smaller than that, flattens transparency, and
     re-encodes as JPEG. Returns a Django ContentFile, falling back to the raw
     bytes unprocessed if Pillow can't handle this particular image.
+
+    `mirror`: horizontally flips the final image - used when the same source
+    photo is reused as a second site's cover image (see
+    generate_regular_article_for_site's prefer_source_image fallback) so the
+    two sites don't publish byte-for-byte/perceptually identical files.
     """
     filename = filename.rsplit('.', 1)[0] + '.jpg' if '.' in filename else (filename or 'cover') + '.jpg'
     try:
@@ -994,6 +999,9 @@ def _process_cover_image_bytes(raw_bytes, filename):
         cropped_img = img.crop((0, 0, width, int(height * 0.90)))
         # Cap dimensions to MAX_COVER_IMAGE_SIZE (shrink only).
         cropped_img.thumbnail(MAX_COVER_IMAGE_SIZE, Image.LANCZOS)
+
+        if mirror:
+            cropped_img = cropped_img.transpose(Image.FLIP_LEFT_RIGHT)
 
         # If the source photo was tiny, upscale up to MIN_COVER_IMAGE_SIZE so
         # Facebook doesn't reject it outright for being under its own minimum.
@@ -1035,13 +1043,15 @@ def _strip_wp_thumbnail_suffix(url):
     return re.sub(r'-\d+x\d+(\.\w+)(\?.*)?$', r'\1\2', url)
 
 
-def fetch_image_file(image_url):
+def fetch_image_file(image_url, mirror=False):
     """
     Downloads an image from a URL and returns it processed via
     _process_cover_image_bytes(), or None on failure. If the URL looks like a
     WordPress-style resized thumbnail, the guessed full-size original is
     tried first (a real higher-resolution photo beats upscaling a small
     thumbnail), falling back to the given URL if that guess doesn't exist.
+
+    `mirror` is passed straight through to _process_cover_image_bytes.
     """
     if not image_url:
         return None
@@ -1066,7 +1076,7 @@ def fetch_image_file(image_url):
             if '?' in filename:
                 filename = filename.split('?')[0]
 
-            return _process_cover_image_bytes(res.content, filename)
+            return _process_cover_image_bytes(res.content, filename, mirror=mirror)
         except Exception as e:
             last_error = e
             continue
@@ -2931,12 +2941,107 @@ def generate_dollar_price_article_for_site(wp_site, dollar_data, comparison_text
         return False
 
 
+def hold_article_pending_image(article, wp_site, source, item, category_name_for_group,
+                                wp_category_id_for_push, focus_keyword, meta_description,
+                                tag_names, ai_usage):
+    """
+    Saves a fully-written article that has no usable photo anywhere (source
+    feed, linked article page, or Wikimedia Commons all came up empty) as
+    'pending_image' instead of publishing it with a generic stock photo. The
+    article itself is never pushed to WordPress at this point - see
+    finish_pending_image_publish() for what happens once the customer picks a
+    real photo from inside the WordPress plugin's admin page.
+
+    Counts toward this site's daily/run caps immediately (same as a normal
+    publish - see run_ai_generation_cycle's _apply_publish_result) so the same
+    slot isn't handed to another item while this one sits waiting on the
+    customer.
+    """
+    AIImportLog.objects.create(
+        source=source,
+        article=article,
+        wp_site=wp_site,
+        source_url=item['link'],
+        title=article.title,
+        status='pending_image',
+        wp_category_id=wp_category_id_for_push,
+        wp_category_name=category_name_for_group,
+        focus_keyword=focus_keyword,
+        meta_description=meta_description,
+        tag_names=','.join(tag_names) if tag_names else '',
+        input_tokens=ai_usage.get('input_tokens'),
+        output_tokens=ai_usage.get('output_tokens'),
+    )
+    return {'published': False, 'held': True, 'title': article.title}
+
+
+def finish_pending_image_publish(pending_log, image_bytes, filename):
+    """
+    Completes a held 'pending_image' AIImportLog once the customer has picked
+    a real photo from inside the WordPress plugin: attaches the image, then
+    pushes to WordPress using the same category/tags/SEO metadata already
+    generated and stored on the log row back when the article was written -
+    no new Gemini call. Returns the published URL on success, or None (with
+    the log's status set to 'failed' and error_message explaining why) on
+    failure - a failed row here is retriable through the same failed-log
+    republish flow as any other AIImportLog.
+    """
+    article = pending_log.article
+    wp_site = pending_log.wp_site
+    if not article or not wp_site:
+        pending_log.status = 'failed'
+        pending_log.error_message = 'المقال أو الموقع المرتبط بهذا الطلب لم يعد موجوداً.'
+        pending_log.save(update_fields=['status', 'error_message'])
+        return None
+
+    processed = _process_cover_image_bytes(image_bytes, filename)
+    if processed is None:
+        pending_log.status = 'failed'
+        pending_log.error_message = 'تعذّرت معالجة الصورة المُختارة.'
+        pending_log.save(update_fields=['status', 'error_message'])
+        return None
+
+    article.cover_image = processed
+    article.save(update_fields=['cover_image'])
+
+    tag_names = pending_log.tag_names.split(',') if pending_log.tag_names else []
+    forced_category_ids = get_forced_wp_category_ids(wp_site, pending_log.source) if pending_log.source else []
+
+    published_url = None
+    try:
+        published_url = push_article_to_wordpress(
+            wp_site, article, extra_tag_names=tag_names,
+            focus_keyword=pending_log.focus_keyword, meta_description=pending_log.meta_description,
+            wp_category_id=pending_log.wp_category_id,
+            wp_category_ids=forced_category_ids,
+        )
+    except Exception as wpe:
+        logger.error(f"Error publishing held article to WP site {wp_site.name}: {wpe}")
+        pending_log.error_message = str(wpe)
+
+    pending_log.status = 'success' if published_url else 'failed'
+    pending_log.published_url = published_url or ''
+    if published_url:
+        pending_log.error_message = ''
+    elif not pending_log.error_message:
+        pending_log.error_message = 'فشل النشر على ووردبريس'
+    pending_log.save(update_fields=['status', 'published_url', 'error_message'])
+    return published_url
+
+
 def generate_regular_article_for_site(wp_site, source, item, ai_settings, api_key, allowed_cats,
-                                       categories_list_str, get_wp_primary_categories):
+                                       categories_list_str, get_wp_primary_categories,
+                                       prefer_source_image=True):
     """
     Generates a fully unique AI-rewritten article for one WordPress site and pushes it.
     Called independently for every site - no site's article is ever derived from
     another site's generated output, even sites sharing a merge_group.
+
+    `prefer_source_image`: True for the first site a given news item is generated
+    for - it gets the source feed's own photo (see fetch_image_file below). Every
+    other site sharing this same item gets a different real photo where possible
+    (Commons search, or a mirrored crop of the same source photo) instead of the
+    literal same image file - see run_ai_generation_cycle's per-item site loop.
 
     Returns None only when nothing usable came back (API failure or JSON parse failure) -
     in that case the caller must not increment generated_count, matching legacy behavior.
@@ -3116,24 +3221,55 @@ def generate_regular_article_for_site(wp_site, source, item, ai_settings, api_ke
             is_breaking=False,
             auto_translate=False
         )
-        img_file = fetch_image_file(item['image_url']) if item.get('image_url') else None
+        tag_names = (ai_tags if ai_tags else ([category.name] if category else [])) + wp_site.get_site_tags_list()
+
+        # First site to get this item uses the feed's own photo. Any other
+        # site sharing the same item skips straight to a different real photo
+        # (Commons search on this site's own independently-worded title) so
+        # two customer sites never end up with the identical image file for
+        # the same story - see prefer_source_image on this function.
+        img_file = fetch_image_file(item['image_url']) if (prefer_source_image and item.get('image_url')) else None
         if not img_file:
             from .core_utils import translate_text
             translated_title = translate_text(new_title)
             commons_url = _find_topical_image(translated_title, translated_title)
             img_file = fetch_image_file(commons_url) if commons_url else None
+        if not img_file and not prefer_source_image and item.get('image_url'):
+            # Commons had nothing relevant - still a real photo of the actual
+            # story beats a generic stock image, so reuse the source photo but
+            # mirrored, so this site's copy isn't byte-identical to the first
+            # site's.
+            img_file = fetch_image_file(item['image_url'], mirror=True)
+
         if img_file:
             article.cover_image = img_file
-        else:
+            article.save()
+        elif item.get('image_url'):
+            # A source image existed but every download attempt above failed
+            # (dead link, host blocking, etc.) - not the "no photo exists at
+            # all" case below, so a generic stock photo is still reasonable
+            # here rather than holding the article for the customer.
             attach_default_cover_image(article, 'general_news')
-
-        article.save()
+            article.save()
+        else:
+            # No photo exists anywhere for this specific story (not in the
+            # feed, not on the linked article page, nothing relevant on
+            # Commons) - publishing with a generic stock photo would make every
+            # such article look the same, so instead of guessing, hold it and
+            # let the customer pick a real photo themselves from inside the
+            # WordPress plugin (see pending_image_articles_api_view /
+            # submit_pending_image_api_view and finish_pending_image_publish).
+            article.save()
+            return hold_article_pending_image(
+                article, wp_site, source, item, category_name_for_group,
+                wp_category_id_for_push, focus_keyword, meta_description,
+                tag_names, ai_usage,
+            )
 
         # Push this unique version to this specific WP site
         published_url = None
         wp_error_detail = None
         try:
-            tag_names = (ai_tags if ai_tags else ([category.name] if category else [])) + wp_site.get_site_tags_list()
             published_url = push_article_to_wordpress(
                 wp_site, article, extra_tag_names=tag_names,
                 focus_keyword=focus_keyword, meta_description=meta_description,
@@ -3156,6 +3292,7 @@ def generate_regular_article_for_site(wp_site, source, item, ai_settings, api_ke
             wp_category_id=wp_category_id_for_push,
             wp_category_name=category_name_for_group,
             focus_keyword=focus_keyword,
+            meta_description=meta_description,
             tag_names=','.join(tag_names) if tag_names else '',
             input_tokens=ai_usage.get('input_tokens'),
             output_tokens=ai_usage.get('output_tokens'),
@@ -3306,11 +3443,14 @@ def run_ai_generation_cycle(target_site_id=None):
 
     # Track how many articles each WordPress site has already received today,
     # so its per-site daily_limit is honored on top of the global limit.
+    # 'pending_image' counts too - a held article still occupies today's slot
+    # for that site (see hold_article_pending_image), it just hasn't reached
+    # WordPress yet.
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     wp_site_counts = {
         row['wp_site']: row['count']
         for row in AIImportLog.objects.filter(
-            status='success', wp_site__isnull=False, created_at__gte=today_start
+            status__in=['success', 'pending_image'], wp_site__isnull=False, created_at__gte=today_start
         ).values('wp_site').annotate(count=Count('id'))
     }
     # Separate from wp_site_counts (today's total): tracks how many articles this
@@ -3560,13 +3700,21 @@ def run_ai_generation_cycle(target_site_id=None):
                     nonlocal generated_count
                     if result is None:
                         return
-                    if result['published']:
+                    # A held (pending_image) article counts the same as a
+                    # published one for cap-counting purposes - see
+                    # hold_article_pending_image.
+                    if result['published'] or result.get('held'):
                         wp_site_counts[wp_site.id] = wp_site_counts.get(wp_site.id, 0) + 1
                         wp_site_run_counts[wp_site.id] = wp_site_run_counts.get(wp_site.id, 0) + 1
                         if wp_site.id in regular_due_slots:
                             mark_slot_run(regular_due_slots[wp_site.id], 'regular')
                     generated_count += 1
 
+                # Tracks how many sites this exact item has already been
+                # generated for in this loop - only the first gets the source
+                # feed's own photo (see prefer_source_image on
+                # generate_regular_article_for_site).
+                item_site_index = 0
                 for wp_site in wp_sites:
                     if generated_count >= limit:
                         break
@@ -3577,7 +3725,10 @@ def run_ai_generation_cycle(target_site_id=None):
                     result = generate_regular_article_for_site(
                         wp_site, source, item, ai_settings, api_key, allowed_cats,
                         categories_list_str, get_wp_primary_categories,
+                        prefer_source_image=(item_site_index == 0),
                     )
+                    if result is not None:
+                        item_site_index += 1
                     _apply_publish_result(wp_site, result)
 
     # Live gold price articles: independent of RSS sources. Sites with no

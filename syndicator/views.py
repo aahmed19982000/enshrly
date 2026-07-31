@@ -8,6 +8,7 @@ from django.urls import reverse_lazy, reverse
 from django.contrib import messages
 from django.shortcuts import get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.core.exceptions import ValidationError
 from django.db.models import Sum, Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -1046,3 +1047,124 @@ def wp_post_published_api_view(request):
     except Exception as e:
         logger.error(f"WP Post Published API Error: {str(e)}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error.'}, status=500)
+
+
+def _resolve_used_wp_connection_token(token_str):
+    """
+    Looks up a used WPConnectionToken by its (UUID) token string, returning
+    None for anything that isn't a valid UUID instead of letting Django raise
+    a ValidationError - callers just get a clean "invalid token" either way.
+    """
+    if not token_str:
+        return None
+    try:
+        return WPConnectionToken.objects.filter(token=token_str, is_used=True).select_related('wp_site').first()
+    except (ValueError, ValidationError):
+        return None
+
+
+@csrf_exempt
+def pending_image_articles_api_view(request):
+    """
+    Called by the WP plugin's "Articles Needing a Photo" admin section (see
+    hold_article_pending_image in ai_utils.py) - lists this site's articles
+    that were fully written but have no usable photo anywhere (source feed,
+    linked article page, or Wikimedia Commons), so the customer can pick one
+    themselves instead of every such article publishing with the same
+    generic stock photo.
+    """
+    token_str = request.GET.get('token') or request.POST.get('token')
+    token_obj = _resolve_used_wp_connection_token(token_str)
+    if not token_obj or not token_obj.wp_site:
+        return JsonResponse({'status': 'error', 'message': 'Invalid token.'}, status=403)
+
+    logs = (
+        AIImportLog.objects.filter(wp_site=token_obj.wp_site, status='pending_image')
+        .select_related('article').order_by('-created_at')
+    )
+    items = [
+        {
+            'id': log.id,
+            'title': (log.article.title if log.article else log.title) or '',
+            'excerpt': (log.article.excerpt if log.article else '') or '',
+            'created_at': log.created_at.isoformat(),
+        }
+        for log in logs
+    ]
+    return JsonResponse({'status': 'success', 'items': items})
+
+
+@csrf_exempt
+def published_articles_log_api_view(request):
+    """
+    Called by the WP plugin's "Publishing Log" admin section - lists this
+    site's successfully-published articles (most recent first), so the
+    customer can see what's actually gone live on their site without
+    needing to log in to the Enshrly dashboard.
+    """
+    token_str = request.GET.get('token') or request.POST.get('token')
+    token_obj = _resolve_used_wp_connection_token(token_str)
+    if not token_obj or not token_obj.wp_site:
+        return JsonResponse({'status': 'error', 'message': 'Invalid token.'}, status=403)
+
+    logs = (
+        AIImportLog.objects.filter(wp_site=token_obj.wp_site, status='success')
+        .exclude(published_url='').exclude(published_url__isnull=True)
+        .order_by('-created_at')[:50]
+    )
+    items = [
+        {
+            'id': log.id,
+            'title': log.title or '',
+            'published_url': log.published_url or '',
+            'wp_category_name': log.wp_category_name or '',
+            'created_at': log.created_at.isoformat(),
+        }
+        for log in logs
+    ]
+    return JsonResponse({'status': 'success', 'items': items})
+
+
+@csrf_exempt
+@require_POST
+def submit_pending_image_api_view(request, log_id):
+    """
+    Called by the WP plugin once the customer has picked a photo (via the
+    native WordPress media picker) for one of their pending-image articles.
+    Downloads that photo and hands off to finish_pending_image_publish(),
+    which pushes the article to WordPress using the same category/tags/SEO
+    metadata already generated back when the article was written.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    token_str = request.POST.get('token')
+    image_url = (request.POST.get('image_url') or '').strip()
+
+    token_obj = _resolve_used_wp_connection_token(token_str)
+    if not token_obj or not token_obj.wp_site:
+        return JsonResponse({'status': 'error', 'message': 'Invalid token.'}, status=403)
+
+    if not image_url:
+        return JsonResponse({'status': 'error', 'message': 'الرجاء اختيار صورة.'}, status=400)
+
+    pending_log = AIImportLog.objects.filter(id=log_id, wp_site=token_obj.wp_site, status='pending_image').first()
+    if not pending_log:
+        return JsonResponse({'status': 'error', 'message': 'هذا الطلب غير موجود أو تم التعامل معه بالفعل.'}, status=404)
+
+    try:
+        import requests
+        res = requests.get(image_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
+        res.raise_for_status()
+        image_bytes = res.content
+        filename = image_url.split('/')[-1].split('?')[0] or 'cover.jpg'
+    except Exception as e:
+        logger.error(f"Failed to download customer-picked image {image_url}: {e}")
+        return JsonResponse({'status': 'error', 'message': 'تعذّر تحميل الصورة من الرابط المُرسَل.'}, status=400)
+
+    from .ai_utils import finish_pending_image_publish
+    published_url = finish_pending_image_publish(pending_log, image_bytes, filename)
+    if not published_url:
+        return JsonResponse({'status': 'error', 'message': pending_log.error_message or 'فشل النشر على ووردبريس.'}, status=500)
+
+    return JsonResponse({'status': 'success', 'published_url': published_url})

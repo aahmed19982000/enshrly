@@ -63,6 +63,9 @@ urlpatterns = [
     # API endpoints for WP plugin
     path('api/wp-plugin-data/', views_ai.wp_plugin_data_api_view, name='wp_plugin_data_api'),
     path('api/wp-post-published/', views_ai.wp_post_published_api_view, name='wp_post_published_api'),
+    path('api/pending-image-articles/', views_ai.pending_image_articles_api_view, name='pending_image_articles_api'),
+    path('api/pending-image-articles/<int:log_id>/submit-image/', views_ai.submit_pending_image_api_view, name='submit_pending_image_api'),
+    path('api/published-articles-log/', views_ai.published_articles_log_api_view, name='published_articles_log_api'),
 
     # Facebook Page self-serve connect (OAuth)
     path('facebook/connect/<str:token>/', views_facebook_connect.facebook_connect_start, name='facebook_connect_start'),

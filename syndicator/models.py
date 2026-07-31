@@ -405,6 +405,7 @@ class AIImportLog(models.Model):
     STATUS_CHOICES = (
         ('success', 'نجاح (Success)'),
         ('failed', 'فشل (Failed)'),
+        ('pending_image', 'بانتظار اختيار صورة (Pending Image)'),
     )
     source = models.ForeignKey(AISource, on_delete=models.SET_NULL, null=True, related_name='logs', verbose_name="المصدر")
     article = models.ForeignKey(Article, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_logs', verbose_name="الخبر المنشور")
@@ -417,6 +418,7 @@ class AIImportLog(models.Model):
     wp_category_id = models.PositiveIntegerField(null=True, blank=True, editable=False, verbose_name="معرّف القسم في ووردبريس")
     wp_category_name = models.CharField(max_length=150, blank=True, default='', editable=False, verbose_name="اسم القسم في ووردبريس")
     focus_keyword = models.CharField(max_length=255, blank=True, default='', editable=False, verbose_name="الكلمة المفتاحية")
+    meta_description = models.CharField(max_length=255, blank=True, default='', editable=False, verbose_name="الوصف التعريفي (Meta Description)")
     tag_names = models.TextField(blank=True, default='', editable=False, verbose_name="الوسوم (مفصولة بفاصلة)")
     estimated_cost = models.DecimalField(max_digits=10, decimal_places=6, default=0, editable=False, verbose_name="التكلفة الفعلية (USD)")
     input_tokens = models.PositiveIntegerField(null=True, blank=True, editable=False, verbose_name="توكنات الإدخال الفعلية")

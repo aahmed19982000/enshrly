@@ -8,8 +8,19 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .ai_utils import _find_duplicate_recent_article_for_site, fetch_news_items_from_source, get_today_total_cost
-from .models import AIImportLog, AISettings, AISource, AISourceGroup, WordPressSite, WPConnectionToken
+from .ai_utils import (
+    _find_duplicate_recent_article_for_site, fetch_news_items_from_source, get_today_total_cost,
+    hold_article_pending_image, finish_pending_image_publish, _process_cover_image_bytes,
+)
+from .models import AIImportLog, AISettings, AISource, AISourceGroup, Article, WordPressSite, WPConnectionToken
+
+
+def _fake_jpeg_bytes(size=(600, 400), color=(200, 50, 50)):
+    from io import BytesIO
+    from PIL import Image
+    buf = BytesIO()
+    Image.new('RGB', size, color).save(buf, format='JPEG')
+    return buf.getvalue()
 
 
 class WPConnectAPITests(TestCase):
@@ -376,3 +387,262 @@ class GenerationLoopIndependenceTests(TestCase):
         self.assertEqual(mock_generate.call_count, 2)
         called_sites = {call.args[0].id for call in mock_generate.call_args_list}
         self.assertEqual(called_sites, {site_a.id, site_b.id})
+
+    @patch('syndicator.ai_utils.generate_regular_article_for_site')
+    def test_only_first_site_sharing_an_item_prefers_the_source_image(self, mock_generate):
+        """
+        Second+ site sharing the same item must not reuse the exact same
+        source photo as the first - see prefer_source_image on
+        generate_regular_article_for_site and the image-diversification
+        fallback chain it drives.
+        """
+        from .ai_utils import run_ai_generation_cycle
+        from .models import WordPressSiteGroup
+
+        mock_generate.return_value = {'published': True}
+
+        ai_settings = AISettings.get_settings()
+        ai_settings.is_active = True
+        ai_settings.articles_per_day = 100
+        ai_settings.gemini_api_key = 'fake-test-key'
+        ai_settings.save()
+
+        source = AISource.objects.create(name='Shared Source', url='https://shared.com/rss')
+        merge_group = WordPressSiteGroup.objects.create(name='Test Merge Group 2', is_active=True)
+        site_a = WordPressSite.objects.create(
+            name='Site A2', url='https://a2.com', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True, merge_group=merge_group,
+        )
+        site_b = WordPressSite.objects.create(
+            name='Site B2', url='https://b2.com', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True, merge_group=merge_group,
+        )
+        site_a.sources.add(source)
+        site_b.sources.add(source)
+
+        fake_item = {
+            'title': 'خبر تجريبي 2', 'link': 'https://shared.com/story/2',
+            'description': 'تفاصيل', 'image_url': 'https://shared.com/photo.jpg', 'guid': 'https://shared.com/story/2',
+        }
+        with patch('syndicator.ai_utils.fetch_news_items_from_source', return_value=[fake_item]):
+            run_ai_generation_cycle()
+
+        self.assertEqual(mock_generate.call_count, 2)
+        prefer_flags = [call.kwargs.get('prefer_source_image') for call in mock_generate.call_args_list]
+        self.assertEqual(sorted(prefer_flags), [False, True])
+
+
+class ImageMirrorVariantTests(TestCase):
+    def test_mirror_flips_image_horizontally(self):
+        from PIL import Image
+        import io
+
+        raw = _fake_jpeg_bytes(size=(100, 60), color=(10, 200, 10))
+        normal = _process_cover_image_bytes(raw, 'test.jpg')
+        mirrored = _process_cover_image_bytes(raw, 'test.jpg', mirror=True)
+
+        normal_img = Image.open(io.BytesIO(normal.read()))
+        mirrored_img = Image.open(io.BytesIO(mirrored.read()))
+
+        self.assertEqual(normal_img.size, mirrored_img.size)
+        # A horizontally-flipped copy of the mirrored image must reproduce the
+        # normal (unmirrored) pixels - confirms an actual flip happened, not a
+        # no-op or unrelated transform.
+        flipped_back = mirrored_img.transpose(Image.FLIP_LEFT_RIGHT)
+        self.assertEqual(list(normal_img.getdata()), list(flipped_back.getdata()))
+
+
+class PendingImageWorkflowTests(TestCase):
+    """
+    Covers the "no photo exists anywhere for this story" path: the article is
+    held instead of publishing with a generic stock photo, and the customer
+    finishes the publish themselves later via the WP plugin - see
+    hold_article_pending_image / finish_pending_image_publish in ai_utils.py.
+    """
+    def setUp(self):
+        self.author = User.objects.create_user(username='author1', password='x')
+        self.source = AISource.objects.create(name='Source A', url='https://a.com/rss')
+        self.site = WordPressSite.objects.create(
+            name='Site', url='https://s.com', username='u', application_password='p', daily_limit=5,
+        )
+        self.article = Article.objects.create(
+            title='خبر بدون صورة', slug=f'test-article-{uuid.uuid4().hex[:8]}',
+            body='<p>نص الخبر</p>', author=self.author, status='draft',
+        )
+
+    def test_hold_creates_pending_log_without_publishing(self):
+        item = {'link': 'https://a.com/story/1'}
+        result = hold_article_pending_image(
+            self.article, self.site, self.source, item,
+            category_name_for_group='أسعار', wp_category_id_for_push=7,
+            focus_keyword='كلمة مفتاحية', meta_description='وصف تعريفي',
+            tag_names=['وسم1', 'وسم2'], ai_usage={'input_tokens': 50, 'output_tokens': 20},
+        )
+
+        self.assertEqual(result, {'published': False, 'held': True, 'title': self.article.title})
+        log = AIImportLog.objects.get(article=self.article)
+        self.assertEqual(log.status, 'pending_image')
+        self.assertEqual(log.wp_site, self.site)
+        self.assertEqual(log.wp_category_id, 7)
+        self.assertEqual(log.meta_description, 'وصف تعريفي')
+        self.assertEqual(log.tag_names, 'وسم1,وسم2')
+
+    @patch('syndicator.ai_utils.push_article_to_wordpress', return_value='https://s.com/published-article/')
+    def test_finish_publish_success_updates_log_and_article(self, mock_push):
+        log = AIImportLog.objects.create(
+            source=self.source, article=self.article, wp_site=self.site,
+            source_url='https://a.com/story/1', title=self.article.title, status='pending_image',
+            wp_category_id=3, focus_keyword='fk', meta_description='md', tag_names='t1,t2',
+        )
+
+        published_url = finish_pending_image_publish(log, _fake_jpeg_bytes(), 'chosen.jpg')
+
+        self.assertEqual(published_url, 'https://s.com/published-article/')
+        log.refresh_from_db()
+        self.article.refresh_from_db()
+        self.assertEqual(log.status, 'success')
+        self.assertEqual(log.published_url, 'https://s.com/published-article/')
+        self.assertTrue(self.article.cover_image)
+        mock_push.assert_called_once()
+        self.assertEqual(mock_push.call_args.kwargs.get('wp_category_id'), 3)
+        self.assertEqual(mock_push.call_args.kwargs.get('focus_keyword'), 'fk')
+
+    @patch('syndicator.ai_utils.push_article_to_wordpress', side_effect=Exception('WP is down'))
+    def test_finish_publish_wp_failure_marks_log_failed_and_stays_retriable(self, mock_push):
+        log = AIImportLog.objects.create(
+            source=self.source, article=self.article, wp_site=self.site,
+            source_url='https://a.com/story/1', title=self.article.title, status='pending_image',
+        )
+
+        published_url = finish_pending_image_publish(log, _fake_jpeg_bytes(), 'chosen.jpg')
+
+        self.assertIsNone(published_url)
+        log.refresh_from_db()
+        self.assertEqual(log.status, 'failed')
+        self.assertIn('WP is down', log.error_message)
+
+
+class PendingImageArticlesAPITests(TestCase):
+    """Covers the WP-plugin-facing endpoints for listing/resolving pending-image articles."""
+    def setUp(self):
+        self.author = User.objects.create_user(username='author2', password='x')
+        self.site = WordPressSite.objects.create(
+            name='Site', url='https://client.com', username='u', application_password='p', daily_limit=5,
+        )
+        self.token = WPConnectionToken.objects.create(
+            client_name='C', package_daily_limit=5, is_used=True, wp_site=self.site,
+        )
+        self.article = Article.objects.create(
+            title='خبر معلّق', slug=f'pending-article-{uuid.uuid4().hex[:8]}',
+            body='<p>نص</p>', excerpt='ملخص قصير', author=self.author, status='draft',
+        )
+        self.log = AIImportLog.objects.create(
+            article=self.article, wp_site=self.site, source_url='https://a.com/1',
+            title=self.article.title, status='pending_image',
+        )
+        self.list_url = reverse('news_ai:pending_image_articles_api')
+        self.submit_url = reverse('news_ai:submit_pending_image_api', args=[self.log.id])
+
+    def test_list_returns_only_this_sites_pending_items(self):
+        other_site = WordPressSite.objects.create(
+            name='Other', url='https://other.com', username='u', application_password='p', daily_limit=5,
+        )
+        AIImportLog.objects.create(
+            wp_site=other_site, source_url='https://a.com/2', title='خبر موقع تاني', status='pending_image',
+        )
+
+        resp = self.client.get(f"{self.list_url}?token={self.token.token}")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(len(body['items']), 1)
+        self.assertEqual(body['items'][0]['title'], 'خبر معلّق')
+        self.assertEqual(body['items'][0]['excerpt'], 'ملخص قصير')
+
+    def test_list_rejects_invalid_token(self):
+        resp = self.client.get(f"{self.list_url}?token=not-a-real-token")
+
+        self.assertEqual(resp.status_code, 403)
+
+    @patch('requests.get')
+    @patch('syndicator.ai_utils.push_article_to_wordpress', return_value='https://client.com/live/')
+    def test_submit_image_downloads_and_finishes_publish(self, mock_push, mock_get):
+        mock_get.return_value = type('R', (), {
+            'content': _fake_jpeg_bytes(), 'raise_for_status': lambda self=None: None,
+        })()
+
+        resp = self.client.post(self.submit_url, {
+            'token': str(self.token.token), 'image_url': 'https://media.client.com/chosen.jpg',
+        })
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['status'], 'success')
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.status, 'success')
+
+    def test_submit_missing_image_url_returns_400(self):
+        resp = self.client.post(self.submit_url, {'token': str(self.token.token)})
+
+        self.assertEqual(resp.status_code, 400)
+
+    def test_submit_rejects_invalid_token(self):
+        resp = self.client.post(self.submit_url, {
+            'token': 'not-a-real-token', 'image_url': 'https://media.client.com/chosen.jpg',
+        })
+
+        self.assertEqual(resp.status_code, 403)
+
+    def test_submit_unknown_log_id_returns_404(self):
+        resp = self.client.post(
+            reverse('news_ai:submit_pending_image_api', args=[999999]),
+            {'token': str(self.token.token), 'image_url': 'https://media.client.com/chosen.jpg'},
+        )
+
+        self.assertEqual(resp.status_code, 404)
+
+
+class PublishedArticlesLogAPITests(TestCase):
+    """Covers the WP-plugin-facing publishing log ('what actually went live on my site')."""
+    def setUp(self):
+        self.site = WordPressSite.objects.create(
+            name='Site', url='https://client.com', username='u', application_password='p', daily_limit=5,
+        )
+        self.token = WPConnectionToken.objects.create(
+            client_name='C', package_daily_limit=5, is_used=True, wp_site=self.site,
+        )
+        self.url = reverse('news_ai:published_articles_log_api')
+
+    def test_lists_only_successful_published_entries_for_this_site(self):
+        AIImportLog.objects.create(
+            wp_site=self.site, source_url='https://a.com/1', title='خبر منشور',
+            status='success', published_url='https://client.com/khabar-1/', wp_category_name='اقتصاد',
+        )
+        AIImportLog.objects.create(
+            wp_site=self.site, source_url='https://a.com/2', title='خبر فشل',
+            status='failed', published_url='',
+        )
+        AIImportLog.objects.create(
+            wp_site=self.site, source_url='https://a.com/3', title='خبر بانتظار صورة',
+            status='pending_image', published_url='',
+        )
+        other_site = WordPressSite.objects.create(
+            name='Other', url='https://other.com', username='u', application_password='p', daily_limit=5,
+        )
+        AIImportLog.objects.create(
+            wp_site=other_site, source_url='https://a.com/4', title='خبر موقع تاني',
+            status='success', published_url='https://other.com/khabar/',
+        )
+
+        resp = self.client.get(f"{self.url}?token={self.token.token}")
+
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()['items']
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['title'], 'خبر منشور')
+        self.assertEqual(items[0]['published_url'], 'https://client.com/khabar-1/')
+        self.assertEqual(items[0]['wp_category_name'], 'اقتصاد')
+
+    def test_rejects_invalid_token(self):
+        resp = self.client.get(f"{self.url}?token=not-a-real-token")
+
+        self.assertEqual(resp.status_code, 403)

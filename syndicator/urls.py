@@ -35,6 +35,7 @@ urlpatterns = [
     path('wp-sites/<int:wp_site_id>/articles/', views_ai.WordPressSitePublishedArticlesView.as_view(), name='wp_site_articles'),
     path('wp-sites/<int:wp_site_id>/trigger/', views_ai.TriggerSiteScraperView.as_view(), name='wp_site_trigger'),
     path('wp-sites/logs/<int:log_id>/regenerate-social-image/', views_ai.RegenerateSocialImageView.as_view(), name='regenerate_social_image'),
+    path('wp-sites/social-preview/', views_ai.wp_site_social_preview_view, name='wp_site_social_preview'),
     # Per-site publishing schedule slots
     path('wp-sites/<int:wp_site_id>/schedule/', views_ai.ScheduleSlotListView.as_view(), name='schedule_slots'),
     path('wp-sites/<int:wp_site_id>/schedule/add/', views_ai.ScheduleSlotCreateView.as_view(), name='schedule_slot_add'),

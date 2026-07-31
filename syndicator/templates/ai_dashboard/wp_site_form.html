@@ -326,7 +326,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Logo Upload -->
                     <div class="space-y-2">
                         <label for="id_social_logo" class="block text-sm font-semibold text-slate-300">لوجو الموقع</label>
@@ -339,6 +339,17 @@
                         {% else %}
                         <p class="text-[10px] text-slate-500">يُفضَّل صورة PNG بخلفية شفافة.</p>
                         {% endif %}
+                    </div>
+
+                    <!-- Logo Position -->
+                    <div class="space-y-2">
+                        <label for="id_social_logo_position" class="block text-sm font-semibold text-slate-300">مكان اللوجو</label>
+                        <select name="social_logo_position" id="id_social_logo_position" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150">
+                            {% for value, label in form.fields.social_logo_position.choices %}
+                            <option value="{{ value }}" {% if form.social_logo_position.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-[10px] text-slate-500">في قالبي "إخباري احترافي" و"عاجل" فقط.</p>
                     </div>
 
                     <div class="space-y-2 flex flex-col justify-end">
@@ -366,6 +377,21 @@
                             <input type="color" id="id_social_secondary_color_picker" value="{{ form.social_secondary_color.value|default:'#0f172a' }}" oninput="document.getElementById('id_social_secondary_color').value = this.value" class="w-12 h-10 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer">
                             <input type="text" name="social_secondary_color" id="id_social_secondary_color" value="{{ form.social_secondary_color.value|default:'#0f172a' }}" oninput="document.getElementById('id_social_secondary_color_picker').value = this.value" pattern="^#[0-9A-Fa-f]{6}$" class="block w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 font-mono text-xs transition duration-150">
                         </div>
+                    </div>
+                </div>
+
+                <!-- Live Preview -->
+                <div class="border-t border-slate-800 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-bold text-slate-200"><i class="fa-solid fa-wand-magic-sparkles text-teal-400 ml-1"></i>معاينة حية</p>
+                        <button type="button" id="refresh-preview-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-teal-400 text-[11px] font-semibold rounded-lg transition duration-150">
+                            <i class="fa-solid fa-rotate ml-1"></i>تحديث المعاينة
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mb-3">تصميم تجريبي بصورة وعنوان افتراضيين لتوضيح شكل القالب/الألوان/اللوجو المختارين — يتحدّث تلقائياً كل ما تغيّر إعداد فوق.</p>
+                    <div class="flex flex-col items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                        <img id="social-preview-img" class="w-full max-w-[260px] rounded-lg border border-slate-800 shadow-lg" alt="معاينة تصميم السوشال ميديا">
+                        <p id="social-preview-status" class="text-[10px] text-slate-500">جاري تجهيز المعاينة...</p>
                     </div>
                 </div>
 
@@ -548,6 +574,62 @@
 
         status.textContent = 'اختر ملف لوجو أولاً.';
     });
+
+    // --- Live preview ---
+    const previewUrl = '{% url "news_ai:wp_site_social_preview" %}';
+    const previewImg = document.getElementById('social-preview-img');
+    const previewStatus = document.getElementById('social-preview-status');
+    const csrfToken = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+    let currentPreviewObjectUrl = null;
+    let previewDebounceTimer = null;
+
+    function refreshPreview() {
+        previewStatus.textContent = 'جاري التحديث...';
+        const formData = new FormData();
+        formData.append('name', document.getElementById('id_name').value);
+        formData.append('social_template', document.getElementById('id_social_template').value);
+        formData.append('social_badge_text', document.getElementById('id_social_badge_text').value);
+        formData.append('social_primary_color', document.getElementById('id_social_primary_color').value);
+        formData.append('social_secondary_color', document.getElementById('id_social_secondary_color').value);
+        formData.append('social_logo_position', document.getElementById('id_social_logo_position').value);
+        {% if object %}formData.append('site_id', '{{ object.pk }}');{% endif %}
+
+        const logoFile = document.getElementById('id_social_logo').files[0];
+        if (logoFile) formData.append('social_logo', logoFile);
+
+        fetch(previewUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: formData,
+        })
+            .then((res) => { if (!res.ok) throw new Error('preview failed'); return res.blob(); })
+            .then((blob) => {
+                if (currentPreviewObjectUrl) URL.revokeObjectURL(currentPreviewObjectUrl);
+                currentPreviewObjectUrl = URL.createObjectURL(blob);
+                previewImg.src = currentPreviewObjectUrl;
+                previewStatus.textContent = 'آخر تحديث: الآن (تصميم تجريبي، مش الخبر الفعلي).';
+            })
+            .catch(() => {
+                previewStatus.textContent = 'تعذّر تحديث المعاينة.';
+            });
+    }
+
+    function debouncedRefreshPreview() {
+        clearTimeout(previewDebounceTimer);
+        previewDebounceTimer = setTimeout(refreshPreview, 500);
+    }
+
+    ['id_social_template', 'id_social_logo_position', 'id_social_logo'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', refreshPreview);
+    });
+    ['id_social_badge_text', 'id_social_primary_color', 'id_social_secondary_color', 'id_name'].forEach((id) => {
+        document.getElementById(id).addEventListener('input', debouncedRefreshPreview);
+    });
+    document.getElementById('id_social_primary_color_picker').addEventListener('input', debouncedRefreshPreview);
+    document.getElementById('id_social_secondary_color_picker').addEventListener('input', debouncedRefreshPreview);
+    document.getElementById('refresh-preview-btn').addEventListener('click', refreshPreview);
+
+    refreshPreview();
 })();
 </script>
 {% endblock %}

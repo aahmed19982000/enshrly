@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.exceptions import ValidationError
 from django.db.models import Sum, Q
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
@@ -331,7 +331,7 @@ class WordPressSiteListView(StaffRequiredMixin, ListView):
         )
 
 
-WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_badge_text', 'social_logo', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token', 'facebook_addon_trial_ends_at']
+WP_SITE_FORM_FIELDS = ['name', 'url', 'username', 'application_password', 'wp_author_ids', 'daily_limit', 'articles_per_run', 'is_active', 'sources', 'category_mapping', 'use_rich_formatting', 'heading_color', 'use_internal_links', 'generate_gold_price_articles', 'generate_silver_price_articles', 'generate_dollar_price_articles', 'generate_iron_price_articles', 'generate_cement_price_articles', 'generate_poultry_price_articles', 'generate_fish_price_articles', 'generate_vegetable_price_articles', 'generate_arab_currencies_articles', 'site_tags', 'use_explainer_style', 'social_image_enabled', 'social_template', 'social_badge_text', 'social_logo', 'social_logo_position', 'social_primary_color', 'social_secondary_color', 'facebook_page_id', 'facebook_access_token', 'facebook_addon_trial_ends_at']
 
 
 def _source_group_parents_with_cat_values(wp_site=None):
@@ -450,6 +450,57 @@ class WordPressSitePublishedArticlesView(StaffRequiredMixin, ListView):
         for log in logs:
             log.social_post = latest_social_posts.get(log.article_id)
         return context
+
+
+@require_POST
+def wp_site_social_preview_view(request):
+    """
+    Live preview for the social-card settings on the wp-site add/edit form:
+    renders a sample card with whatever template/colors/badge/logo/position
+    is currently selected in the (unsaved) form, using a stock sample photo
+    and headline - so staff can see the effect before hitting save.
+    """
+    if not (request.user.is_authenticated and request.user.is_staff):
+        return HttpResponseForbidden()
+
+    import io as _io
+
+    class _PreviewSite:
+        pass
+
+    site = _PreviewSite()
+    site.name = request.POST.get('name') or 'اسم الموقع'
+    site.social_template = request.POST.get('social_template') or 'news_ribbon'
+    site.social_badge_text = request.POST.get('social_badge_text', '')
+    site.social_primary_color = request.POST.get('social_primary_color') or '#0d9488'
+    site.social_secondary_color = request.POST.get('social_secondary_color') or '#0f172a'
+    site.social_logo_position = request.POST.get('social_logo_position') or 'top_left'
+
+    logo_file = request.FILES.get('social_logo')
+    site_id = request.POST.get('site_id')
+    if logo_file:
+        site.social_logo = logo_file
+    elif site_id:
+        existing = get_object_or_404(WordPressSite, pk=site_id)
+        site.social_logo = existing.social_logo
+    else:
+        site.social_logo = None
+
+    from .social_image_utils import generate_social_card_image
+
+    sample_title = 'هذا نص تجريبي لعنوان الخبر يوضح شكل التصميم النهائي على فيسبوك'
+    sample_photo_path = settings.BASE_DIR / 'static' / 'images' / 'price_covers' / 'general_news.jpg'
+    with open(sample_photo_path, 'rb') as f:
+        photo_bytes = f.read()
+
+    try:
+        card = generate_social_card_image(site, sample_title, photo_bytes)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    buffer = _io.BytesIO()
+    card.save(buffer, format='JPEG', quality=85)
+    return HttpResponse(buffer.getvalue(), content_type='image/jpeg')
 
 
 class RegenerateSocialImageView(StaffRequiredMixin, View):

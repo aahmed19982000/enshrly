@@ -128,12 +128,15 @@ def _draw_badge(draw, text, font, y, bg_color, x_left=None, x_right=None, text_c
     return y + box_h
 
 
-def _logo_badge_top_left(canvas, wp_site, x=44, y=44, box_h=88):
+def _logo_badge_top_left(canvas, wp_site, y=44, box_h=88, margin=44):
     """Pastes the site's logo (or, lacking one, its name as text) inside a
-    solid white rounded card top-left - the masthead mark seen in
-    news-agency style share cards."""
+    solid white rounded card near the top - the masthead mark seen in
+    news-agency style share cards. Horizontal placement follows
+    wp_site.social_logo_position (top_left/top_center/top_right)."""
     draw = ImageDraw.Draw(canvas)
     pad_x, pad_y = 22, 14
+
+    logo = None
     if wp_site.social_logo:
         try:
             with wp_site.social_logo.open('rb') as f:
@@ -141,20 +144,34 @@ def _logo_badge_top_left(canvas, wp_site, x=44, y=44, box_h=88):
             inner_h = box_h - pad_y * 2
             ratio = inner_h / logo.height
             logo = logo.resize((int(logo.width * ratio), inner_h), Image.LANCZOS)
-            box_w = logo.width + pad_x * 2
-            draw.rounded_rectangle([x, y, x + box_w, y + box_h], radius=16, fill=WHITE)
-            canvas.paste(logo, (x + pad_x, y + pad_y), logo)
-            return
         except Exception as e:
             logger.warning(f"Could not paste social_logo for {wp_site.name}: {e}")
+            logo = None
 
-    font = _font(30)
-    name = wp_site.name[:18]
-    box_w = font.getlength(name) + pad_x * 2
+    font = None
+    name = ''
+    if logo is not None:
+        box_w = logo.width + pad_x * 2
+    else:
+        font = _font(30)
+        name = wp_site.name[:18]
+        box_w = font.getlength(name) + pad_x * 2
+
+    position = getattr(wp_site, 'social_logo_position', '') or 'top_left'
+    if position == 'top_right':
+        x = canvas.width - margin - box_w
+    elif position == 'top_center':
+        x = (canvas.width - box_w) / 2
+    else:
+        x = margin
+
     draw.rounded_rectangle([x, y, x + box_w, y + box_h], radius=16, fill=WHITE)
-    ascent, descent = font.getmetrics()
-    text_y = y + (box_h - ascent - descent) / 2
-    draw.text((x + pad_x, text_y), name, font=font, fill=_hex_to_rgb(wp_site.social_secondary_color))
+    if logo is not None:
+        canvas.paste(logo, (int(x + pad_x), y + pad_y), logo)
+    else:
+        ascent, descent = font.getmetrics()
+        text_y = y + (box_h - ascent - descent) / 2
+        draw.text((x + pad_x, text_y), name, font=font, fill=_hex_to_rgb(wp_site.social_secondary_color))
 
 
 def _cover_resize(img, target_w, target_h):

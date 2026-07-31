@@ -455,13 +455,26 @@ class WordPressSitePublishedArticlesView(StaffRequiredMixin, ListView):
 @require_POST
 def wp_site_social_preview_view(request):
     """
-    Live preview for the social-card settings on the wp-site add/edit form:
-    renders a sample card with whatever template/colors/badge/logo/position
-    is currently selected in the (unsaved) form, using a stock sample photo
-    and headline - so staff can see the effect before hitting save.
+    Live preview for the social-card settings on the wp-site add/edit form
+    (staff, ai-dashboard) and the customer self-serve design form
+    (accounts:social_design_edit): renders a sample card with whatever
+    template/colors/badge/logo/position is currently selected in the
+    (unsaved) form, using a stock sample photo and headline - so the caller
+    can see the effect before hitting save.
     """
-    if not (request.user.is_authenticated and request.user.is_staff):
+    if not request.user.is_authenticated:
         return HttpResponseForbidden()
+
+    site_id = request.POST.get('site_id')
+    if not request.user.is_staff:
+        if not site_id:
+            return HttpResponseForbidden()
+        profile = getattr(request.user, 'customer_profile', None)
+        owns_site = WPConnectionToken.objects.filter(
+            customer=profile, is_used=True, wp_site_id=site_id
+        ).exists()
+        if not owns_site:
+            return HttpResponseForbidden()
 
     import io as _io
 
@@ -477,7 +490,6 @@ def wp_site_social_preview_view(request):
     site.social_logo_position = request.POST.get('social_logo_position') or 'top_left'
 
     logo_file = request.FILES.get('social_logo')
-    site_id = request.POST.get('site_id')
     if logo_file:
         site.social_logo = logo_file
     elif site_id:

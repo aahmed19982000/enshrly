@@ -315,6 +315,54 @@ def facebook_dashboard_view(request):
 
 
 @login_required
+def social_design_edit_view(request, wp_site_id):
+    """
+    Self-serve editor for the customer's own social-card branding
+    (template, badge text, logo, logo position, colors) - deliberately
+    excludes billing fields (social_image_enabled, trial date) and the
+    Facebook page connection, which stay staff/self-connect-link controlled.
+    """
+    import re
+
+    profile = getattr(request.user, 'customer_profile', None)
+    if wp_site_id not in _customer_site_ids(profile):
+        raise Http404
+    site = get_object_or_404(WordPressSite, pk=wp_site_id)
+
+    if request.method == 'POST':
+        template_choices = dict(WordPressSite.SOCIAL_TEMPLATE_CHOICES)
+        position_choices = dict(WordPressSite.SOCIAL_LOGO_POSITION_CHOICES)
+
+        template = request.POST.get('social_template', '')
+        if template in template_choices:
+            site.social_template = template
+
+        position = request.POST.get('social_logo_position', '')
+        if position in position_choices:
+            site.social_logo_position = position
+
+        site.social_badge_text = request.POST.get('social_badge_text', '').strip()[:30]
+
+        for field in ('social_primary_color', 'social_secondary_color'):
+            value = request.POST.get(field, '')
+            if re.match(r'^#[0-9A-Fa-f]{6}$', value):
+                setattr(site, field, value)
+
+        if request.FILES.get('social_logo'):
+            site.social_logo = request.FILES['social_logo']
+
+        site.save()
+        messages.success(request, "تم حفظ تصميم صورة السوشال ميديا بنجاح.")
+        return redirect('accounts:social_design_edit', wp_site_id=site.pk)
+
+    return render(request, 'accounts/social_design_form.html', {
+        'site': site,
+        'template_choices': WordPressSite.SOCIAL_TEMPLATE_CHOICES,
+        'position_choices': WordPressSite.SOCIAL_LOGO_POSITION_CHOICES,
+    })
+
+
+@login_required
 def facebook_connect_redirect_view(request, wp_site_id):
     profile = getattr(request.user, 'customer_profile', None)
     if wp_site_id not in _customer_site_ids(profile):

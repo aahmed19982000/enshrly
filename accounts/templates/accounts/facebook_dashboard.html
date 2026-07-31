@@ -35,13 +35,17 @@
                 <div class="fb-site-head">
                     <span class="name">{{ data.site.name }}</span>
 
-                    {% if not data.addon_active %}
-                        <span class="status-text status-disconnected">خدمة النشر على فيسبوك غير مفعّلة لهذا الموقع — تواصل معنا للتفعيل</span>
-                    {% elif data.is_connected %}
-                        <span class="status-text status-connected">متصل بصفحة فيسبوك</span>
-                    {% else %}
-                        <a href="{% url 'accounts:facebook_connect_redirect' data.site.pk %}" class="btn btn-primary btn-sm">ربط صفحتي على فيسبوك</a>
-                    {% endif %}
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <a href="{% url 'accounts:social_design_edit' data.site.pk %}" class="btn btn-secondary btn-sm">تصميم الصورة</a>
+
+                        {% if not data.addon_active %}
+                            <span class="status-text status-disconnected">خدمة النشر على فيسبوك غير مفعّلة لهذا الموقع — تواصل معنا للتفعيل</span>
+                        {% elif data.is_connected %}
+                            <span class="status-text status-connected">متصل بصفحة فيسبوك</span>
+                        {% else %}
+                            <a href="{% url 'accounts:facebook_connect_redirect' data.site.pk %}" class="btn btn-primary btn-sm">ربط صفحتي على فيسبوك</a>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <div style="overflow-x: auto;">

@@ -14,5 +14,6 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('facebook/', views.facebook_dashboard_view, name='facebook_dashboard'),
     path('facebook/<int:wp_site_id>/connect/', views.facebook_connect_redirect_view, name='facebook_connect_redirect'),
+    path('facebook/<int:wp_site_id>/design/', views.social_design_edit_view, name='social_design_edit'),
     path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
 ]

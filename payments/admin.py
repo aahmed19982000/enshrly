@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import SubscriptionPackage, Transaction
+from .models import SubscriptionPackage, FacebookAddonPlan, Transaction
 
 @admin.register(SubscriptionPackage)
 class SubscriptionPackageAdmin(admin.ModelAdmin):
@@ -16,8 +16,31 @@ class SubscriptionPackageAdmin(admin.ModelAdmin):
         ('فترات الاشتراك ونسب الخصم', {
             'fields': ('quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent'),
         }),
+        ('خدمة فيسبوك', {
+            'fields': ('included_facebook_addon_plan',),
+        }),
         ('الحالة', {
             'fields': ('is_recommended', 'is_active', 'is_custom'),
+        }),
+    )
+
+@admin.register(FacebookAddonPlan)
+class FacebookAddonPlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price', 'monthly_articles_limit', 'show_watermark', 'is_recommended', 'is_active')
+    list_filter = ('is_active', 'show_watermark', 'is_recommended')
+    search_fields = ('name',)
+    fieldsets = (
+        ('معلومات السعر الأساسية', {
+            'fields': ('name', 'price'),
+        }),
+        ('حدود الاستخدام', {
+            'fields': ('monthly_articles_limit', 'show_watermark'),
+        }),
+        ('فترات الاشتراك ونسب الخصم', {
+            'fields': ('quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent'),
+        }),
+        ('الحالة', {
+            'fields': ('is_recommended', 'is_active'),
         }),
     )
 

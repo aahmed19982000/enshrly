@@ -5,7 +5,13 @@ from accounts.models import CustomerProfile
 import uuid
 from decimal import Decimal
 
-class SubscriptionPackage(models.Model):
+class PricedPlan(models.Model):
+    """
+    Shared shape for anything sold on a recurring billing_period basis
+    (SubscriptionPackage, FacebookAddonPlan): a base monthly USD price plus
+    a per-period discount percent, and the USD/EGP total price computation
+    for a given period. Abstract - contributes no table of its own.
+    """
     BILLING_PERIOD_CHOICES = [
         ('monthly', 'شهري'),
         ('quarterly', 'ربع سنوي (3 أشهر)'),
@@ -17,17 +23,9 @@ class SubscriptionPackage(models.Model):
     # مدة صلاحية كود الربط (WPConnectionToken) بالأيام لكل فترة اشتراك
     BILLING_PERIOD_DAYS = {'monthly': 30, 'quarterly': 90, 'semiannual': 182, 'annual': 365}
 
-    name = models.CharField(max_length=100, verbose_name="اسم الباقة")
+    name = models.CharField(max_length=100, verbose_name="الاسم")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="السعر (بالدولار)")
-    daily_limit = models.PositiveIntegerField(verbose_name="الحد الأقصى للنشر اليومي")
-    monthly_articles_limit = models.PositiveIntegerField(
-        default=0,
-        verbose_name="الحد الأقصى للنشر الشهري",
-        help_text="للعرض فقط حالياً في لوحة التحكم وصفحة الباقات، بدون إنفاذ فعلي في محرك النشر. 0 = لا يُعرض حد شهري منفصل."
-    )
-    features = models.TextField(verbose_name="المميزات", help_text="كل ميزة في سطر منفصل")
     is_active = models.BooleanField(default=True, verbose_name="مفعلة")
-    is_custom = models.BooleanField(default=False, verbose_name="مخصصة للشركات (تتطلب تواصل)")
     is_recommended = models.BooleanField(
         default=False,
         verbose_name="الأكثر شعبية",
@@ -46,6 +44,9 @@ class SubscriptionPackage(models.Model):
         default=0, validators=[MaxValueValidator(100)],
         verbose_name="نسبة الخصم - اشتراك سنوي (%)"
     )
+
+    class Meta:
+        abstract = True
 
     def __str__(self):
         return f"{self.name} - ${self.price}"
@@ -90,6 +91,40 @@ class SubscriptionPackage(models.Model):
             }
             for period, _ in self.BILLING_PERIOD_CHOICES
         }
+
+
+class SubscriptionPackage(PricedPlan):
+    daily_limit = models.PositiveIntegerField(verbose_name="الحد الأقصى للنشر اليومي")
+    monthly_articles_limit = models.PositiveIntegerField(
+        default=0,
+        verbose_name="الحد الأقصى للنشر الشهري",
+        help_text="للعرض فقط حالياً في لوحة التحكم وصفحة الباقات، بدون إنفاذ فعلي في محرك النشر. 0 = لا يُعرض حد شهري منفصل."
+    )
+    features = models.TextField(verbose_name="المميزات", help_text="كل ميزة في سطر منفصل")
+    is_custom = models.BooleanField(default=False, verbose_name="مخصصة للشركات (تتطلب تواصل)")
+    included_facebook_addon_plan = models.ForeignKey(
+        'FacebookAddonPlan', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='included_in_packages',
+        verbose_name="تشمل باقة فيسبوك التالية مجاناً",
+        help_text="اختر باقة نشر فيسبوك تُمنح تلقائياً مجاناً لمن يشترك في هذه الباقة. اتركه فارغاً لو الباقة دي لا تشمل خدمة فيسبوك."
+    )
+
+
+class FacebookAddonPlan(PricedPlan):
+    monthly_articles_limit = models.PositiveIntegerField(
+        default=0,
+        verbose_name="الحد الأقصى لعدد الأخبار المنشورة على فيسبوك شهرياً",
+        help_text="بعد الوصول لهذا العدد يتوقف النشر التلقائي على فيسبوك حتى بداية الشهر التالي أو الترقية. 0 = بدون حد (غير محدود)."
+    )
+    show_watermark = models.BooleanField(
+        default=False,
+        verbose_name="إظهار علامة \"Sahafi Hub\" على التصميم",
+        help_text="يُفعَّل عادة في الباقة المجانية كحافز للترقية لباقة بدون علامة مائية."
+    )
+
+    class Meta:
+        verbose_name = "باقة نشر فيسبوك"
+        verbose_name_plural = "باقات نشر فيسبوك"
 
 class DevicePairing(models.Model):
     """

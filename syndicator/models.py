@@ -536,6 +536,11 @@ class WordPressSite(models.Model):
         ('top_left', 'أعلى اليسار'),
     ]
     social_image_enabled = models.BooleanField(default=False, verbose_name="تفعيل توليد صور السوشال ميديا", help_text="عند التفعيل، يُولَّد تصميم صورة تلقائياً (صورة الخبر + عنوان + لوجو الموقع) عند نشر كل خبر جديد لهذا الموقع.")
+    facebook_addon_plan = models.ForeignKey(
+        'payments.FacebookAddonPlan', null=True, blank=True, on_delete=models.SET_NULL,
+        verbose_name="باقة نشر فيسبوك الحالية",
+        help_text="تحدد الحد الأقصى الشهري لعدد الأخبار المنشورة على فيسبوك، وهل يظهر علامة \"Sahafi Hub\" على التصميم. اتركه فارغاً لعدم فرض أي حد شهري ولا علامة مائية (تفعيل يدوي بدون باقة محددة)."
+    )
     social_template = models.CharField(max_length=20, choices=SOCIAL_TEMPLATE_CHOICES, default='news_ribbon', verbose_name="قالب تصميم الصورة")
     social_badge_text = models.CharField(max_length=30, blank=True, default='', verbose_name="نص الوسم فوق العنوان", help_text="يظهر في قالبي \"إخباري احترافي\" و\"عاجل\" فوق العنوان مباشرةً، مثال: تقرير، عاجل، حصري. اتركه فارغاً لاستخدام \"خبر\" (أو \"عاجل\" تلقائياً في قالب العاجل).")
     social_logo = models.ImageField(upload_to='site_logos/', blank=True, null=True, verbose_name="لوجو الموقع", help_text="يُفضَّل صورة PNG بخلفية شفافة.")

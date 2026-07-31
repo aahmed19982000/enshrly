@@ -135,6 +135,22 @@ def _translucent_overlay(canvas, box, rgb_color, alpha):
     canvas.paste(Image.alpha_composite(region, overlay).convert('RGB'), (box[0], box[1]))
 
 
+def _draw_watermark(canvas):
+    """Bottom-center 'صُمم بواسطة Sahafi Hub' badge - shown on cards
+    generated under a FacebookAddonPlan with show_watermark=True (typically
+    the free tier), as an upgrade incentive."""
+    font = _font(26)
+    text = 'صُمم بواسطة Sahafi Hub'
+    pad_x, pad_y = 18, 10
+    box_w = int(font.getlength(text) + pad_x * 2)
+    box_h = 26 + pad_y * 2
+    x = (canvas.width - box_w) // 2
+    y = canvas.height - box_h - 20
+    _translucent_overlay(canvas, (x, y, x + box_w, y + box_h), (0, 0, 0), 150)
+    draw = ImageDraw.Draw(canvas)
+    draw.text((x + pad_x, y + pad_y), text, font=font, fill=WHITE)
+
+
 def _draw_badge(draw, text, font, y, bg_color, x_left=None, x_right=None, text_color=WHITE, pad_x=22, pad_y=14, radius=10):
     """Draws a rounded, filled label (e.g. 'عاجل' / 'تقرير') anchored either
     from its left edge (x_left) or right edge (x_right) - exactly one must be
@@ -319,10 +335,16 @@ _TEMPLATE_RENDERERS = {
 
 def generate_social_card_image(wp_site, title, photo_bytes):
     """Returns a PIL RGB Image with the given title composited over the given
-    source photo, per wp_site's chosen template/colors/logo."""
+    source photo, per wp_site's chosen template/colors/logo. Adds the
+    Sahafi Hub watermark on top if wp_site's current FacebookAddonPlan
+    requires one (typically the free tier)."""
     photo = Image.open(io.BytesIO(photo_bytes)).convert('RGB')
     renderer = _TEMPLATE_RENDERERS.get(wp_site.social_template, _render_bottom_banner)
-    return renderer(photo, title, wp_site)
+    canvas = renderer(photo, title, wp_site)
+    plan = getattr(wp_site, 'facebook_addon_plan', None)
+    if plan and plan.show_watermark:
+        _draw_watermark(canvas)
+    return canvas
 
 
 def post_to_facebook_page(wp_site, image_absolute_url, message):
@@ -366,6 +388,17 @@ def _build_and_maybe_post(wp_site, title, image_bytes, link, article=None):
         social_post.error_message = 'Missing title or source image.'
         social_post.save(update_fields=['error_message'])
         return social_post
+
+    plan = wp_site.facebook_addon_plan
+    if plan and plan.monthly_articles_limit:
+        month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        used_this_month = SocialSharePost.objects.filter(
+            wp_site=wp_site, status__in=['generated', 'posted'], created_at__gte=month_start
+        ).count()
+        if used_this_month >= plan.monthly_articles_limit:
+            social_post.error_message = f'تم الوصول للحد الأقصى الشهري لباقة فيسبوك الحالية ({plan.name} - {plan.monthly_articles_limit} خبر/شهر).'
+            social_post.save(update_fields=['error_message'])
+            return social_post
 
     try:
         card = generate_social_card_image(wp_site, title, image_bytes)

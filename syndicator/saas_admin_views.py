@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from accounts.models import CustomerProfile
-from payments.models import SubscriptionPackage, Transaction
+from payments.models import SubscriptionPackage, FacebookAddonPlan, Transaction
 from payments.tasks import send_payment_success_whatsapp
 from syndicator.models import WPConnectionToken
 import uuid
@@ -31,7 +31,7 @@ class PackageCreateView(StaffRequiredMixin, CreateView):
     fields = [
         'name', 'price', 'daily_limit', 'monthly_articles_limit', 'features',
         'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
-        'is_recommended', 'is_custom', 'is_active',
+        'included_facebook_addon_plan', 'is_recommended', 'is_custom', 'is_active',
     ]
     success_url = reverse_lazy('news_ai:saas_packages')
 
@@ -41,7 +41,7 @@ class PackageUpdateView(StaffRequiredMixin, UpdateView):
     fields = [
         'name', 'price', 'daily_limit', 'monthly_articles_limit', 'features',
         'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
-        'is_recommended', 'is_custom', 'is_active',
+        'included_facebook_addon_plan', 'is_recommended', 'is_custom', 'is_active',
     ]
     success_url = reverse_lazy('news_ai:saas_packages')
 
@@ -49,6 +49,38 @@ class PackageDeleteView(StaffRequiredMixin, DeleteView):
     model = SubscriptionPackage
     template_name = 'ai_dashboard/saas/package_confirm_delete.html'
     success_url = reverse_lazy('news_ai:saas_packages')
+
+# --- Facebook Addon Plans Management ---
+class FacebookAddonPlanListView(StaffRequiredMixin, ListView):
+    model = FacebookAddonPlan
+    template_name = 'ai_dashboard/saas/facebook_plans_list.html'
+    context_object_name = 'plans'
+    ordering = ['price']
+
+class FacebookAddonPlanCreateView(StaffRequiredMixin, CreateView):
+    model = FacebookAddonPlan
+    template_name = 'ai_dashboard/saas/facebook_plan_form.html'
+    fields = [
+        'name', 'price', 'monthly_articles_limit', 'show_watermark',
+        'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
+        'is_recommended', 'is_active',
+    ]
+    success_url = reverse_lazy('news_ai:saas_facebook_plans')
+
+class FacebookAddonPlanUpdateView(StaffRequiredMixin, UpdateView):
+    model = FacebookAddonPlan
+    template_name = 'ai_dashboard/saas/facebook_plan_form.html'
+    fields = [
+        'name', 'price', 'monthly_articles_limit', 'show_watermark',
+        'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
+        'is_recommended', 'is_active',
+    ]
+    success_url = reverse_lazy('news_ai:saas_facebook_plans')
+
+class FacebookAddonPlanDeleteView(StaffRequiredMixin, DeleteView):
+    model = FacebookAddonPlan
+    template_name = 'ai_dashboard/saas/facebook_plan_confirm_delete.html'
+    success_url = reverse_lazy('news_ai:saas_facebook_plans')
 
 # --- Customers Management ---
 class CustomerListView(StaffRequiredMixin, ListView):

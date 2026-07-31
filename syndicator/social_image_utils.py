@@ -26,6 +26,7 @@ CANVAS_HEIGHT = 1350  # 4:5 - Facebook/Instagram's mobile-optimized feed ratio
 WHITE = (255, 255, 255)
 FACEBOOK_GRAPH_VERSION = 'v21.0'
 DEFAULT_BADGE_TEXT = 'خبر'
+TEXT_BG_ALPHA = 195  # ~76% opaque - headline backgrounds stay legible but let the photo show through
 
 # This Pillow build ships with libraqm (HarfBuzz + FriBidi), so draw.text()
 # already shapes/reorders Arabic correctly on its own - text must be passed
@@ -103,6 +104,15 @@ def _bottom_gradient(canvas, height, rgb_color, max_alpha=230, curve=1.3):
     region = canvas.crop((0, canvas.height - height, canvas.width, canvas.height)).convert('RGBA')
     blended = Image.alpha_composite(region, overlay).convert('RGB')
     canvas.paste(blended, (0, canvas.height - height))
+
+
+def _translucent_overlay(canvas, box, rgb_color, alpha):
+    """Alpha-blends a solid rgb_color rectangle over the given box of an
+    already-pasted photo, so the photo stays faintly visible through the
+    headline's background instead of being fully hidden behind it."""
+    region = canvas.crop(box).convert('RGBA')
+    overlay = Image.new('RGBA', region.size, rgb_color + (alpha,))
+    canvas.paste(Image.alpha_composite(region, overlay).convert('RGB'), (box[0], box[1]))
 
 
 def _draw_badge(draw, text, font, y, bg_color, x_left=None, x_right=None, text_color=WHITE, pad_x=22, pad_y=14, radius=10):
@@ -185,9 +195,9 @@ def _render_bottom_banner(photo, title, wp_site):
     banner_h = 360
     photo_h = CANVAS_HEIGHT - banner_h
     canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
-    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, photo_h), (0, 0))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0))
+    _translucent_overlay(canvas, (0, photo_h, CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_primary_color), TEXT_BG_ALPHA)
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle([0, photo_h, CANVAS_WIDTH, CANVAS_HEIGHT], fill=_hex_to_rgb(wp_site.social_primary_color))
     font = _font(56)
     lines = _wrap_title(title, font, CANVAS_WIDTH - 120, max_lines=4)
     line_h = 70
@@ -204,9 +214,8 @@ def _render_boxed_card(photo, title, wp_site):
     canvas.paste(inner, (border, border))
 
     overlay_h = 420
-    overlay = Image.new('RGBA', (CANVAS_WIDTH - border * 2, overlay_h), (*_hex_to_rgb(wp_site.social_secondary_color), 215))
-    region = canvas.crop((border, CANVAS_HEIGHT - border - overlay_h, CANVAS_WIDTH - border, CANVAS_HEIGHT - border)).convert('RGBA')
-    canvas.paste(Image.alpha_composite(region, overlay).convert('RGB'), (border, CANVAS_HEIGHT - border - overlay_h))
+    overlay_box = (border, CANVAS_HEIGHT - border - overlay_h, CANVAS_WIDTH - border, CANVAS_HEIGHT - border)
+    _translucent_overlay(canvas, overlay_box, _hex_to_rgb(wp_site.social_secondary_color), TEXT_BG_ALPHA)
 
     draw = ImageDraw.Draw(canvas)
     font = _font(52)
@@ -222,10 +231,10 @@ def _render_split_block(photo, title, wp_site):
     block_h = 370
     photo_h = CANVAS_HEIGHT - block_h
     canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
-    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, photo_h), (0, 0))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0))
     draw = ImageDraw.Draw(canvas)
     draw.rectangle([0, photo_h, CANVAS_WIDTH, photo_h + 6], fill=_hex_to_rgb(wp_site.social_primary_color))
-    draw.rectangle([0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT], fill=_hex_to_rgb(wp_site.social_secondary_color))
+    _translucent_overlay(canvas, (0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color), TEXT_BG_ALPHA)
     font = _font(54)
     lines = _wrap_title(title, font, CANVAS_WIDTH - 140, max_lines=4)
     line_h = 68
@@ -243,7 +252,7 @@ def _render_news_ribbon(photo, title, wp_site):
     canvas.paste(_cover_resize(photo, CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0))
 
     gradient_h = 640
-    _bottom_gradient(canvas, gradient_h, _hex_to_rgb(wp_site.social_secondary_color), max_alpha=235)
+    _bottom_gradient(canvas, gradient_h, _hex_to_rgb(wp_site.social_secondary_color), max_alpha=TEXT_BG_ALPHA)
 
     draw = ImageDraw.Draw(canvas)
     _logo_badge_top_left(canvas, wp_site)
@@ -268,11 +277,11 @@ def _render_breaking_news(photo, title, wp_site):
     block_h = 480
     photo_h = CANVAS_HEIGHT - block_h
     canvas = Image.new('RGB', (CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color))
-    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, photo_h), (0, 0))
+    canvas.paste(_cover_resize(photo, CANVAS_WIDTH, CANVAS_HEIGHT), (0, 0))
 
     draw = ImageDraw.Draw(canvas)
     draw.rectangle([0, photo_h, CANVAS_WIDTH, photo_h + 6], fill=_hex_to_rgb(wp_site.social_primary_color))
-    draw.rectangle([0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT], fill=_hex_to_rgb(wp_site.social_secondary_color))
+    _translucent_overlay(canvas, (0, photo_h + 6, CANVAS_WIDTH, CANVAS_HEIGHT), _hex_to_rgb(wp_site.social_secondary_color), TEXT_BG_ALPHA)
 
     _logo_badge_top_left(canvas, wp_site)
 

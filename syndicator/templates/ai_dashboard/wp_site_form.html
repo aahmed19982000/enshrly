@@ -333,12 +333,19 @@
                         <input type="file" name="social_logo" id="id_social_logo" accept="image/*" class="block w-full text-xs text-slate-400 file:ml-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-teal-400 hover:file:bg-slate-700 bg-slate-900 border border-slate-800 rounded-xl transition duration-150">
                         {% if object and object.social_logo %}
                         <div class="flex items-center gap-2 mt-1">
-                            <img src="{{ object.social_logo.url }}" class="w-10 h-10 rounded-full bg-white object-contain border border-slate-800">
+                            <img id="current-logo-preview" src="{{ object.social_logo.url }}" crossorigin="anonymous" class="w-10 h-10 rounded-full bg-white object-contain border border-slate-800">
                             <span class="text-[10px] text-slate-500">اللوجو الحالي — اختر ملفاً جديداً لاستبداله.</span>
                         </div>
                         {% else %}
                         <p class="text-[10px] text-slate-500">يُفضَّل صورة PNG بخلفية شفافة.</p>
                         {% endif %}
+                    </div>
+
+                    <div class="space-y-2 flex flex-col justify-end">
+                        <button type="button" id="extract-colors-btn" class="w-full px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-teal-400 text-xs font-semibold rounded-xl transition duration-150">
+                            <i class="fa-solid fa-eye-dropper ml-1"></i>استخرج الألوان من اللوجو
+                        </button>
+                        <p id="extract-colors-status" class="text-[10px] text-slate-500">يقرأ اللون الأبرز في اللوجو ويملأ اللونين تحت تلقائياً.</p>
                     </div>
                 </div>
 
@@ -405,4 +412,142 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    function toHex(n) {
+        return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+    }
+
+    function rgbToHex(r, g, b) {
+        return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function rgbToHsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0, s = 0;
+        const l = (max + min) / 2;
+        const d = max - min;
+        if (d !== 0) {
+            s = d / (1 - Math.abs(2 * l - 1));
+            switch (max) {
+                case r: h = ((g - b) / d) % 6; break;
+                case g: h = (b - r) / d + 2; break;
+                default: h = (r - g) / d + 4;
+            }
+            h *= 60;
+            if (h < 0) h += 360;
+        }
+        return [h, s, l];
+    }
+
+    function hslToRgb(h, s, l) {
+        const c = (1 - Math.abs(2 * l - 1)) * s;
+        const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+        const m = l - c / 2;
+        let r = 0, g = 0, b = 0;
+        if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; }
+        else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; }
+        else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+        return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+    }
+
+    // Picks the site's most vivid, frequent color from its logo (skipping
+    // transparent/near-white/near-black pixels, which are almost always
+    // background or outline rather than the brand color), then derives a
+    // dark tint of the same hue for the secondary color so white headline
+    // text stays legible over it in the generated share cards.
+    function extractPalette(img) {
+        const size = 64;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        const buckets = {};
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+            if (a < 128) continue;
+            if (r > 240 && g > 240 && b > 240) continue;
+            if (r < 15 && g < 15 && b < 15) continue;
+            const key = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4);
+            if (!buckets[key]) buckets[key] = { r: 0, g: 0, b: 0, count: 0 };
+            buckets[key].r += r; buckets[key].g += g; buckets[key].b += b; buckets[key].count += 1;
+        }
+
+        let best = null, bestScore = -1;
+        Object.values(buckets).forEach((bucket) => {
+            const r = bucket.r / bucket.count, g = bucket.g / bucket.count, b = bucket.b / bucket.count;
+            const [, s] = rgbToHsl(r, g, b);
+            const score = bucket.count * (0.35 + s);
+            if (score > bestScore) {
+                bestScore = score;
+                best = [r, g, b];
+            }
+        });
+
+        if (!best) return null;
+
+        const [h, s] = rgbToHsl(best[0], best[1], best[2]);
+        const primary = rgbToHex(best[0], best[1], best[2]);
+        const [dr, dg, db] = hslToRgb(h, Math.min(1, s * 0.9), 0.14);
+        const secondary = rgbToHex(dr, dg, db);
+        return { primary, secondary };
+    }
+
+    function applyPalette(palette) {
+        const status = document.getElementById('extract-colors-status');
+        if (!palette) {
+            status.textContent = 'مقدرتش ألاقي لون واضح في اللوجو ده — جرب لوجو تاني أو اختر الألوان يدوياً.';
+            return;
+        }
+        document.getElementById('id_social_primary_color').value = palette.primary;
+        document.getElementById('id_social_primary_color_picker').value = palette.primary;
+        document.getElementById('id_social_secondary_color').value = palette.secondary;
+        document.getElementById('id_social_secondary_color_picker').value = palette.secondary;
+        status.textContent = 'تم استخراج اللونين من اللوجو (' + palette.primary + ' / ' + palette.secondary + ') — عدّلهما يدوياً لو حابب.';
+    }
+
+    document.getElementById('extract-colors-btn').addEventListener('click', function () {
+        const status = document.getElementById('extract-colors-status');
+        const fileInput = document.getElementById('id_social_logo');
+        const file = fileInput.files && fileInput.files[0];
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = function () { applyPalette(extractPalette(img)); };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+
+        const existing = document.getElementById('current-logo-preview');
+        if (existing) {
+            status.textContent = 'جاري القراءة من اللوجو الحالي...';
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function () {
+                try {
+                    applyPalette(extractPalette(img));
+                } catch (err) {
+                    status.textContent = 'مقدرتش أقرأ اللوجو الحالي (قيود المتصفح) — اختر ملف اللوجو من جديد وجرب تاني.';
+                }
+            };
+            img.onerror = function () {
+                status.textContent = 'مقدرتش أحمّل اللوجو الحالي — اختر ملف اللوجو من جديد وجرب تاني.';
+            };
+            img.src = existing.src;
+            return;
+        }
+
+        status.textContent = 'اختر ملف لوجو أولاً.';
+    });
+})();
+</script>
 {% endblock %}

@@ -115,6 +115,38 @@
                 {% endif %}
             </div>
 
+            <!-- Source Groups (M2M) - mirrors the customer's own "مجموعات المصادر
+                 المفضلة" picker in the WordPress plugin (source_groups is saved
+                 there via wp_connect_api_view); shown here so staff can see and,
+                 if needed, override what the customer selected. -->
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-300">مجموعات المصادر المفضلة (اختيار العميل من البلجن)</label>
+                <p class="text-xs text-slate-500">هذا هو نفس الاختيار الذي يضبطه العميل من إعدادات إضافة ووردبريس. أي مصدر ضمن مجموعة مفعّلة هنا يغذي هذا الموقع تلقائياً، بالإضافة إلى المصادر الفردية المحددة أعلاه.</p>
+                <div class="space-y-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800 max-h-64 overflow-y-auto">
+                    {% for parent in source_group_parents %}
+                    <div class="border-t border-slate-800 pt-3 first:border-t-0 first:pt-0">
+                        <label class="flex items-center space-x-2 space-x-reverse text-slate-200 text-xs font-bold cursor-pointer hover:text-white transition">
+                            <input type="checkbox" name="source_groups" value="{{ parent.id }}" {% if parent in form.initial.source_groups or parent.id|slugify in form.source_groups.value %}checked{% endif %} class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2">
+                            <span>{{ parent.name }}</span>
+                        </label>
+                        {% if parent.children.all %}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 mr-6">
+                            {% for child in parent.children.all %}
+                            <label class="flex items-center space-x-2 space-x-reverse text-slate-300 text-xs cursor-pointer hover:text-white transition">
+                                <input type="checkbox" name="source_groups" value="{{ child.id }}" {% if child in form.initial.source_groups or child.id|slugify in form.source_groups.value %}checked{% endif %} class="w-4 h-4 text-teal-600 bg-slate-900 border-slate-800 rounded focus:ring-teal-500 focus:ring-2">
+                                <span>{{ child.name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if form.source_groups.errors %}
+                    <p class="text-xs text-rose-400">{{ form.source_groups.errors.as_text }}</p>
+                {% endif %}
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Daily Limit -->
                 <div class="space-y-2">

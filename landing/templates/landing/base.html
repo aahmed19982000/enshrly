@@ -32,6 +32,7 @@
                 <button type="submit" class="btn btn-ghost">تسجيل الخروج</button>
             </form>
         {% else %}
+            <a href="{% url 'landing:facebook_addon' %}">النشر على فيسبوك</a>
             <a href="{% url 'accounts:login' %}">تسجيل الدخول</a>
             <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-sm">ابدأ مجاناً</a>
         {% endif %}
@@ -60,6 +61,7 @@
                 <span class="footer-heading">الشركة</span>
                 <a href="{% url 'pages:about' %}">من نحن</a>
                 <a href="{% url 'payments:packages' %}">الباقات</a>
+                <a href="{% url 'landing:facebook_addon' %}">النشر على فيسبوك</a>
                 <a href="{% url 'pages:contact' %}">تواصل معنا</a>
             </div>
             <div class="footer-col">

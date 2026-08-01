@@ -42,6 +42,18 @@
     .process-steps .t { font-family: var(--font-body); font-weight: 700; color: var(--text); font-size: 1.05rem; margin: 0.4rem 0 0.3rem; }
     .process-steps .d { color: var(--muted); font-size: 0.9rem; }
 
+    .fb-highlight-section { padding: 1rem 1.5rem 3rem; max-width: 1100px; margin: 0 auto; }
+    .fb-highlight-card {
+        background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md);
+        padding: 2.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 2rem; justify-content: space-between;
+    }
+    .fb-highlight-text { flex: 1 1 320px; }
+    .fb-highlight-text .eyebrow { color: var(--gold); font-weight: 700; font-size: 0.85rem; display: block; margin-bottom: 0.5rem; }
+    .fb-highlight-text h2 { font-size: 1.6rem; color: var(--text); margin: 0 0 0.75rem; }
+    .fb-highlight-text p { color: var(--muted); margin: 0 0 1.25rem; line-height: var(--lh-normal); }
+    .fb-highlight-preview { flex: 0 0 auto; width: 180px; }
+    .fb-highlight-preview img { width: 100%; border-radius: var(--radius-md); border: 1px solid var(--rule-strong); aspect-ratio: 4/5; object-fit: cover; display: block; }
+
     .pricing-section { padding: 3rem 1.5rem 5rem; max-width: 1100px; margin: 0 auto; }
     .pricing-header { text-align: center; margin-bottom: 2.5rem; }
     .pricing-header h2 { font-size: 2rem; color: var(--text); margin: 0 0 0.5rem; }
@@ -228,6 +240,20 @@
         </div>
     </div>
     <div class="video-caption"><span>شاهد كيف يُنشر مقال باسمك خلال دقائق</span></div>
+</div>
+
+<div class="fb-highlight-section">
+    <div class="fb-highlight-card">
+        <div class="fb-highlight-text">
+            <span class="eyebrow">ميزة إضافية</span>
+            <h2>كل خبر يتحوّل تلقائياً لبطاقة على فيسبوك</h2>
+            <p>بمجرد نشر أي خبر على موقعك، بنولّد صورة مصممة احترافياً بلوجو موقعك وألوانه، وننشرها فوراً على صفحتكم على فيسبوك — من غير أي تدخل يدوي.</p>
+            <a href="{% url 'landing:facebook_addon' %}" class="btn btn-primary">اعرف أكتر عن الخدمة</a>
+        </div>
+        <div class="fb-highlight-preview">
+            <img src="{% static 'images/price_covers/general_news.jpg' %}" alt="مثال تصميم بطاقة فيسبوك">
+        </div>
+    </div>
 </div>
 
 <div class="pricing-section" id="pricing">

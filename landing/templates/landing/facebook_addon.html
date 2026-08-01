@@ -1,0 +1,135 @@
+{% extends 'landing/base.html' %}
+{% load static %}
+{% block title %}النشر التلقائي على فيسبوك — Sahafi Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .fb-hero { text-align: center; padding: 4.5rem 1.5rem 3rem; }
+    .fb-hero .eyebrow { color: var(--gold); font-weight: 700; font-size: 0.9rem; margin-bottom: 0.75rem; display: block; }
+    .fb-hero h1 { font-size: var(--text-display-1); color: var(--text); font-weight: 700; line-height: var(--lh-tight); margin: 0 0 1.2rem; }
+    .fb-hero h1 .accent { color: var(--gold); }
+    .fb-hero p { font-size: 1.1rem; color: var(--muted); max-width: 620px; margin: 0 auto 2rem; }
+
+    .fb-preview-section { padding: 1rem 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
+    .fb-preview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; }
+    .fb-preview-card { background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); overflow: hidden; }
+    .fb-preview-card img { width: 100%; display: block; aspect-ratio: 4/5; object-fit: cover; }
+    .fb-preview-card .cap { padding: 0.9rem 1rem; color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+    .fb-features { padding: 2rem 1.5rem; max-width: 1000px; margin: 0 auto; }
+    .fb-features .grid-auto { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .fb-feature-card { background: var(--surface); border: 1px solid var(--rule-strong); border-top: 3px solid var(--gold); border-radius: var(--radius-md); padding: 1.5rem; }
+    .fb-feature-card .t { font-family: var(--font-display); font-weight: 700; color: var(--text); font-size: 1.05rem; margin: 0 0 0.5rem; }
+    .fb-feature-card .d { color: var(--muted); font-size: 0.9rem; line-height: var(--lh-normal); }
+
+    .fb-pricing-section { padding: 3rem 1.5rem 5rem; max-width: 1100px; margin: 0 auto; }
+    .fb-pricing-header { text-align: center; margin-bottom: 2.5rem; }
+    .fb-pricing-header h2 { font-size: 2rem; color: var(--text); margin: 0 0 0.5rem; }
+    .fb-pricing-header p { color: var(--muted); margin: 0; }
+    .fb-pricing-grid { direction: ltr; }
+    .fb-pricing-card {
+        direction: rtl; position: relative; background: var(--surface);
+        border: 1px solid rgba(33, 28, 20, 0.28); border-radius: var(--radius-md);
+        padding: 2rem 1.75rem; display: flex; flex-direction: column; gap: 1.1rem;
+    }
+    .fb-pricing-card.recommended { border: 2px solid var(--gold); box-shadow: 0 10px 30px rgba(181, 101, 29, 0.18); transform: scale(1.04); z-index: 1; }
+    @media (max-width: 640px) { .fb-pricing-card.recommended { transform: none; } }
+    .fb-recommended-badge {
+        position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+        background: var(--gold); color: var(--text-on-gold); font-size: 0.75rem; font-weight: 700;
+        padding: 0.3rem 1.1rem; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .fb-pricing-card .plan-name { font-weight: 700; font-size: 1.15rem; color: var(--text); }
+    .fb-pricing-card .plan-price .amount { font-family: var(--font-display); font-size: 2.3rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+    .fb-pricing-card .plan-price .sub { font-size: 0.88rem; color: var(--muted); }
+    .fb-pricing-card .limit-row { color: var(--rust); font-weight: 600; font-size: 0.9rem; padding: 0.55rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+    .fb-pricing-card .btn { margin-top: auto; }
+
+    .fb-cta-section { text-align: center; padding: 1rem 1.5rem 4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fb-hero">
+    <span class="eyebrow">ميزة إضافية</span>
+    <h1>كل خبر تنشره، <span class="accent">يتحوّل تلقائياً لبطاقة على فيسبوك</span></h1>
+    <p>بمجرد ما الخبر يتنشر على موقعك — من عندنا أو من محررينك — بنولّد صورة مصممة احترافياً بلوجو موقعك وألوانه، وننشرها فوراً على صفحتكم على فيسبوك، من غير أي تدخل يدوي.</p>
+    {% if user.is_authenticated %}
+        <a href="{% url 'accounts:facebook_dashboard' %}" class="btn btn-primary btn-lg">فعّل الخدمة الآن</a>
+    {% else %}
+        <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-lg">ابدأ تجربتك الآن</a>
+    {% endif %}
+</div>
+
+<div class="fb-preview-section">
+    <div class="fb-preview-grid">
+        <div class="fb-preview-card">
+            <img src="{% static 'images/price_covers/general_news.jpg' %}" alt="مثال تصميم إخباري">
+            <div class="cap">قالب "إخباري احترافي"</div>
+        </div>
+        <div class="fb-preview-card">
+            <img src="{% static 'images/price_covers/gold.jpg' %}" alt="مثال تصميم عاجل">
+            <div class="cap">قالب "عاجل"</div>
+        </div>
+        <div class="fb-preview-card">
+            <img src="{% static 'images/price_covers/dollar.jpg' %}" alt="مثال قوالب أخرى">
+            <div class="cap">قوالب إضافية بألوانك وشعارك</div>
+        </div>
+    </div>
+</div>
+
+<div class="fb-features">
+    <div class="grid-auto">
+        <div class="fb-feature-card">
+            <div class="t">تصميم تلقائي بالكامل</div>
+            <div class="d">صورة الخبر + العنوان + لوجو موقعك، مركّبين تلقائياً في ثوانٍ — بدون أي تصميم يدوي.</div>
+        </div>
+        <div class="fb-feature-card">
+            <div class="t">قوالب احترافية متعددة</div>
+            <div class="d">من ستايل إخباري عام لستايل "عاجل"، بألوان وموضع لوجو تتحكم فيه بنفسك، مع معاينة حية قبل الحفظ.</div>
+        </div>
+        <div class="fb-feature-card">
+            <div class="t">نشر تلقائي فوري</div>
+            <div class="d">بمجرد نشر أي خبر — من النظام أو يدوياً من ووردبريس — البطاقة تترفع على صفحتكم على فيسبوك تلقائياً.</div>
+        </div>
+        <div class="fb-feature-card">
+            <div class="t">باقات حسب حجم موقعك</div>
+            <div class="d">من باقة مجانية للتجربة، لباقات بحد شهري أعلى أو بدون حد، حسب عدد الأخبار اللي بتنشرها.</div>
+        </div>
+    </div>
+</div>
+
+<div class="fb-pricing-section" id="pricing">
+    <div class="fb-pricing-header">
+        <h2>باقات النشر على فيسبوك</h2>
+        <p>اختر الباقة المناسبة لعدد الأخبار اللي عايز تنشرها شهرياً</p>
+    </div>
+
+    <div class="grid-auto fb-pricing-grid">
+        {% for plan in plans|dictsortreversed:"price" %}
+            <div class="fb-pricing-card{% if plan.is_recommended %} recommended{% endif %}">
+                {% if plan.is_recommended %}<span class="fb-recommended-badge">الأكثر شعبية</span>{% endif %}
+                <span class="plan-name">{{ plan.name }}</span>
+                <div class="plan-price">
+                    <span class="amount">${{ plan.price }}</span>
+                    <span class="sub">/ أو {{ plan.price_egp }} ج.م / شهرياً</span>
+                </div>
+                <div class="limit-row">{% if plan.monthly_articles_limit %}حتى {{ plan.monthly_articles_limit }} خبر شهرياً{% else %}بدون حد شهري{% endif %}</div>
+                {% if plan.show_watermark %}
+                    <div class="limit-row">تتضمن علامة "Sahafi Hub" على التصميم</div>
+                {% endif %}
+            </div>
+        {% empty %}
+            <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">جاري إعداد الباقات قريباً...</p>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="fb-cta-section">
+    {% if user.is_authenticated %}
+        <a href="{% url 'accounts:facebook_dashboard' %}" class="btn btn-primary btn-lg">إدارة النشر على فيسبوك لموقعك</a>
+    {% else %}
+        <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-lg">سجّل الآن وفعّل الخدمة</a>
+    {% endif %}
+</div>
+{% endblock %}

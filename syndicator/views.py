@@ -306,7 +306,13 @@ class TriggerSiteScraperView(StaffRequiredMixin, View):
         wp_site = get_object_or_404(WordPressSite, pk=wp_site_id)
         try:
             scrape_and_generate_news_task.delay(target_site_id=wp_site.id)
-            messages.success(request, f"تم إرسال طلب التوليد الفوري لموقع '{wp_site.name}' إلى الخلفية، وسيتم تنفيذه خلال دقائق قليلة. تحقّق من سجلات الاستيراد بعد قليل لمتابعة النتيجة.")
+            # info, not success: this only confirms the request reached the queue,
+            # not that any article actually got published - the run can complete
+            # "successfully" with zero articles (inactive sources, dead/blocked RSS
+            # feeds, missing Gemini key...). Check "المقالات المنشورة" for this site
+            # a few minutes later for the real outcome; nothing new there means this
+            # run produced nothing, most likely because every source it tried failed.
+            messages.info(request, f"تم إرسال طلب التوليد الفوري لموقع '{wp_site.name}' لقائمة الانتظار، وسيُنفَّذ خلال دقائق قليلة. هذا لا يعني نجاح النشر فعلياً — تحقّق من صفحة \"المقالات المنشورة\" لهذا الموقع بعد قليل: لو محصلش مقال جديد يبقى الأرجح إن كل مصادر الأخبار المرتبطة بالموقع فشلت في هذه المحاولة (روابط معطوبة أو محظورة)، مش عطل في الطلب نفسه.")
         except Exception as e:
             messages.error(request, f"فشل إرسال طلب التوليد الآلي: {str(e)}")
 

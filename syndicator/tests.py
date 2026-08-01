@@ -432,6 +432,78 @@ class GenerationLoopIndependenceTests(TestCase):
         self.assertEqual(sorted(prefer_flags), [False, True])
 
 
+class SourceGroupMembershipGenerationTests(TestCase):
+    """
+    A WordPressSite that only picked source_groups (the "مجموعات المصادر
+    المفضلة" screen in the WordPress plugin, saved via wp_connect_api_view)
+    - with nothing in the legacy per-source `sources` M2M that staff set
+    manually from the Django admin - must still be eligible for articles
+    from any AISource belonging to one of those groups. Regression test for
+    the customer-facing group picker being silently disconnected from
+    run_ai_generation_cycle's site-matching query.
+    """
+    @patch('syndicator.ai_utils.generate_regular_article_for_site')
+    def test_site_selected_via_source_group_only_still_receives_articles(self, mock_generate):
+        from .ai_utils import run_ai_generation_cycle
+
+        mock_generate.return_value = {'published': True}
+
+        ai_settings = AISettings.get_settings()
+        ai_settings.is_active = True
+        ai_settings.articles_per_day = 100
+        ai_settings.gemini_api_key = 'fake-test-key'
+        ai_settings.save()
+
+        group = AISourceGroup.objects.create(name='أخبار عامة تجريبية')
+        source = AISource.objects.create(name='Grouped Source', url='https://grouped.com/rss', group=group)
+
+        site = WordPressSite.objects.create(
+            name='Group-Only Site', url='https://group-only.com', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True,
+        )
+        site.source_groups.add(group)
+        # Deliberately NOT calling site.sources.add(source) - this is the whole point.
+
+        fake_item = {
+            'title': 'خبر عبر مجموعة', 'link': 'https://grouped.com/story/1',
+            'description': 'تفاصيل', 'image_url': '', 'guid': 'https://grouped.com/story/1',
+        }
+        with patch('syndicator.ai_utils.fetch_news_items_from_source', return_value=[fake_item]):
+            run_ai_generation_cycle()
+
+        mock_generate.assert_called_once()
+        self.assertEqual(mock_generate.call_args.args[0].id, site.id)
+
+    @patch('syndicator.ai_utils.generate_regular_article_for_site')
+    def test_site_in_neither_sources_nor_matching_source_group_is_skipped(self, mock_generate):
+        from .ai_utils import run_ai_generation_cycle
+
+        ai_settings = AISettings.get_settings()
+        ai_settings.is_active = True
+        ai_settings.articles_per_day = 100
+        ai_settings.gemini_api_key = 'fake-test-key'
+        ai_settings.save()
+
+        group = AISourceGroup.objects.create(name='مجموعة غير مرتبطة')
+        other_group = AISourceGroup.objects.create(name='مجموعة الموقع')
+        source = AISource.objects.create(name='Ungrouped-Match Source', url='https://nomatch.com/rss', group=group)
+
+        site = WordPressSite.objects.create(
+            name='Unrelated Site', url='https://unrelated.com', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True,
+        )
+        site.source_groups.add(other_group)
+
+        fake_item = {
+            'title': 'خبر غير مرتبط', 'link': 'https://nomatch.com/story/1',
+            'description': 'تفاصيل', 'image_url': '', 'guid': 'https://nomatch.com/story/1',
+        }
+        with patch('syndicator.ai_utils.fetch_news_items_from_source', return_value=[fake_item]):
+            run_ai_generation_cycle()
+
+        mock_generate.assert_not_called()
+
+
 class ImageMirrorVariantTests(TestCase):
     def test_mirror_flips_image_horizontally(self):
         from PIL import Image

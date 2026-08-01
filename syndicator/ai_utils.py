@@ -3534,8 +3534,19 @@ def run_ai_generation_cycle(target_site_id=None):
         if not items:
             continue
             
-        # Get WordPress sites mapped to this source
-        _wp_sites_qs = WordPressSite.objects.filter(is_active=True, sources=source).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
+        # Get WordPress sites mapped to this source - either individually (the
+        # legacy `sources` M2M, still staff-editable from the Django admin) or
+        # via the source_groups the customer picks themselves from the WordPress
+        # plugin's "مجموعات المصادر المفضلة" screen (wp_connect_api_view saves
+        # that selection to WordPressSite.source_groups, but nothing here used
+        # to read it back - a site relying only on group selection silently
+        # never matched any source and generated zero articles).
+        site_source_filter = Q(sources=source)
+        if source.group_id:
+            site_source_filter |= Q(source_groups=source.group_id)
+        _wp_sites_qs = WordPressSite.objects.filter(is_active=True).filter(site_source_filter).filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+        ).distinct()
         if target_site_id:
             _wp_sites_qs = _wp_sites_qs.filter(id=target_site_id)
         wp_sites = list(_wp_sites_qs)

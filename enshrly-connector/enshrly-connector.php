@@ -10,6 +10,13 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
 
+// Single central Sahafi Hub server - every customer site connects to the
+// same URL, so it's pre-filled by default instead of asking each site to
+// type it in before their first connect.
+if (!defined('ENSHRLY_DEFAULT_SERVER_URL')) {
+    define('ENSHRLY_DEFAULT_SERVER_URL', 'https://sahafihub.com');
+}
+
 class Enshrly_Connector {
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
@@ -215,7 +222,7 @@ class Enshrly_Connector {
         }
 
         $is_connected = get_option('enshrly_connected', false);
-        $saved_server_url = get_option('enshrly_server_url', '');
+        $saved_server_url = get_option('enshrly_server_url', ENSHRLY_DEFAULT_SERVER_URL);
         $saved_token = get_option('enshrly_token', '');
         
         $categories = get_categories(['hide_empty' => false]);

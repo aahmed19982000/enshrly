@@ -1,11 +1,12 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import models
-from .models import SubscriptionPackage, Transaction, DevicePairing
+from .models import SubscriptionPackage, FacebookAddonPlan, Transaction, DevicePairing
 from syndicator.models import WPConnectionToken
 import uuid
 import json
@@ -20,8 +21,63 @@ from .tasks import (
 )
 
 def _token_expiry_days(transaction):
-    """مدة صلاحية كود الربط الناتج عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
+    """مدة صلاحية كود الربط (أو فترة تجديد باقة فيسبوك) الناتجة عن هذه المعاملة، حسب فترة الاشتراك المدفوعة فعلياً."""
     return SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
+
+def _product_name(transaction):
+    """اسم المنتج المدفوع فعلياً بغض النظر عن نوعه - لرسائل واتساب المشتركة بين الباقات وإضافة فيسبوك."""
+    return transaction.product_display_name
+
+def _checkout_retry_url(transaction):
+    """رابط صفحة الدفع المناسبة للمحاولة مجدداً - يختلف باختلاف نوع المنتج."""
+    if transaction.product_type == 'facebook_addon':
+        return reverse('payments:facebook_addon_checkout', kwargs={
+            'plan_id': transaction.facebook_addon_plan_id, 'wp_site_id': transaction.wp_site_id,
+        })
+    return reverse('payments:checkout', kwargs={'package_id': transaction.package_id})
+
+def _activate_facebook_addon(transaction):
+    """
+    يطبّق معاملة إضافة فيسبوك المكتملة مباشرة على الموقع المستهدف: يضبط
+    الباقة، يفعّل الخدمة، ويمدّد facebook_addon_trial_ends_at بمدة الفترة
+    المدفوعة - مع تراكم الوقت المتبقي (لو نفس الباقة ولسه سارية) بدل ما
+    يضيع على العميل لو جدّد قبل الانتهاء.
+    """
+    site = transaction.wp_site
+    if not site or not transaction.facebook_addon_plan:
+        return
+    now = timezone.now()
+    base = now
+    if (site.facebook_addon_plan_id == transaction.facebook_addon_plan_id
+            and site.facebook_addon_trial_ends_at and site.facebook_addon_trial_ends_at > now):
+        base = site.facebook_addon_trial_ends_at
+    site.facebook_addon_plan = transaction.facebook_addon_plan
+    site.facebook_addon_trial_ends_at = base + timedelta(days=_token_expiry_days(transaction))
+    site.social_image_enabled = True
+    site.save(update_fields=['facebook_addon_plan', 'facebook_addon_trial_ends_at', 'social_image_enabled'])
+
+def _complete_transaction(transaction, client_name):
+    """
+    منطق "ماذا يحدث عند وصول الدفعة" المشترك، يُستدعى من كل مسار تأكيد بوابة
+    دفع بعد أن يستحوذ (atomically) على حالة pending->completed. لباقات
+    النشر: يُصدر WPConnectionToken (يُستبدل لاحقاً بموقع). لإضافة فيسبوك:
+    يُفعَّل مباشرة على الموقع المستهدف الموجود بالفعل. يُرجع token الربط
+    (أو None لإضافة فيسبوك) ليقرر المستدعي هل يرسل رسالة واتساب بالكود.
+    """
+    if transaction.product_type == 'facebook_addon':
+        _activate_facebook_addon(transaction)
+        return None
+
+    token_str = str(uuid.uuid4())
+    WPConnectionToken.objects.create(
+        token=token_str,
+        customer=transaction.customer,
+        client_name=client_name,
+        package_daily_limit=transaction.package.daily_limit,
+        included_facebook_addon_plan=transaction.package.included_facebook_addon_plan,
+        expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
+    )
+    return token_str
 
 def _get_wallet_number():
     from syndicator.models import AISettings
@@ -204,6 +260,123 @@ def checkout_view(request, package_id):
         'enable_local_wallet_gateway': ai_settings.enable_local_wallet_gateway,
     })
 
+@login_required
+def facebook_addon_plans_view(request, wp_site_id):
+    """Customer-facing plan picker for one of their sites - lists active
+    FacebookAddonPlan rows (mirrors packages_view) and links each to
+    facebook_addon_checkout_view for that plan+site pair."""
+    profile = getattr(request.user, 'customer_profile', None)
+    from syndicator.models import WordPressSite
+    owned_site_ids = WPConnectionToken.objects.filter(
+        customer=profile, is_used=True, wp_site__isnull=False
+    ).values_list('wp_site_id', flat=True)
+    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+
+    plans = FacebookAddonPlan.objects.filter(is_active=True).order_by('price')
+    period_prices = {plan.id: plan.all_period_prices() for plan in plans}
+
+    return render(request, 'payments/facebook_addon_plans.html', {
+        'site': site,
+        'plans': plans,
+        'period_prices': period_prices,
+    })
+
+
+@login_required
+def facebook_addon_checkout_view(request, plan_id, wp_site_id):
+    """
+    Customer self-serve checkout for a standalone Facebook add-on plan on
+    one of their own (already-provisioned) sites - mirrors checkout_view
+    but targets a FacebookAddonPlan + WordPressSite instead of a
+    SubscriptionPackage, sharing the same gateway branching downstream.
+    """
+    profile = getattr(request.user, 'customer_profile', None)
+    if not profile or not profile.is_whatsapp_verified:
+        messages.error(request, "يجب تفعيل حسابك أولاً.")
+        return redirect('accounts:verify_otp')
+
+    plan = get_object_or_404(FacebookAddonPlan, id=plan_id, is_active=True)
+
+    from syndicator.models import WordPressSite
+    owned_site_ids = WPConnectionToken.objects.filter(
+        customer=profile, is_used=True, wp_site__isnull=False
+    ).values_list('wp_site_id', flat=True)
+    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+
+    from syndicator.models import AISettings
+    ai_settings = AISettings.get_settings()
+    enabled_gateways = {
+        'paypal': ai_settings.enable_paypal_gateway,
+        'paymob': ai_settings.enable_paymob_gateway,
+        'local': ai_settings.enable_local_wallet_gateway,
+        'crypto': True,
+    }
+
+    if request.method == 'POST':
+        gateway = request.POST.get('gateway')
+        currency = request.POST.get('currency', 'USD')
+        billing_period = request.POST.get('billing_period', 'monthly')
+        sender_phone = request.POST.get('sender_phone', '').strip()
+
+        if gateway not in dict(Transaction.GATEWAY_CHOICES) or not enabled_gateways.get(gateway):
+            messages.error(request, "يرجى اختيار بوابة دفع صحيحة.")
+            return redirect('payments:facebook_addon_checkout', plan_id=plan.id, wp_site_id=site.id)
+
+        if currency not in ['USD', 'EGP']:
+            currency = 'USD'
+
+        if billing_period not in dict(FacebookAddonPlan.BILLING_PERIOD_CHOICES):
+            billing_period = 'monthly'
+
+        amount = plan.price_for_period(billing_period, currency)
+
+        if gateway == 'local':
+            existing = Transaction.objects.filter(
+                customer=profile, product_type='facebook_addon', facebook_addon_plan=plan, wp_site=site,
+                billing_period=billing_period, currency=currency, gateway='local', status='pending'
+            ).order_by('-created_at').first()
+            if existing:
+                if sender_phone and sender_phone != existing.sender_phone:
+                    existing.sender_phone = sender_phone
+                    existing.save(update_fields=['sender_phone', 'updated_at'])
+                return redirect('payments:checkout_pending', transaction_id=existing.transaction_id)
+
+        transaction = Transaction.objects.create(
+            customer=profile,
+            product_type='facebook_addon',
+            facebook_addon_plan=plan,
+            wp_site=site,
+            billing_period=billing_period,
+            amount=amount,
+            currency=currency,
+            gateway=gateway,
+            sender_phone=sender_phone if gateway == 'local' else None
+        )
+
+        if gateway == 'local':
+            return redirect('payments:checkout_pending', transaction_id=transaction.transaction_id)
+        elif gateway == 'paypal':
+            return redirect('payments:paypal_checkout', transaction_id=transaction.transaction_id)
+        elif gateway == 'paymob':
+            return redirect('payments:paymob_checkout', transaction_id=transaction.transaction_id)
+
+        return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
+
+    initial_period = request.GET.get('period', 'monthly')
+    if initial_period not in dict(FacebookAddonPlan.BILLING_PERIOD_CHOICES):
+        initial_period = 'monthly'
+
+    return render(request, 'payments/facebook_addon_checkout.html', {
+        'plan': plan,
+        'site': site,
+        'period_prices': plan.all_period_prices(),
+        'initial_period': initial_period,
+        'enable_paypal_gateway': ai_settings.enable_paypal_gateway,
+        'enable_paymob_gateway': ai_settings.enable_paymob_gateway,
+        'enable_local_wallet_gateway': ai_settings.enable_local_wallet_gateway,
+    })
+
+
 import requests
 
 def get_paypal_access_token():
@@ -308,31 +481,23 @@ def confirm_paypal_payment(request):
             if claimed == 0:
                 return JsonResponse({"success": True, "redirect_url": success_url})
 
-            # Generate Token
-            token_str = str(uuid.uuid4())
-            WPConnectionToken.objects.create(
-                token=token_str,
-                customer=profile,
-                client_name=request.user.first_name or request.user.username,
-                package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
-            )
-
-            # Send WhatsApp confirmation
-            send_payment_success_whatsapp.delay(
-                phone_number=transaction.customer.whatsapp_number,
-                client_name=request.user.first_name or request.user.username,
-                package_name=transaction.package.name,
-                token_code=token_str,
-                days=_token_expiry_days(transaction)
-            )
+            client_name = request.user.first_name or request.user.username
+            token_str = _complete_transaction(transaction, client_name)
+            if token_str:
+                send_payment_success_whatsapp.delay(
+                    phone_number=transaction.customer.whatsapp_number,
+                    client_name=client_name,
+                    package_name=transaction.package.name,
+                    token_code=token_str,
+                    days=_token_expiry_days(transaction)
+                )
 
             return JsonResponse({"success": True, "redirect_url": success_url})
         else:
             send_payment_failed_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=request.user.first_name or request.user.username,
-                package_name=transaction.package.name
+                package_name=_product_name(transaction)
             )
             return JsonResponse({"success": False, "message": f"حالة الطلب غير مكتملة في باي بال: {order_details.get('status')}"}, status=400)
             
@@ -476,7 +641,7 @@ def mobile_post_transaction(request):
             send_underpayment_whatsapp.delay(
                 phone_number=underpaid_tx.customer.whatsapp_number,
                 client_name=underpaid_tx.customer.user.first_name or underpaid_tx.customer.user.username,
-                package_name=underpaid_tx.package.name,
+                package_name=_product_name(underpaid_tx),
                 required_amount=str(underpaid_tx.amount),
                 received_amount=str(amount_dec),
                 currency=underpaid_tx.currency,
@@ -493,24 +658,16 @@ def mobile_post_transaction(request):
     if claimed == 0:
         return JsonResponse({"success": False, "message": "Transaction already processed"}, status=400)
 
-    # Generate token
-    token_str = str(uuid.uuid4())
-    WPConnectionToken.objects.create(
-        token=token_str,
-        customer=matched_tx.customer,
-        client_name=matched_tx.customer.user.first_name,
-        package_daily_limit=matched_tx.package.daily_limit,
-        expires_at=timezone.now() + timedelta(days=_token_expiry_days(matched_tx)),
-    )
-
-    # Send WhatsApp confirmation
-    send_payment_success_whatsapp.delay(
-        phone_number=matched_tx.customer.whatsapp_number,
-        client_name=matched_tx.customer.user.first_name or matched_tx.customer.user.username,
-        package_name=matched_tx.package.name,
-        token_code=token_str,
-        days=_token_expiry_days(matched_tx)
-    )
+    client_name = matched_tx.customer.user.first_name or matched_tx.customer.user.username
+    token_str = _complete_transaction(matched_tx, client_name)
+    if token_str:
+        send_payment_success_whatsapp.delay(
+            phone_number=matched_tx.customer.whatsapp_number,
+            client_name=client_name,
+            package_name=matched_tx.package.name,
+            token_code=token_str,
+            days=_token_expiry_days(matched_tx)
+        )
 
     return JsonResponse({
         "success": True,
@@ -531,24 +688,16 @@ def payment_success_view(request, transaction_id):
     if transaction.status == 'pending':
         claimed = Transaction.objects.filter(pk=transaction.pk, status='pending').update(status='completed')
         if claimed:
-            # Generate WP Token for the user
-            token_str = str(uuid.uuid4())
-            token_obj = WPConnectionToken.objects.create(
-                token=token_str,
-                customer=transaction.customer,
-                client_name=request.user.first_name,
-                package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
-            )
-
-            # Send WhatsApp confirmation
-            send_payment_success_whatsapp.delay(
-                phone_number=transaction.customer.whatsapp_number,
-                client_name=request.user.first_name or request.user.username,
-                package_name=transaction.package.name,
-                token_code=token_str,
-                days=_token_expiry_days(transaction)
-            )
+            client_name = request.user.first_name or request.user.username
+            token_str = _complete_transaction(transaction, client_name)
+            if token_str:
+                send_payment_success_whatsapp.delay(
+                    phone_number=transaction.customer.whatsapp_number,
+                    client_name=client_name,
+                    package_name=transaction.package.name,
+                    token_code=token_str,
+                    days=_token_expiry_days(transaction)
+                )
 
     # Find the user's un-used tokens to display
     tokens = WPConnectionToken.objects.filter(customer=transaction.customer, is_used=False)
@@ -686,7 +835,7 @@ def confirm_payment_api(request):
             send_underpayment_whatsapp.delay(
                 phone_number=underpaid_tx.customer.whatsapp_number,
                 client_name=underpaid_tx.customer.user.first_name or underpaid_tx.customer.user.username,
-                package_name=underpaid_tx.package.name,
+                package_name=_product_name(underpaid_tx),
                 required_amount=str(underpaid_tx.amount),
                 received_amount=str(amount_dec),
                 currency=underpaid_tx.currency,
@@ -704,24 +853,16 @@ def confirm_payment_api(request):
     if claimed == 0:
         return JsonResponse({"success": True, "message": "Logged but transaction already processed"})
 
-    # Generate token
-    token_str = str(uuid.uuid4())
-    WPConnectionToken.objects.create(
-        token=token_str,
-        customer=matched_tx.customer,
-        client_name=matched_tx.customer.user.first_name,
-        package_daily_limit=matched_tx.package.daily_limit,
-        expires_at=timezone.now() + timedelta(days=_token_expiry_days(matched_tx)),
-    )
-
-    # Send WhatsApp confirmation
-    send_payment_success_whatsapp.delay(
-        phone_number=matched_tx.customer.whatsapp_number,
-        client_name=matched_tx.customer.user.first_name or matched_tx.customer.user.username,
-        package_name=matched_tx.package.name,
-        token_code=token_str,
-        days=_token_expiry_days(matched_tx)
-    )
+    client_name = matched_tx.customer.user.first_name or matched_tx.customer.user.username
+    token_str = _complete_transaction(matched_tx, client_name)
+    if token_str:
+        send_payment_success_whatsapp.delay(
+            phone_number=matched_tx.customer.whatsapp_number,
+            client_name=client_name,
+            package_name=matched_tx.package.name,
+            token_code=token_str,
+            days=_token_expiry_days(matched_tx)
+        )
 
     return JsonResponse({
         "success": True,
@@ -804,19 +945,19 @@ def paymob_checkout_view(request, transaction_id):
     auth_token = get_paymob_auth_token()
     if not auth_token:
         messages.error(request, "فشل الاتصال بـ Paymob (Auth Token Error).")
-        return redirect('payments:checkout', package_id=transaction.package.id)
-        
+        return redirect(_checkout_retry_url(transaction))
+
     paymob_order_id = register_paymob_order(auth_token, amount_cents, transaction.transaction_id)
     if not paymob_order_id:
         messages.error(request, "فشل تسجيل المعاملة في Paymob.")
-        return redirect('payments:checkout', package_id=transaction.package.id)
-        
+        return redirect(_checkout_retry_url(transaction))
+
     integration_id = getattr(settings, 'PAYMOB_CARD_INTEGRATION_ID', '5792603')
     payment_key = get_paymob_payment_key(auth_token, amount_cents, paymob_order_id, integration_id, request.user)
-    
+
     if not payment_key:
         messages.error(request, "فشل توليد مفتاح الدفع لـ Paymob.")
-        return redirect('payments:checkout', package_id=transaction.package.id)
+        return redirect(_checkout_retry_url(transaction))
         
     iframe_id = getattr(settings, 'PAYMOB_IFRAME_ID', '150')
     paymob_url = f"https://accept.paymob.com/api/acceptance/iframes/{iframe_id}?payment_token={payment_key}"
@@ -928,22 +1069,16 @@ def paymob_webhook_view(request):
                 verified_transaction_id=f"PAYMOB-{paymob_tx_id}",
             )
             if claimed:
-                token_str = str(uuid.uuid4())
-                WPConnectionToken.objects.create(
-                    token=token_str,
-                    customer=transaction.customer,
-                    client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                    package_daily_limit=transaction.package.daily_limit,
-                    expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
-                )
-
-                send_payment_success_whatsapp.delay(
-                    phone_number=transaction.customer.whatsapp_number,
-                    client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                    package_name=transaction.package.name,
-                    token_code=token_str,
-                    days=_token_expiry_days(transaction)
-                )
+                client_name = transaction.customer.user.first_name or transaction.customer.user.username
+                token_str = _complete_transaction(transaction, client_name)
+                if token_str:
+                    send_payment_success_whatsapp.delay(
+                        phone_number=transaction.customer.whatsapp_number,
+                        client_name=client_name,
+                        package_name=transaction.package.name,
+                        token_code=token_str,
+                        days=_token_expiry_days(transaction)
+                    )
         except Transaction.DoesNotExist:
             pass
     elif success is False and merchant_order_id:
@@ -956,7 +1091,7 @@ def paymob_webhook_view(request):
             send_payment_failed_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=transaction.customer.user.first_name or transaction.customer.user.username,
-                package_name=transaction.package.name
+                package_name=_product_name(transaction)
             )
         except Transaction.DoesNotExist:
             pass

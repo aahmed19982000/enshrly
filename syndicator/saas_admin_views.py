@@ -3,14 +3,11 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
-from django.utils import timezone
-from datetime import timedelta
 
 from accounts.models import CustomerProfile
 from payments.models import SubscriptionPackage, FacebookAddonPlan, Transaction
 from payments.tasks import send_payment_success_whatsapp
-from syndicator.models import WPConnectionToken
-import uuid
+from payments.views import _complete_transaction, _token_expiry_days
 
 class StaffRequiredMixin(UserPassesTestMixin):
     login_url = reverse_lazy('news_ai:staff_login')
@@ -116,21 +113,18 @@ class ConfirmTransactionView(StaffRequiredMixin, View):
         # avoids a double-click (or a race with an automated confirmation landing at
         # the same moment) from issuing two tokens for one transaction.
         claimed = Transaction.objects.filter(pk=transaction.pk, status='pending').update(status='completed')
-        if claimed:
-            days = SubscriptionPackage.BILLING_PERIOD_DAYS.get(transaction.billing_period, 30)
-            client_name = transaction.customer.user.first_name or transaction.customer.user.username
+        if not claimed:
+            messages.info(request, "هذه المعاملة مؤكدة بالفعل.")
+            return redirect('news_ai:saas_transactions')
 
-            # Issue token upon manual confirmation. Must be linked to the customer
-            # (previously wasn't) so it actually shows up on their dashboard.
-            token_str = str(uuid.uuid4())
-            WPConnectionToken.objects.create(
-                token=token_str,
-                customer=transaction.customer,
-                client_name=client_name,
-                package_daily_limit=transaction.package.daily_limit,
-                expires_at=timezone.now() + timedelta(days=days),
-            )
+        days = _token_expiry_days(transaction)
+        client_name = transaction.customer.user.first_name or transaction.customer.user.username
 
+        # Issue token (or activate the Facebook add-on) upon manual
+        # confirmation, same branching as the automated gateway paths.
+        token_str = _complete_transaction(transaction, client_name)
+
+        if token_str:
             send_payment_success_whatsapp.delay(
                 phone_number=transaction.customer.whatsapp_number,
                 client_name=client_name,
@@ -140,5 +134,5 @@ class ConfirmTransactionView(StaffRequiredMixin, View):
             )
             messages.success(request, f"تم تأكيد المعاملة بنجاح وإنشاء كود الربط للعميل {client_name}.")
         else:
-            messages.info(request, "هذه المعاملة مؤكدة بالفعل.")
+            messages.success(request, f"تم تأكيد المعاملة وتفعيل باقة فيسبوك للعميل {client_name}.")
         return redirect('news_ai:saas_transactions')

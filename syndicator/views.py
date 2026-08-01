@@ -944,7 +944,12 @@ def wp_connect_api_view(request):
                 
                 if 'wp_author_ids' in settings_data:
                     wp_site.wp_author_ids = settings_data['wp_author_ids']
-                
+
+                if token_obj.included_facebook_addon_plan:
+                    wp_site.facebook_addon_plan = token_obj.included_facebook_addon_plan
+                    wp_site.social_image_enabled = True
+                    wp_site.facebook_addon_trial_ends_at = token_obj.expires_at
+
                 wp_site.save()
                 
                 # Source Groups
@@ -982,6 +987,10 @@ def wp_connect_api_view(request):
             is_active=True,
             expires_at=token_obj.expires_at
         )
+        if token_obj.included_facebook_addon_plan:
+            wp_site.facebook_addon_plan = token_obj.included_facebook_addon_plan
+            wp_site.social_image_enabled = True
+            wp_site.facebook_addon_trial_ends_at = token_obj.expires_at
 
         # Apply settings
         wp_site.use_rich_formatting = bool(settings_data.get('use_rich_formatting', False))

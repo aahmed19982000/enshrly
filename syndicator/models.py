@@ -740,6 +740,11 @@ class WPConnectionToken(models.Model):
     )
     client_name = models.CharField(max_length=255, verbose_name="اسم العميل / الموقع", help_text="للعرض فقط (تسمية الكود)، وليس مصدر الملكية")
     package_daily_limit = models.PositiveIntegerField(default=3, verbose_name="الحد اليومي للباقة المشتراة")
+    included_facebook_addon_plan = models.ForeignKey(
+        'payments.FacebookAddonPlan', on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="باقة فيسبوك المُضمّنة مع الباقة المشتراة",
+        help_text="تُنسخ من SubscriptionPackage.included_facebook_addon_plan وقت الشراء - تُمنح تلقائياً للموقع عند ربطه بهذا الكود."
+    )
     is_used = models.BooleanField(default=False, verbose_name="تم الاستخدام؟")
     wp_site = models.ForeignKey(WordPressSite, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="الموقع المرتبط", help_text="سيتم ملؤه تلقائياً بعد نجاح الربط")
     expires_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ انتهاء صلاحية الكود")

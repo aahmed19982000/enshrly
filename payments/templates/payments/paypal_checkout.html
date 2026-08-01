@@ -6,10 +6,14 @@
     <div class="panel panel-accent">
         <span class="card-title">ملخص الطلب</span>
         <div style="display: flex; justify-content: space-between;">
-            <span style="font-weight: 700; color: var(--text);">{{ package.name }}</span>
+            <span style="font-weight: 700; color: var(--text);">{{ transaction.product_display_name }}</span>
             <span style="font-family: var(--font-display); font-weight: 700; color: var(--gold);">${{ transaction.amount }} USD</span>
         </div>
+        {% if transaction.product_type == 'facebook_addon' %}
+        <span style="color: var(--muted); font-size: 0.85rem;">لموقع: {{ transaction.wp_site.name }}</span>
+        {% else %}
         <span style="color: var(--muted); font-size: 0.85rem;">الحد اليومي للنشر: {{ package.daily_limit }} مقال</span>
+        {% endif %}
     </div>
 
     <div class="panel" style="align-items: center;">
@@ -39,7 +43,7 @@ paypal.Buttons({
                 amount: {
                     value: '{{ transaction.amount }}'
                 },
-                description: 'باقة نشر: {{ package.name }}'
+                description: '{{ transaction.product_display_name|escapejs }}'
             }]
         });
     },

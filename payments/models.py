@@ -160,9 +160,23 @@ class Transaction(models.Model):
         ('EGP', 'جنيه مصري (EGP)'),
     ]
 
+    PRODUCT_TYPE_CHOICES = [
+        ('package', 'باقة نشر'),
+        ('facebook_addon', 'باقة نشر فيسبوك'),
+    ]
+
     transaction_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     customer = models.ForeignKey(CustomerProfile, on_delete=models.SET_NULL, null=True, related_name='transactions')
-    package = models.ForeignKey(SubscriptionPackage, on_delete=models.SET_NULL, null=True)
+    product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES, default='package', verbose_name="نوع المنتج")
+    package = models.ForeignKey(SubscriptionPackage, on_delete=models.SET_NULL, null=True, blank=True)
+    facebook_addon_plan = models.ForeignKey(
+        'FacebookAddonPlan', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='transactions', verbose_name="باقة فيسبوك (لو نوع المنتج إضافة فيسبوك)"
+    )
+    wp_site = models.ForeignKey(
+        'syndicator.WordPressSite', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='facebook_addon_transactions', verbose_name="الموقع المستهدف (لباقات فيسبوك)"
+    )
     billing_period = models.CharField(
         max_length=12,
         choices=SubscriptionPackage.BILLING_PERIOD_CHOICES,
@@ -191,5 +205,14 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.transaction_id} - {self.amount} {self.currency} - {self.status}"
+
+    @property
+    def product_display_name(self):
+        """Name of whatever this transaction actually paid for, regardless of
+        product_type - for shared templates/notifications that used to
+        assume every Transaction had a `package`."""
+        if self.product_type == 'facebook_addon':
+            return self.facebook_addon_plan.name if self.facebook_addon_plan else 'باقة نشر فيسبوك'
+        return self.package.name if self.package else 'الباقة'
 
 

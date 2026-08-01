@@ -6,7 +6,7 @@
     <div class="panel panel-accent">
         <div style="display: flex; justify-content: space-between;">
             <span style="color: var(--muted); font-size: 0.9rem;">الباقة</span>
-            <span style="font-weight: 600; color: var(--text);">{{ transaction.package.name }}</span>
+            <span style="font-weight: 600; color: var(--text);">{{ transaction.product_display_name }}</span>
         </div>
         <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--rule);">
             <span style="color: var(--muted); font-size: 0.9rem;">المبلغ</span>
@@ -34,7 +34,11 @@
     </div>
 
     <div class="text-center">
+        {% if transaction.product_type == 'facebook_addon' %}
+        <a href="{% url 'accounts:facebook_dashboard' %}" style="color: var(--muted); font-size: 0.9rem;">إلغاء العملية والعودة للنشر على فيسبوك</a>
+        {% else %}
         <a href="{% url 'payments:packages' %}" style="color: var(--muted); font-size: 0.9rem;">إلغاء العملية والعودة للباقات</a>
+        {% endif %}
     </div>
 </div>
 

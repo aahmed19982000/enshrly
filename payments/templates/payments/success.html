@@ -1,6 +1,21 @@
 {% extends 'landing/base.html' %}
 {% block content %}
 <div class="page-shell-body" style="max-width: 520px; margin: 0 auto; padding: 3rem 1rem;">
+    {% if transaction.product_type == 'facebook_addon' %}
+    <div class="text-center">
+        <h1 style="margin-bottom: 0.5rem;">تم الدفع بنجاح</h1>
+        <span style="color: var(--moss); font-weight: 600;">تم تفعيل باقة "{{ transaction.facebook_addon_plan.name }}" لخدمة النشر على فيسبوك لموقع "{{ transaction.wp_site.name }}" — شكراً لثقتك بنا</span>
+    </div>
+
+    <div class="panel panel-accent">
+        <span class="card-title">تفاصيل الباقة</span>
+        <span style="color: var(--gold); font-size: 0.9rem;">
+            {% if transaction.facebook_addon_plan.monthly_articles_limit %}الحد الشهري: {{ transaction.facebook_addon_plan.monthly_articles_limit }} خبر{% else %}بدون حد شهري{% endif %}
+        </span>
+    </div>
+
+    <a href="{% url 'accounts:facebook_dashboard' %}" class="btn btn-primary btn-block btn-lg">الذهاب للوحة النشر على فيسبوك</a>
+    {% else %}
     <div class="text-center">
         <h1 style="margin-bottom: 0.5rem;">تم الدفع بنجاح</h1>
         <span style="color: var(--moss); font-weight: 600;">اشتراكك في باقة {{ transaction.package.name }} أصبح فعّالاً — شكراً لثقتك بنا</span>
@@ -38,5 +53,6 @@
     </div>
 
     <a href="{% url 'accounts:dashboard' %}" class="btn btn-primary btn-block btn-lg">الذهاب للوحة التحكم</a>
+    {% endif %}
 </div>
 {% endblock %}

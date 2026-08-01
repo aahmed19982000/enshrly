@@ -4,33 +4,75 @@
 
 {% block extra_css %}
 <style>
-    .fb-hero { text-align: center; padding: 4.5rem 1.5rem 3rem; }
-    .fb-hero .eyebrow { color: var(--gold); font-weight: 700; font-size: 0.9rem; margin-bottom: 0.75rem; display: block; }
+    .fb-hero { text-align: center; padding: 5rem 1.5rem 3.5rem; }
+    .fb-hero .eyebrow {
+        display: inline-block; color: var(--gold); font-weight: 700; font-size: 0.8rem;
+        letter-spacing: 0.02em; margin-bottom: 1rem; padding: 0.3rem 0.9rem;
+        border: 1px solid rgba(181, 101, 29, 0.3); border-radius: 999px; background: rgba(181, 101, 29, 0.06);
+    }
     .fb-hero h1 { font-size: var(--text-display-1); color: var(--text); font-weight: 700; line-height: var(--lh-tight); margin: 0 0 1.2rem; }
     .fb-hero h1 .accent { color: var(--gold); }
-    .fb-hero p { font-size: 1.1rem; color: var(--muted); max-width: 620px; margin: 0 auto 2rem; }
+    .fb-hero p { font-size: 1.1rem; color: var(--muted); max-width: 620px; margin: 0 auto 2.25rem; line-height: var(--lh-normal); }
 
-    .fb-preview-section { padding: 1rem 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
-    .fb-preview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; }
-    .fb-preview-card { background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); overflow: hidden; }
+    .fb-section-header { text-align: center; margin-bottom: 2.25rem; }
+    .fb-section-header h2 { font-size: 1.8rem; color: var(--text); margin: 0 0 0.5rem; }
+    .fb-section-header p { color: var(--muted); margin: 0; }
+
+    .fb-preview-section { padding: 1rem 1.5rem 4rem; max-width: 1040px; margin: 0 auto; }
+    .fb-preview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.5rem; }
+    .fb-preview-card {
+        background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md);
+        overflow: hidden; transition: transform 0.25s ease, box-shadow 0.25s ease; box-shadow: 0 1px 3px rgba(33, 28, 20, 0.08);
+    }
+    .fb-preview-card:hover { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(33, 28, 20, 0.16); }
+    .fb-preview-card .thumb-wrap { position: relative; }
     .fb-preview-card img { width: 100%; display: block; aspect-ratio: 4/5; object-fit: cover; }
-    .fb-preview-card .cap { padding: 0.9rem 1rem; color: var(--muted); font-size: 0.85rem; text-align: center; }
+    .fb-preview-card .cap {
+        padding: 0.9rem 1rem; color: var(--text); font-size: 0.88rem; font-weight: 600; text-align: center;
+        border-top: 3px solid var(--gold);
+    }
 
-    .fb-features { padding: 2rem 1.5rem; max-width: 1000px; margin: 0 auto; }
+    .fb-features { padding: 1rem 1.5rem 4rem; max-width: 1040px; margin: 0 auto; }
     .fb-features .grid-auto { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .fb-feature-card { background: var(--surface); border: 1px solid var(--rule-strong); border-top: 3px solid var(--gold); border-radius: var(--radius-md); padding: 1.5rem; }
+    .fb-feature-card {
+        background: var(--surface); border: 1px solid var(--rule-strong); border-top: 3px solid var(--gold);
+        border-radius: var(--radius-md); padding: 1.6rem; transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .fb-feature-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(33, 28, 20, 0.1); }
     .fb-feature-card .t { font-family: var(--font-display); font-weight: 700; color: var(--text); font-size: 1.05rem; margin: 0 0 0.5rem; }
     .fb-feature-card .d { color: var(--muted); font-size: 0.9rem; line-height: var(--lh-normal); }
 
-    .fb-pricing-section { padding: 3rem 1.5rem 5rem; max-width: 1100px; margin: 0 auto; }
-    .fb-pricing-header { text-align: center; margin-bottom: 2.5rem; }
-    .fb-pricing-header h2 { font-size: 2rem; color: var(--text); margin: 0 0 0.5rem; }
-    .fb-pricing-header p { color: var(--muted); margin: 0; }
+    .fb-pricing-section { padding: 1rem 1.5rem 5rem; max-width: 1100px; margin: 0 auto; }
+
+    /* Segmented period toggle — same sliding-highlight pill as the homepage pricing */
+    .period-toggle-wrap { display: flex; justify-content: center; margin-bottom: 2.5rem; }
+    .period-toggle {
+        position: relative; display: inline-flex; background: var(--surface);
+        border: 1px solid var(--rule-strong); border-radius: 999px; padding: 0.3rem; gap: 0.15rem;
+    }
+    .period-toggle .segment {
+        position: relative; z-index: 1; border: none; background: transparent; color: var(--muted);
+        font-family: var(--font-body); font-weight: 600; font-size: 0.88rem; padding: 0.6rem 1.2rem;
+        border-radius: 999px; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;
+        white-space: nowrap; transition: color 0.25s ease;
+    }
+    .period-toggle .segment.active { color: var(--text-on-gold); }
+    .period-toggle .segment .save-pill { background: rgba(255, 255, 255, 0.3); color: inherit; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; }
+    .period-toggle .segment:not(.active) .save-pill { background: rgba(181, 101, 29, 0.12); color: var(--gold); }
+    .period-toggle-highlight { position: absolute; top: 0.3rem; bottom: 0.3rem; border-radius: 999px; background: var(--gold); transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 0; }
+    @media (max-width: 640px) {
+        .period-toggle { flex-wrap: wrap; justify-content: center; background: transparent; border: none; padding: 0; }
+        .period-toggle-highlight { display: none; }
+        .period-toggle .segment { background: var(--surface); border: 1px solid var(--rule-strong); }
+        .period-toggle .segment.active { background: var(--gold); }
+    }
+
     .fb-pricing-grid { direction: ltr; }
     .fb-pricing-card {
         direction: rtl; position: relative; background: var(--surface);
         border: 1px solid rgba(33, 28, 20, 0.28); border-radius: var(--radius-md);
         padding: 2rem 1.75rem; display: flex; flex-direction: column; gap: 1.1rem;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
     }
     .fb-pricing-card.recommended { border: 2px solid var(--gold); box-shadow: 0 10px 30px rgba(181, 101, 29, 0.18); transform: scale(1.04); z-index: 1; }
     @media (max-width: 640px) { .fb-pricing-card.recommended { transform: none; } }
@@ -40,12 +82,21 @@
         padding: 0.3rem 1.1rem; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     .fb-pricing-card .plan-name { font-weight: 700; font-size: 1.15rem; color: var(--text); }
-    .fb-pricing-card .plan-price .amount { font-family: var(--font-display); font-size: 2.3rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
-    .fb-pricing-card .plan-price .sub { font-size: 0.88rem; color: var(--muted); }
+    .fb-pricing-card .plan-price { display: flex; flex-direction: column; gap: 0.15rem; }
+    .fb-pricing-card .plan-price .amount {
+        font-family: var(--font-display); font-size: 2.3rem; font-weight: 700; color: var(--gold);
+        white-space: nowrap; display: inline-block; transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .fb-pricing-card .plan-price .amount.is-updating { transform: scale(0.94); opacity: 0.5; }
+    .fb-pricing-card .plan-price .sub { font-size: 0.88rem; color: var(--muted); font-weight: normal; white-space: nowrap; }
+    .fb-pricing-card .discount-badge {
+        display: none; align-self: flex-start; background: rgba(181, 101, 29, 0.12); color: var(--gold);
+        font-size: 0.78rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px;
+    }
     .fb-pricing-card .limit-row { color: var(--rust); font-weight: 600; font-size: 0.9rem; padding: 0.55rem 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
-    .fb-pricing-card .btn { margin-top: auto; }
+    .fb-pricing-card .watermark-row { color: var(--muted); font-size: 0.85rem; }
 
-    .fb-cta-section { text-align: center; padding: 1rem 1.5rem 4rem; }
+    .fb-cta-section { text-align: center; padding: 1rem 1.5rem 4.5rem; }
 </style>
 {% endblock %}
 
@@ -64,21 +115,24 @@
 <div class="fb-preview-section">
     <div class="fb-preview-grid">
         <div class="fb-preview-card">
-            <img src="{% static 'images/marketing/fb_card_1.jpg' %}" alt="مثال تصميم إخباري احترافي">
+            <div class="thumb-wrap"><img src="{% static 'images/marketing/fb_card_1.jpg' %}" alt="مثال تصميم إخباري احترافي"></div>
             <div class="cap">قالب "إخباري احترافي"</div>
         </div>
         <div class="fb-preview-card">
-            <img src="{% static 'images/marketing/fb_card_2.jpg' %}" alt="مثال تصميم عاجل">
+            <div class="thumb-wrap"><img src="{% static 'images/marketing/fb_card_2.jpg' %}" alt="مثال تصميم عاجل"></div>
             <div class="cap">قالب "عاجل"</div>
         </div>
         <div class="fb-preview-card">
-            <img src="{% static 'images/marketing/fb_card_3.jpg' %}" alt="مثال قالب بطاقة مؤطرة">
+            <div class="thumb-wrap"><img src="{% static 'images/marketing/fb_card_3.jpg' %}" alt="مثال قالب بطاقة مؤطرة"></div>
             <div class="cap">قوالب إضافية بألوانك وشعارك</div>
         </div>
     </div>
 </div>
 
 <div class="fb-features">
+    <div class="fb-section-header">
+        <h2>ليه تعتمد عليها</h2>
+    </div>
     <div class="grid-auto">
         <div class="fb-feature-card">
             <div class="t">تصميم تلقائي بالكامل</div>
@@ -100,9 +154,28 @@
 </div>
 
 <div class="fb-pricing-section" id="pricing">
-    <div class="fb-pricing-header">
+    <div class="fb-section-header">
         <h2>باقات النشر على فيسبوك</h2>
         <p>اختر الباقة المناسبة لعدد الأخبار اللي عايز تنشرها شهرياً</p>
+    </div>
+
+    <div class="period-toggle-wrap">
+        <div class="period-toggle" id="fb-period-toggle">
+            <div class="period-toggle-highlight" id="fb-period-toggle-highlight"></div>
+            <button type="button" class="segment active" data-period="monthly" onclick="fbSelectPeriod('monthly', this)">شهري</button>
+            <button type="button" class="segment" data-period="quarterly" onclick="fbSelectPeriod('quarterly', this)">
+                ربع سنوي
+                {% if max_period_discount.quarterly > 0 %}<span class="save-pill">وفّر حتى {{ max_period_discount.quarterly }}%</span>{% endif %}
+            </button>
+            <button type="button" class="segment" data-period="semiannual" onclick="fbSelectPeriod('semiannual', this)">
+                نصف سنوي
+                {% if max_period_discount.semiannual > 0 %}<span class="save-pill">وفّر حتى {{ max_period_discount.semiannual }}%</span>{% endif %}
+            </button>
+            <button type="button" class="segment" data-period="annual" onclick="fbSelectPeriod('annual', this)">
+                سنوي
+                {% if max_period_discount.annual > 0 %}<span class="save-pill">وفّر حتى {{ max_period_discount.annual }}%</span>{% endif %}
+            </button>
+        </div>
     </div>
 
     <div class="grid-auto fb-pricing-grid">
@@ -111,12 +184,13 @@
                 {% if plan.is_recommended %}<span class="fb-recommended-badge">الأكثر شعبية</span>{% endif %}
                 <span class="plan-name">{{ plan.name }}</span>
                 <div class="plan-price">
-                    <span class="amount">${{ plan.price }}</span>
-                    <span class="sub">/ أو {{ plan.price_egp }} ج.م / شهرياً</span>
+                    <span class="amount" id="fb-amount-{{ plan.id }}">${{ plan.price }}</span>
+                    <span class="sub" id="fb-sub-{{ plan.id }}">/ أو {{ plan.price_egp }} ج.م / شهرياً</span>
+                    <span class="discount-badge" id="fb-discount-{{ plan.id }}"></span>
                 </div>
                 <div class="limit-row">{% if plan.monthly_articles_limit %}حتى {{ plan.monthly_articles_limit }} خبر شهرياً{% else %}بدون حد شهري{% endif %}</div>
                 {% if plan.show_watermark %}
-                    <div class="limit-row">تتضمن علامة "Sahafi Hub" على التصميم</div>
+                    <div class="watermark-row">تتضمن علامة "Sahafi Hub" على التصميم</div>
                 {% endif %}
             </div>
         {% empty %}
@@ -132,4 +206,55 @@
         <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-lg">سجّل الآن وفعّل الخدمة</a>
     {% endif %}
 </div>
+
+{{ period_prices|json_script:"fb-period-prices-data" }}
+<script>
+const FB_PERIOD_PRICES = JSON.parse(document.getElementById('fb-period-prices-data').textContent);
+const FB_PERIOD_LABELS = { monthly: 'شهرياً', quarterly: 'كل 3 أشهر', semiannual: 'كل 6 أشهر', annual: 'سنوياً' };
+
+function fbPositionToggleHighlight(activeBtn) {
+    const highlight = document.getElementById('fb-period-toggle-highlight');
+    const toggle = document.getElementById('fb-period-toggle');
+    if (!activeBtn || window.innerWidth <= 640) return;
+    const toggleRect = toggle.getBoundingClientRect();
+    const btnRect = activeBtn.getBoundingClientRect();
+    highlight.style.width = btnRect.width + 'px';
+    highlight.style.right = (toggleRect.right - btnRect.right) + 'px';
+}
+
+function fbSelectPeriod(period, btn) {
+    document.querySelectorAll('#fb-period-toggle .segment').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    fbPositionToggleHighlight(btn);
+
+    const label = FB_PERIOD_LABELS[period];
+    for (const planId in FB_PERIOD_PRICES) {
+        const priceInfo = FB_PERIOD_PRICES[planId][period];
+        if (!priceInfo) continue;
+
+        const amountEl = document.getElementById('fb-amount-' + planId);
+        amountEl.classList.add('is-updating');
+        setTimeout(() => {
+            amountEl.innerText = '$' + priceInfo.usd;
+            document.getElementById('fb-sub-' + planId).innerText = '/ أو ' + priceInfo.egp + ' ج.م / ' + label;
+            amountEl.classList.remove('is-updating');
+        }, 150);
+
+        const badge = document.getElementById('fb-discount-' + planId);
+        if (priceInfo.discount > 0) {
+            badge.style.display = 'inline-block';
+            badge.innerText = 'وفّر ' + priceInfo.discount + '%';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    fbPositionToggleHighlight(document.querySelector('#fb-period-toggle .segment.active'));
+});
+window.addEventListener('resize', () => {
+    fbPositionToggleHighlight(document.querySelector('#fb-period-toggle .segment.active'));
+});
+</script>
 {% endblock %}

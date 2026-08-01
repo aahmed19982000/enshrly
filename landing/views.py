@@ -22,7 +22,13 @@ def facebook_addon_view(request):
     plans = FacebookAddonPlan.objects.filter(is_active=True).order_by('price')
     period_prices = {plan.id: plan.all_period_prices() for plan in plans}
 
+    max_period_discount = {
+        period: max((prices[period]['discount'] for prices in period_prices.values()), default=0)
+        for period, _ in FacebookAddonPlan.BILLING_PERIOD_CHOICES
+    }
+
     return render(request, 'landing/facebook_addon.html', {
         'plans': plans,
         'period_prices': period_prices,
+        'max_period_discount': max_period_discount,
     })

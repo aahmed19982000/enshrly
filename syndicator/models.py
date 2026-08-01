@@ -49,8 +49,12 @@ class Category(MPTTModel):
         return self.name
 
     def get_absolute_url(self):
-        from django.urls import reverse
-        return reverse('news_ai:index', kwargs={'slug': self.slug})
+        # No public category-browsing page exists on this site (categories
+        # only organize AI-generated content pushed to customers' own
+        # external WordPress sites) - reversing 'news_ai:index' (the staff
+        # dashboard homepage, which takes no slug) always raised
+        # NoReverseMatch. Empty string until/unless a real page exists.
+        return ''
 
 class Article(models.Model):
     STATUS_CHOICES = (
@@ -187,8 +191,17 @@ class Article(models.Model):
         return self.title
 
     def get_absolute_url(self):
-        from django.urls import reverse
-        return reverse('news_ai:index', kwargs={'slug': self.slug})
+        """
+        This Article model represents AI-generated content pushed out to
+        customers' own external WordPress sites - it has no page of its own
+        on this site. reverse('news_ai:index', ...) always raised
+        NoReverseMatch (that view takes no slug) the moment anything tried
+        to render this (see ai_dashboard/index.html and logs_list.html's
+        "latest articles" links) - best-effort instead: link to wherever it
+        was actually last published live, or nothing if it never was.
+        """
+        log = self.ai_logs.filter(status='success').exclude(published_url__isnull=True).exclude(published_url='').order_by('-created_at').first()
+        return log.published_url if log else ''
 
     def get_cover_image_alt(self):
         return self.cover_image_alt or self.title

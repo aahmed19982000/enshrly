@@ -86,10 +86,15 @@
             </div>
         {% endfor %}
     </div>
+    {% elif pending_standalone_tokens %}
+        <div class="empty-state">
+            <span>عندك كود تفعيل جاهز لخدمة النشر على فيسبوك — اربطه بموقع ووردبريس لتبدأ.</span>
+            <a href="{% url 'accounts:dashboard' %}" class="btn btn-primary btn-sm">اربط الكود الآن</a>
+        </div>
     {% else %}
         <div class="empty-state">
             <span>لا يوجد لديك أي مواقع مربوطة بعد.</span>
-            <a href="{% url 'accounts:dashboard' %}">الرجوع للوحة التحكم</a>
+            <a href="{% url 'payments:facebook_addon_plans_standalone' %}" class="btn btn-primary btn-sm">اشترِ خدمة النشر على فيسبوك لوحدها</a>
         </div>
     {% endif %}
 </div>

@@ -43,7 +43,7 @@
 {% block content %}
 <div class="container" style="max-width: 1080px; padding: 3rem 1rem 5rem;">
     <div class="pricing-header">
-        <h2>باقات النشر على فيسبوك لموقع "{{ site.name }}"</h2>
+        <h2>{% if site %}باقات النشر على فيسبوك لموقع "{{ site.name }}"{% else %}باقات النشر على فيسبوك{% endif %}</h2>
         <p>اختر الباقة المناسبة لعدد الأخبار اللي عايز تنشرها على فيسبوك شهرياً</p>
     </div>
 
@@ -80,7 +80,11 @@
                 {% if plan.show_watermark %}
                     <div class="daily-limit-row">تتضمن علامة "Sahafi Hub" على التصميم</div>
                 {% endif %}
+                {% if site %}
                 <a href="{% url 'payments:facebook_addon_checkout' plan.id site.id %}" class="btn btn-primary btn-block" id="subscribe-{{ plan.id }}" data-base-href="{% url 'payments:facebook_addon_checkout' plan.id site.id %}">اشترك الآن</a>
+                {% else %}
+                <a href="{% url 'payments:facebook_addon_checkout_standalone' plan.id %}" class="btn btn-primary btn-block" id="subscribe-{{ plan.id }}" data-base-href="{% url 'payments:facebook_addon_checkout_standalone' plan.id %}">اشترك الآن</a>
+                {% endif %}
             </div>
         {% empty %}
             <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">لا توجد باقات متاحة حالياً.</p>

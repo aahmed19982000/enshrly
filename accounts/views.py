@@ -2,11 +2,28 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
 from django.contrib import messages
+from django.utils.http import url_has_allowed_host_and_scheme
 from .models import CustomerProfile, WhatsAppOTP, PasswordResetOTP
 from .utils import send_otp_email, send_whatsapp_welcome, get_client_ip, check_rate_limit
 from django.contrib.auth.decorators import login_required
 
+def _stash_post_auth_redirect(request):
+    """
+    Remembers a `?next=` target (e.g. a Facebook add-on standalone checkout
+    page) across the signup->OTP or login->OTP hops, so the customer lands
+    back where they meant to go instead of always at the generic dashboard.
+    Only overwrites the stashed value when `next` is actually present on
+    this request, so it survives the follow-up POST (which re-submits to a
+    bare URL with no query string) after being captured on the initial GET.
+    """
+    next_url = request.GET.get('next') or request.POST.get('next')
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        request.session['post_verify_redirect'] = next_url
+
 def signup_view(request):
+    _stash_post_auth_redirect(request)
     if request.method == 'POST':
         name = request.POST.get('name')
         whatsapp = request.POST.get('whatsapp')
@@ -66,6 +83,7 @@ def signup_view(request):
 
 @login_required
 def verify_otp_view(request):
+    _stash_post_auth_redirect(request)
     if not hasattr(request.user, 'customer_profile'):
         if request.user.is_staff:
             return redirect('payments:packages')
@@ -76,7 +94,7 @@ def verify_otp_view(request):
         profile = request.user.customer_profile
 
     if profile.is_whatsapp_verified:
-        return redirect('accounts:dashboard')
+        return redirect(request.session.pop('post_verify_redirect', None) or 'accounts:dashboard')
 
     if request.method == 'POST':
         # A 4-digit code is only 10,000 combinations — without this, it's
@@ -94,7 +112,7 @@ def verify_otp_view(request):
             profile.is_whatsapp_verified = True
             profile.save()
             messages.success(request, "تم تفعيل الحساب بنجاح!")
-            return redirect('accounts:dashboard')
+            return redirect(request.session.pop('post_verify_redirect', None) or 'accounts:dashboard')
         else:
             messages.error(request, "الكود غير صحيح أو منتهي الصلاحية.")
 
@@ -121,6 +139,7 @@ def resend_otp_view(request):
     return redirect('accounts:verify_otp')
 
 def login_view(request):
+    _stash_post_auth_redirect(request)
     if request.method == 'POST':
         whatsapp = request.POST.get('whatsapp')
         password = request.POST.get('password')
@@ -139,7 +158,7 @@ def login_view(request):
             profile = getattr(user, 'customer_profile', None)
             if profile and not profile.is_whatsapp_verified:
                 return redirect('accounts:verify_otp')
-            return redirect('accounts:dashboard')
+            return redirect(request.session.pop('post_verify_redirect', None) or 'accounts:dashboard')
         else:
             messages.error(request, "رقم الواتساب أو كلمة المرور غير صحيحة.")
 
@@ -311,7 +330,19 @@ def facebook_dashboard_view(request):
             'posts': SocialSharePost.objects.filter(wp_site=site).order_by('-created_at')[:20],
         })
 
-    return render(request, 'accounts/facebook_dashboard.html', {'sites_data': sites_data})
+    # Standalone Facebook-addon tokens (package_daily_limit=0 marks them as
+    # such - see payments/views.py::_complete_transaction) bought but not
+    # linked to a site yet, so the empty state can point the customer at
+    # "go connect it" instead of "go buy a package" when one exists.
+    pending_standalone_tokens = WPConnectionToken.objects.filter(
+        customer=profile, is_used=False, package_daily_limit=0,
+        included_facebook_addon_plan__isnull=False,
+    )
+
+    return render(request, 'accounts/facebook_dashboard.html', {
+        'sites_data': sites_data,
+        'pending_standalone_tokens': pending_standalone_tokens,
+    })
 
 
 @login_required

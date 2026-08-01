@@ -110,7 +110,8 @@
     {% if user.is_authenticated %}
         <a href="{% url 'accounts:facebook_dashboard' %}" class="btn btn-primary btn-lg">فعّل الخدمة الآن</a>
     {% else %}
-        <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-lg">ابدأ تجربتك الآن</a>
+        {% url 'payments:facebook_addon_plans_standalone' as fb_standalone_plans_url %}
+        <a href="{% url 'accounts:signup' %}?next={{ fb_standalone_plans_url|urlencode }}" class="btn btn-primary btn-lg">ابدأ تجربتك الآن</a>
     {% endif %}
 </div>
 
@@ -205,7 +206,8 @@
     {% if user.is_authenticated %}
         <a href="{% url 'accounts:facebook_dashboard' %}" class="btn btn-primary btn-lg">إدارة النشر على فيسبوك لموقعك</a>
     {% else %}
-        <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-lg">سجّل الآن وفعّل الخدمة</a>
+        {% url 'payments:facebook_addon_plans_standalone' as fb_standalone_plans_url %}
+        <a href="{% url 'accounts:signup' %}?next={{ fb_standalone_plans_url|urlencode }}" class="btn btn-primary btn-lg">سجّل الآن وفعّل الخدمة</a>
     {% endif %}
 </div>
 

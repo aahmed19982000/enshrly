@@ -1,7 +1,7 @@
 {% extends 'landing/base.html' %}
 {% block content %}
 <div class="page-shell-body" style="max-width: 520px; margin: 0 auto; padding: 3rem 1rem;">
-    {% if transaction.product_type == 'facebook_addon' %}
+    {% if transaction.product_type == 'facebook_addon' and transaction.wp_site %}
     <div class="text-center">
         <h1 style="margin-bottom: 0.5rem;">تم الدفع بنجاح</h1>
         <span style="color: var(--moss); font-weight: 600;">تم تفعيل باقة "{{ transaction.facebook_addon_plan.name }}" لخدمة النشر على فيسبوك لموقع "{{ transaction.wp_site.name }}" — شكراً لثقتك بنا</span>
@@ -15,6 +15,40 @@
     </div>
 
     <a href="{% url 'accounts:facebook_dashboard' %}" class="btn btn-primary btn-block btn-lg">الذهاب للوحة النشر على فيسبوك</a>
+    {% elif transaction.product_type == 'facebook_addon' %}
+    <div class="text-center">
+        <h1 style="margin-bottom: 0.5rem;">تم الدفع بنجاح</h1>
+        <span style="color: var(--moss); font-weight: 600;">تم تفعيل باقة "{{ transaction.facebook_addon_plan.name }}" لخدمة النشر على فيسبوك — شكراً لثقتك بنا</span>
+    </div>
+
+    <div class="panel panel-accent">
+        <span class="card-title">كود التفعيل</span>
+        {% for token in tokens %}
+            <div class="mono-block mono-block-lg">{{ token.token }}</div>
+            <span style="color: var(--gold); font-size: 0.9rem;">اربط الكود بموقع ووردبريس واحد لتفعيل النشر على فيسبوك عليه</span>
+        {% endfor %}
+    </div>
+
+    <div class="panel" style="gap: 1.25rem;">
+        <div class="step-number">
+            <span class="n">١</span>
+            <div><div class="t">حمّل إضافة الووردبريس</div><div class="d">ملف ZIP جاهز للرفع على موقعك.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٢</span>
+            <div><div class="t">ثبّت الإضافة</div><div class="d">من لوحة ووردبريس: الإضافات ← إضافة جديدة ← رفع.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٣</span>
+            <div><div class="t">أدخل كود التفعيل</div><div class="d">الصق الكود أعلاه في إعدادات الإضافة.</div></div>
+        </div>
+        <div class="step-number">
+            <span class="n">٤</span>
+            <div><div class="t">اربط صفحة فيسبوك</div><div class="d">بعد الربط، من لوحة النشر على فيسبوك، اربط صفحتكم لبدء النشر التلقائي.</div></div>
+        </div>
+    </div>
+
+    <a href="{% url 'accounts:dashboard' %}" class="btn btn-primary btn-block btn-lg">الذهاب للوحة التحكم</a>
     {% else %}
     <div class="text-center">
         <h1 style="margin-bottom: 0.5rem;">تم الدفع بنجاح</h1>

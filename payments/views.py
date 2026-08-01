@@ -31,8 +31,12 @@ def _product_name(transaction):
 def _checkout_retry_url(transaction):
     """رابط صفحة الدفع المناسبة للمحاولة مجدداً - يختلف باختلاف نوع المنتج."""
     if transaction.product_type == 'facebook_addon':
-        return reverse('payments:facebook_addon_checkout', kwargs={
-            'plan_id': transaction.facebook_addon_plan_id, 'wp_site_id': transaction.wp_site_id,
+        if transaction.wp_site_id:
+            return reverse('payments:facebook_addon_checkout', kwargs={
+                'plan_id': transaction.facebook_addon_plan_id, 'wp_site_id': transaction.wp_site_id,
+            })
+        return reverse('payments:facebook_addon_checkout_standalone', kwargs={
+            'plan_id': transaction.facebook_addon_plan_id,
         })
     return reverse('payments:checkout', kwargs={'package_id': transaction.package_id})
 
@@ -60,13 +64,30 @@ def _complete_transaction(transaction, client_name):
     """
     منطق "ماذا يحدث عند وصول الدفعة" المشترك، يُستدعى من كل مسار تأكيد بوابة
     دفع بعد أن يستحوذ (atomically) على حالة pending->completed. لباقات
-    النشر: يُصدر WPConnectionToken (يُستبدل لاحقاً بموقع). لإضافة فيسبوك:
-    يُفعَّل مباشرة على الموقع المستهدف الموجود بالفعل. يُرجع token الربط
-    (أو None لإضافة فيسبوك) ليقرر المستدعي هل يرسل رسالة واتساب بالكود.
+    النشر: يُصدر WPConnectionToken (يُستبدل لاحقاً بموقع). لإضافة فيسبوك على
+    موقع موجود بالفعل: يُفعَّل مباشرة على ذلك الموقع. لإضافة فيسبوك مشتراة
+    لوحدها (standalone، بدون موقع بعد): يُصدر WPConnectionToken بنفس نمط
+    باقة النشر لكن بحد نشر يومي صفر (package_daily_limit=0) - العميل
+    يربطها بأي موقع لاحقاً عبر نفس تدفق الربط المعتاد، والإضافة تُمنح
+    تلقائياً وقتها (انظر included_facebook_addon_plan في wp_connect_api_view).
+    يُرجع token الربط (أو None لترقية موقع موجود) ليقرر المستدعي هل يرسل
+    رسالة واتساب بالكود.
     """
     if transaction.product_type == 'facebook_addon':
-        _activate_facebook_addon(transaction)
-        return None
+        if transaction.wp_site_id:
+            _activate_facebook_addon(transaction)
+            return None
+
+        token_str = str(uuid.uuid4())
+        WPConnectionToken.objects.create(
+            token=token_str,
+            customer=transaction.customer,
+            client_name=f"{client_name} - إضافة فيسبوك فقط",
+            package_daily_limit=0,
+            included_facebook_addon_plan=transaction.facebook_addon_plan,
+            expires_at=timezone.now() + timedelta(days=_token_expiry_days(transaction)),
+        )
+        return token_str
 
     token_str = str(uuid.uuid4())
     WPConnectionToken.objects.create(
@@ -261,16 +282,20 @@ def checkout_view(request, package_id):
     })
 
 @login_required
-def facebook_addon_plans_view(request, wp_site_id):
-    """Customer-facing plan picker for one of their sites - lists active
-    FacebookAddonPlan rows (mirrors packages_view) and links each to
-    facebook_addon_checkout_view for that plan+site pair."""
+def facebook_addon_plans_view(request, wp_site_id=None):
+    """Customer-facing plan picker - lists active FacebookAddonPlan rows
+    (mirrors packages_view). When wp_site_id is given, links each plan to
+    facebook_addon_checkout_view for that plan+site pair (upgrading an
+    already-connected site); when it's None, links to the standalone
+    checkout instead (no site owned yet - purchase-first flow)."""
     profile = getattr(request.user, 'customer_profile', None)
-    from syndicator.models import WordPressSite
-    owned_site_ids = WPConnectionToken.objects.filter(
-        customer=profile, is_used=True, wp_site__isnull=False
-    ).values_list('wp_site_id', flat=True)
-    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+    site = None
+    if wp_site_id is not None:
+        from syndicator.models import WordPressSite
+        owned_site_ids = WPConnectionToken.objects.filter(
+            customer=profile, is_used=True, wp_site__isnull=False
+        ).values_list('wp_site_id', flat=True)
+        site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
 
     plans = FacebookAddonPlan.objects.filter(is_active=True).order_by('price')
     period_prices = {plan.id: plan.all_period_prices() for plan in plans}
@@ -283,25 +308,32 @@ def facebook_addon_plans_view(request, wp_site_id):
 
 
 @login_required
-def facebook_addon_checkout_view(request, plan_id, wp_site_id):
+def facebook_addon_checkout_view(request, plan_id, wp_site_id=None):
     """
-    Customer self-serve checkout for a standalone Facebook add-on plan on
-    one of their own (already-provisioned) sites - mirrors checkout_view
-    but targets a FacebookAddonPlan + WordPressSite instead of a
+    Customer self-serve checkout for a Facebook add-on plan - mirrors
+    checkout_view but targets a FacebookAddonPlan instead of a
     SubscriptionPackage, sharing the same gateway branching downstream.
+    When wp_site_id is given, this upgrades one of the customer's own
+    (already-provisioned) sites. When it's None, this is a standalone
+    purchase with no site yet - completion issues a WPConnectionToken
+    (see _complete_transaction) that grants the Facebook add-on the first
+    time the customer connects any site with it, same as a package purchase.
     """
     profile = getattr(request.user, 'customer_profile', None)
     if not profile or not profile.is_whatsapp_verified:
         messages.error(request, "يجب تفعيل حسابك أولاً.")
+        request.session['post_verify_redirect'] = request.get_full_path()
         return redirect('accounts:verify_otp')
 
     plan = get_object_or_404(FacebookAddonPlan, id=plan_id, is_active=True)
 
-    from syndicator.models import WordPressSite
-    owned_site_ids = WPConnectionToken.objects.filter(
-        customer=profile, is_used=True, wp_site__isnull=False
-    ).values_list('wp_site_id', flat=True)
-    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+    site = None
+    if wp_site_id is not None:
+        from syndicator.models import WordPressSite
+        owned_site_ids = WPConnectionToken.objects.filter(
+            customer=profile, is_used=True, wp_site__isnull=False
+        ).values_list('wp_site_id', flat=True)
+        site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
 
     from syndicator.models import AISettings
     ai_settings = AISettings.get_settings()
@@ -320,7 +352,9 @@ def facebook_addon_checkout_view(request, plan_id, wp_site_id):
 
         if gateway not in dict(Transaction.GATEWAY_CHOICES) or not enabled_gateways.get(gateway):
             messages.error(request, "يرجى اختيار بوابة دفع صحيحة.")
-            return redirect('payments:facebook_addon_checkout', plan_id=plan.id, wp_site_id=site.id)
+            if site:
+                return redirect('payments:facebook_addon_checkout', plan_id=plan.id, wp_site_id=site.id)
+            return redirect('payments:facebook_addon_checkout_standalone', plan_id=plan.id)
 
         if currency not in ['USD', 'EGP']:
             currency = 'USD'
@@ -487,7 +521,7 @@ def confirm_paypal_payment(request):
                 send_payment_success_whatsapp.delay(
                     phone_number=transaction.customer.whatsapp_number,
                     client_name=client_name,
-                    package_name=transaction.package.name,
+                    package_name=_product_name(transaction),
                     token_code=token_str,
                     days=_token_expiry_days(transaction)
                 )
@@ -664,7 +698,7 @@ def mobile_post_transaction(request):
         send_payment_success_whatsapp.delay(
             phone_number=matched_tx.customer.whatsapp_number,
             client_name=client_name,
-            package_name=matched_tx.package.name,
+            package_name=_product_name(matched_tx),
             token_code=token_str,
             days=_token_expiry_days(matched_tx)
         )
@@ -694,7 +728,7 @@ def payment_success_view(request, transaction_id):
                 send_payment_success_whatsapp.delay(
                     phone_number=transaction.customer.whatsapp_number,
                     client_name=client_name,
-                    package_name=transaction.package.name,
+                    package_name=_product_name(transaction),
                     token_code=token_str,
                     days=_token_expiry_days(transaction)
                 )
@@ -859,7 +893,7 @@ def confirm_payment_api(request):
         send_payment_success_whatsapp.delay(
             phone_number=matched_tx.customer.whatsapp_number,
             client_name=client_name,
-            package_name=matched_tx.package.name,
+            package_name=_product_name(matched_tx),
             token_code=token_str,
             days=_token_expiry_days(matched_tx)
         )
@@ -1075,7 +1109,7 @@ def paymob_webhook_view(request):
                     send_payment_success_whatsapp.delay(
                         phone_number=transaction.customer.whatsapp_number,
                         client_name=client_name,
-                        package_name=transaction.package.name,
+                        package_name=_product_name(transaction),
                         token_code=token_str,
                         days=_token_expiry_days(transaction)
                     )

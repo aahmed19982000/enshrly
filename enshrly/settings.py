@@ -134,6 +134,21 @@ STATICFILES_DIRS = [
 ]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# Content-hashed static filenames (style.a1b2c3.css) so a deploy that changes
+# a CSS/JS file is picked up immediately instead of waiting out whatever
+# cache lifetime the front-end web server sets for /static/ - the mobile nav
+# fix silently failing to show up after a full deploy (server confirmed
+# up to date) was exactly this: browsers kept serving their previously
+# cached copy of the old enshrly.css because the URL never changed.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage",
+    },
+}
+
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 

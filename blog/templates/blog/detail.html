@@ -1,0 +1,38 @@
+{% extends 'landing/base.html' %}
+{% load static %}
+{% block title %}{{ post.title }} — مدونة Sahafi Hub{% endblock %}
+{% block meta_description %}{{ post.excerpt }}{% endblock %}
+{% block og_description %}{{ post.excerpt }}{% endblock %}
+{% block og_title %}{{ post.title }}{% endblock %}
+{% block og_image %}{% if post.cover_image %}https://{{ request.get_host }}{{ post.cover_image.url }}{% else %}{{ block.super }}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .blog-post-cover { max-width: 900px; margin: 0 auto; padding: 2.5rem 1.5rem 0; }
+    .blog-post-cover img { width: 100%; border-radius: var(--radius-md); aspect-ratio: 16/9; object-fit: cover; display: block; }
+    .content-page .blog-meta { color: var(--gold); font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .content-page .blog-body img { max-width: 100%; height: auto; border-radius: var(--radius-md); }
+    .content-page .blog-body { line-height: var(--lh-normal); }
+    .blog-back { max-width: 720px; margin: 0 auto; padding: 0 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if post.cover_image %}
+<div class="blog-post-cover">
+    <img src="{{ post.cover_image.url }}" alt="{{ post.title }}">
+</div>
+{% endif %}
+
+<div class="content-page">
+    <div class="content-page-inner">
+        <span class="blog-meta">{{ post.published_at|date:"j F Y" }}</span>
+        <h1>{{ post.title }}</h1>
+        <div class="blog-body">{{ post.body|safe }}</div>
+    </div>
+</div>
+
+<div class="blog-back">
+    <a href="{% url 'blog:list' %}" style="color: var(--muted);">&rarr; كل مقالات المدونة</a>
+</div>
+{% endblock %}

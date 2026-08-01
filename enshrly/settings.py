@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sitemaps',
     # Third-Party
     'mptt',
     'rest_framework',
@@ -66,6 +67,8 @@ INSTALLED_APPS = [
     'payments',
     'landing',
     'pages',
+    'blog',
+    'faq',
 ]
 
 MIDDLEWARE = [

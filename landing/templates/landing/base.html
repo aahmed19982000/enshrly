@@ -5,6 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Sahafi Hub — نشر أخبار السوق باسمك{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Sahafi Hub — صحفي مقيم في موقعك: يكتب وينشر أخبار السوق باسمك تلقائياً على ووردبريس، مع نشر تلقائي على فيسبوك.{% endblock %}">
+    <link rel="canonical" href="{% block canonical_url %}https://{{ request.get_host }}{{ request.path }}{% endblock %}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Sahafi Hub">
+    <meta property="og:title" content="{% block og_title %}Sahafi Hub — نشر أخبار السوق باسمك{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}صحفي مقيم في موقعك: يكتب وينشر أخبار السوق باسمك تلقائياً على ووردبريس، مع نشر تلقائي على فيسبوك.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}https://{{ request.get_host }}{% static 'images/logo.png' %}{% endblock %}">
+    <meta property="og:url" content="https://{{ request.get_host }}{{ request.path }}">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32.png' %}">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon-16.png' %}">
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'images/favicon-180.png' %}">
@@ -33,6 +42,7 @@
             </form>
         {% else %}
             <a href="{% url 'landing:facebook_addon' %}">النشر على فيسبوك</a>
+            <a href="{% url 'blog:list' %}">المدونة</a>
             <a href="{% url 'accounts:login' %}">تسجيل الدخول</a>
             <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-sm">ابدأ مجاناً</a>
         {% endif %}
@@ -62,6 +72,8 @@
                 <a href="{% url 'pages:about' %}">من نحن</a>
                 <a href="{% url 'payments:packages' %}">الباقات</a>
                 <a href="{% url 'landing:facebook_addon' %}">النشر على فيسبوك</a>
+                <a href="{% url 'blog:list' %}">المدونة</a>
+                <a href="{% url 'faq:list' %}">الأسئلة الشائعة</a>
                 <a href="{% url 'pages:contact' %}">تواصل معنا</a>
             </div>
             <div class="footer-col">

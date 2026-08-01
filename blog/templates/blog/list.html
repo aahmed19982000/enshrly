@@ -1,0 +1,65 @@
+{% extends 'landing/base.html' %}
+{% load static %}
+{% block title %}المدونة — Sahafi Hub{% endblock %}
+{% block meta_description %}مقالات عن النشر الآلي بالذكاء الاصطناعي، النشر التلقائي على فيسبوك، وإدارة موقع إخباري باحترافية مع Sahafi Hub.{% endblock %}
+
+{% block extra_css %}
+<style>
+    .blog-header { text-align: center; padding: 4rem 1.5rem 2.5rem; }
+    .blog-header h1 { font-size: var(--text-h1); color: var(--text); margin: 0 0 0.5rem; }
+    .blog-header p { color: var(--muted); margin: 0; }
+    .blog-grid-section { padding: 1rem 1.5rem 5rem; max-width: 1100px; margin: 0 auto; }
+    .blog-card {
+        background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md);
+        overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .blog-card:hover { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(33, 28, 20, 0.14); }
+    .blog-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+    .blog-card .body { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+    .blog-card .date { color: var(--gold); font-size: 0.8rem; font-weight: 600; }
+    .blog-card h2 { font-size: 1.15rem; color: var(--text); margin: 0; line-height: var(--lh-tight); }
+    .blog-card p { color: var(--muted); font-size: 0.9rem; margin: 0; line-height: var(--lh-normal); flex: 1; }
+    .blog-card a.card-link { color: inherit; text-decoration: none; display: flex; flex-direction: column; height: 100%; }
+    .pagination { display: flex; justify-content: center; gap: 0.75rem; margin-top: 2.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="blog-header">
+    <h1>مدونة Sahafi Hub</h1>
+    <p>مقالات عن النشر الآلي، الذكاء الاصطناعي في الصحافة، والنشر على فيسبوك.</p>
+</div>
+
+<div class="blog-grid-section">
+    <div class="grid-auto">
+        {% for post in posts %}
+            <div class="blog-card">
+                <a href="{% url 'blog:detail' post.slug %}" class="card-link">
+                    {% if post.cover_image %}
+                        <img src="{{ post.cover_image.url }}" alt="{{ post.title }}">
+                    {% endif %}
+                    <div class="body">
+                        <span class="date">{{ post.published_at|date:"j F Y" }}</span>
+                        <h2>{{ post.title }}</h2>
+                        <p>{{ post.excerpt }}</p>
+                    </div>
+                </a>
+            </div>
+        {% empty %}
+            <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">لا توجد مقالات منشورة بعد.</p>
+        {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary btn-sm">السابق</a>
+        {% endif %}
+        <span style="color: var(--muted); align-self: center;">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary btn-sm">التالي</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

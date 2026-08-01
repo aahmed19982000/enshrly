@@ -1,0 +1,49 @@
+{% extends 'landing/base.html' %}
+{% block title %}الأسئلة الشائعة — Sahafi Hub{% endblock %}
+{% block meta_description %}إجابات على أكثر الأسئلة شيوعاً حول Sahafi Hub — كيف يعمل النشر الآلي، الباقات والأسعار، النشر على فيسبوك، والدفع.{% endblock %}
+
+{% block extra_css %}
+<style>
+    .faq-header { text-align: center; padding: 4rem 1.5rem 2.5rem; }
+    .faq-header h1 { font-size: var(--text-h1); color: var(--text); margin: 0 0 0.5rem; }
+    .faq-header p { color: var(--muted); margin: 0; }
+    .faq-section { max-width: 800px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+    .faq-category { margin-bottom: 2.5rem; }
+    .faq-category h2 { font-size: 1.2rem; color: var(--gold); margin: 0 0 1rem; }
+    .faq-item {
+        background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md);
+        margin-bottom: 0.75rem; overflow: hidden;
+    }
+    .faq-item summary {
+        cursor: pointer; padding: 1rem 1.25rem; font-weight: 600; color: var(--text);
+        list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: '+'; color: var(--gold); font-size: 1.3rem; font-weight: 400; flex-shrink: 0; transition: transform 0.2s ease; }
+    .faq-item[open] summary::after { transform: rotate(45deg); }
+    .faq-item .answer { padding: 0 1.25rem 1.1rem; color: var(--muted); line-height: var(--lh-normal); font-size: 0.95rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="faq-header">
+    <h1>الأسئلة الشائعة</h1>
+    <p>كل حاجة محتاج تعرفها عن Sahafi Hub — لو محتاج تفاصيل أكتر، <a href="{% url 'pages:contact' %}">تواصل معنا</a>.</p>
+</div>
+
+<div class="faq-section">
+    {% for category in categories %}
+        <div class="faq-category">
+            <h2>{{ category.name }}</h2>
+            {% for item in category.items.all %}
+                <details class="faq-item">
+                    <summary>{{ item.question }}</summary>
+                    <div class="answer">{{ item.answer|linebreaks }}</div>
+                </details>
+            {% endfor %}
+        </div>
+    {% empty %}
+        <p class="text-center" style="color: var(--muted);">لا توجد أسئلة مضافة بعد.</p>
+    {% endfor %}
+</div>
+{% endblock %}

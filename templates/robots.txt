@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /ai-dashboard/
+Disallow: /auth/
+Disallow: /payments/checkout/
+Disallow: /payments/api/
+Disallow: /api/
+Allow: /
+
+Sitemap: https://{{ request.get_host }}/sitemap.xml

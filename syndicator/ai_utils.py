@@ -1437,6 +1437,43 @@ def mark_slot_run(slot, content_type):
     slot.set_last_run_date_for_type(content_type, timezone.now().astimezone(CAIRO_TZ).date())
 
 
+def _slot_configures_regular_news(slot):
+    """
+    True if this slot schedules regular (RSS/source-group) news, as opposed
+    to only price-article types (gold, silver, ...). The WordPress plugin's
+    own schedule UI never sends the literal string 'regular' - it sends one
+    'group_<source_group_id>' token per مجموعة مصادر مفضلة the customer
+    picked for that time slot (see enshrly-connector.php's
+    getDynamicContentTypes/updateContentTypesInSchedules). 'regular' is kept
+    for backward compatibility with any data written before this existed.
+    """
+    types = slot.get_content_types_list()
+    return 'regular' in types or any(t.startswith('group_') for t in types)
+
+
+def get_due_slot_for_regular_news(wp_site, tolerance_minutes=SLOT_TOLERANCE_MINUTES):
+    """
+    Same matching/dedup logic as get_due_slot, but for regular news: a slot
+    qualifies if _slot_configures_regular_news(slot) is true, rather than by
+    exact string match against a fixed content_type - see that function's
+    docstring for why an exact match against 'regular' never fires in
+    practice. Bookkeeping (get/set_last_run_date_for_type) still uses the
+    literal 'regular' key regardless of which group tokens triggered it -
+    it's just an internal dedup key, not something matched against plugin data.
+    """
+    now_cairo = timezone.now().astimezone(CAIRO_TZ)
+    today_cairo = now_cairo.date().isoformat()
+    for slot in wp_site.schedule_slots.filter(is_active=True):
+        if not _slot_configures_regular_news(slot):
+            continue
+        if slot.get_last_run_date_for_type('regular') == today_cairo:
+            continue
+        slot_dt = now_cairo.replace(hour=slot.time_of_day.hour, minute=slot.time_of_day.minute, second=0, microsecond=0)
+        if abs((now_cairo - slot_dt).total_seconds()) <= tolerance_minutes * 60:
+            return slot
+    return None
+
+
 def get_regular_news_run_cap(wp_site, force=False):
     """
     Returns (cap, due_slot) for how many regular RSS/Trends articles this site
@@ -1455,7 +1492,7 @@ def get_regular_news_run_cap(wp_site, force=False):
         return wp_site.articles_per_run, None
     if not wp_site.schedule_slots.filter(is_active=True).exists():
         return wp_site.articles_per_run, None
-    due_slot = get_due_slot(wp_site, 'regular')
+    due_slot = get_due_slot_for_regular_news(wp_site)
     if due_slot:
         return due_slot.regular_news_count, due_slot
     return 0, None

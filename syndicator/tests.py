@@ -12,7 +12,10 @@ from .ai_utils import (
     _find_duplicate_recent_article_for_site, fetch_news_items_from_source, get_today_total_cost,
     hold_article_pending_image, finish_pending_image_publish, _process_cover_image_bytes,
 )
-from .models import AIImportLog, AISettings, AISource, AISourceGroup, Article, WordPressSite, WPConnectionToken
+from .models import (
+    AIImportLog, AISettings, AISource, AISourceGroup, Article, WordPressSite, WordPressScheduleSlot,
+    WPConnectionToken,
+)
 
 
 def _fake_jpeg_bytes(size=(600, 400), color=(200, 50, 50)):
@@ -502,6 +505,112 @@ class SourceGroupMembershipGenerationTests(TestCase):
             run_ai_generation_cycle()
 
         mock_generate.assert_not_called()
+
+
+class ScheduleSlotGroupTokenTests(TestCase):
+    """
+    The WordPress plugin's own "جدولة النشر" schedule UI saves one
+    'group_<source_group_id>' token per مجموعة مصادر مفضلة selected for a
+    time slot (see enshrly-connector.php) - it never sends the literal
+    string 'regular'. get_regular_news_run_cap used to look for exactly
+    'regular', so any site with schedule slots configured (effectively any
+    self-serve customer who used the plugin's own scheduling screen) never
+    received regular news on schedule: the cap was always 0. Regression
+    tests for get_due_slot_for_regular_news recognizing group_<id> tokens.
+    """
+    def _cairo_now_time(self):
+        from .ai_utils import CAIRO_TZ
+        return timezone.now().astimezone(CAIRO_TZ).time().replace(second=0, microsecond=0)
+
+    def test_slot_with_group_token_due_now_yields_its_configured_cap(self):
+        from .ai_utils import get_regular_news_run_cap
+
+        group = AISourceGroup.objects.create(name='مجموعة جدولة تجريبية')
+        site = WordPressSite.objects.create(
+            name='Scheduled Site', url='https://scheduled.example', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True,
+        )
+        site.source_groups.add(group)
+        WordPressScheduleSlot.objects.create(
+            wp_site=site, time_of_day=self._cairo_now_time(),
+            content_types=f'group_{group.id}', regular_news_count=7, is_active=True,
+        )
+
+        cap, due_slot = get_regular_news_run_cap(site)
+        self.assertEqual(cap, 7)
+        self.assertIsNotNone(due_slot)
+
+    def test_slot_with_only_price_types_is_not_a_regular_news_slot(self):
+        from .ai_utils import get_regular_news_run_cap
+
+        site = WordPressSite.objects.create(
+            name='Price Only Site', url='https://priceonly.example', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True,
+        )
+        WordPressScheduleSlot.objects.create(
+            wp_site=site, time_of_day=self._cairo_now_time(),
+            content_types='gold,silver', regular_news_count=5, is_active=True,
+        )
+
+        cap, due_slot = get_regular_news_run_cap(site)
+        self.assertEqual(cap, 0)
+        self.assertIsNone(due_slot)
+
+    def test_slot_with_group_token_not_due_yet_yields_zero(self):
+        from .ai_utils import get_regular_news_run_cap
+        from datetime import time as dt_time
+
+        group = AISourceGroup.objects.create(name='مجموعة جدولة تجريبية 2')
+        site = WordPressSite.objects.create(
+            name='Not Due Site', url='https://notdue.example', username='u', application_password='p',
+            daily_limit=50, articles_per_run=50, is_active=True,
+        )
+        site.source_groups.add(group)
+        now_cairo = self._cairo_now_time()
+        far_hour = (now_cairo.hour + 6) % 24
+        WordPressScheduleSlot.objects.create(
+            wp_site=site, time_of_day=dt_time(hour=far_hour, minute=now_cairo.minute),
+            content_types=f'group_{group.id}', regular_news_count=7, is_active=True,
+        )
+
+        cap, due_slot = get_regular_news_run_cap(site)
+        self.assertEqual(cap, 0)
+        self.assertIsNone(due_slot)
+
+    @patch('syndicator.ai_utils.generate_regular_article_for_site')
+    def test_full_cycle_generates_for_group_scheduled_site_when_due(self, mock_generate):
+        from .ai_utils import run_ai_generation_cycle
+
+        mock_generate.return_value = {'published': True}
+
+        ai_settings = AISettings.get_settings()
+        ai_settings.is_active = True
+        ai_settings.articles_per_day = 100
+        ai_settings.gemini_api_key = 'fake-test-key'
+        ai_settings.save()
+
+        group = AISourceGroup.objects.create(name='مجموعة جدولة كاملة')
+        source = AISource.objects.create(name='Scheduled Group Source', url='https://sched-group.com/rss', group=group)
+
+        site = WordPressSite.objects.create(
+            name='Full Cycle Scheduled Site', url='https://full-cycle-scheduled.example', username='u',
+            application_password='p', daily_limit=50, articles_per_run=50, is_active=True,
+        )
+        site.source_groups.add(group)
+        WordPressScheduleSlot.objects.create(
+            wp_site=site, time_of_day=self._cairo_now_time(),
+            content_types=f'group_{group.id}', regular_news_count=3, is_active=True,
+        )
+
+        fake_item = {
+            'title': 'خبر مجدول عبر مجموعة', 'link': 'https://sched-group.com/story/1',
+            'description': 'تفاصيل', 'image_url': '', 'guid': 'https://sched-group.com/story/1',
+        }
+        with patch('syndicator.ai_utils.fetch_news_items_from_source', return_value=[fake_item]):
+            run_ai_generation_cycle()
+
+        mock_generate.assert_called_once()
+        self.assertEqual(mock_generate.call_args.args[0].id, site.id)
 
 
 class ImageMirrorVariantTests(TestCase):

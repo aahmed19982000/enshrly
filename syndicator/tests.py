@@ -613,6 +613,68 @@ class ScheduleSlotGroupTokenTests(TestCase):
         self.assertEqual(mock_generate.call_args.args[0].id, site.id)
 
 
+class ScheduleSlotStaffAdminGroupVisibilityTests(TestCase):
+    """
+    The staff-facing schedule page (/ai-dashboard/wp-sites/<id>/schedule/)
+    only ever rendered checkboxes for the fixed price CONTENT_TYPE_CHOICES -
+    a slot's 'group_<id>' tokens (written by the customer via the WordPress
+    plugin's own schedule screen) were invisible, AND saving the form would
+    silently strip them out (the old _parse_slot_form only accepted the
+    fixed choices, so a group-only slot's content_types became empty and
+    either got wiped or failed validation entirely). Regression coverage for
+    both the visibility and the data-loss-on-save parts of that bug.
+    """
+    def setUp(self):
+        self.staff = User.objects.create_user(username='schedule_staff', password='x', is_staff=True)
+        self.group = AISourceGroup.objects.create(name='مجموعة الجدولة الإدارية')
+        self.site = WordPressSite.objects.create(
+            name='Admin Schedule Site', url='https://admin-schedule.example', username='u',
+            application_password='p', daily_limit=5, is_active=True,
+        )
+        self.site.source_groups.add(self.group)
+        self.slot = WordPressScheduleSlot.objects.create(
+            wp_site=self.site, time_of_day='09:00', content_types=f'group_{self.group.id}',
+            regular_news_count=4, is_active=True,
+        )
+        self.client.force_login(self.staff)
+        self.url = f'/ai-dashboard/wp-sites/{self.site.id}/schedule/'
+
+    def test_page_shows_the_customers_group_selection_checked(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode('utf-8')
+        self.assertIn('مجموعة الجدولة الإدارية', body)
+        import re
+        m = re.search(rf'name="content_types" value="group_{self.group.id}"[^>]*', body)
+        self.assertIsNotNone(m)
+        self.assertIn('checked', m.group(0))
+
+    def test_resaving_the_slot_does_not_strip_the_group_token(self):
+        edit_url = f'/ai-dashboard/wp-sites/{self.site.id}/schedule/{self.slot.id}/edit/'
+        resp = self.client.post(edit_url, {
+            'time_of_day': '10:30',
+            'regular_news_count': '6',
+            'is_active': 'on',
+            'content_types': [f'group_{self.group.id}'],
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.slot.refresh_from_db()
+        self.assertIn(f'group_{self.group.id}', self.slot.get_content_types_list())
+        self.assertEqual(self.slot.regular_news_count, 6)
+
+    def test_new_slot_can_be_created_with_only_a_group_token(self):
+        add_url = f'/ai-dashboard/wp-sites/{self.site.id}/schedule/add/'
+        resp = self.client.post(add_url, {
+            'time_of_day': '14:00',
+            'regular_news_count': '2',
+            'content_types': [f'group_{self.group.id}'],
+        })
+        self.assertEqual(resp.status_code, 302)
+        new_slot = WordPressScheduleSlot.objects.filter(wp_site=self.site, time_of_day='14:00').first()
+        self.assertIsNotNone(new_slot)
+        self.assertEqual(new_slot.get_content_types_list(), [f'group_{self.group.id}'])
+
+
 class ImageMirrorVariantTests(TestCase):
     def test_mirror_flips_image_horizontally(self):
         from PIL import Image

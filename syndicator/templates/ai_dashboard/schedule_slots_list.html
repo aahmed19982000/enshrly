@@ -17,8 +17,10 @@
         <h3 class="text-sm font-bold text-white mb-2"><i class="fa-solid fa-clock text-teal-400 ml-2"></i>كيف يعمل الجدول الزمني</h3>
         <p class="text-xs text-slate-400 leading-relaxed">
             حدد فترات زمنية (بتوقيت القاهرة) لهذا الموقع تحديداً. كل فترة تُنشئ نوعاً واحداً أو أكثر من المحتوى في وقتها فقط
-            (مثال: "أسعار الخضار" و"الحديد" الساعة 7 صباحاً، و"الذهب" الساعة 12 ظهراً). عند اختيار "أخبار عامة (RSS/ترند)" ضمن
-            فترة، يحدد حقل "العدد" كم خبراً عادياً يُنشر في هذه الفترة تحديداً.
+            (مثال: "أسعار الخضار" و"الحديد" الساعة 7 صباحاً، و"الذهب" الساعة 12 ظهراً). عند اختيار مجموعة مصادر ("أخبار عامة"
+            RSS) ضمن فترة، يحدد حقل "العدد" كم خبراً عادياً من هذه المجموعة يُنشر في هذه الفترة تحديداً. مجموعات المصادر
+            المعروضة هنا هي فقط اللي الموقع مشترك بيها فعلاً (من صفحة إعدادات الموقع)؛ لو اخترت مجموعة من هنا لأول مرة، لازم
+            تضيفها في "مجموعات المصادر المفضلة" في صفحة إعدادات الموقع كمان عشان تظهر لك تاني بعد الحفظ.
             <br>
             <span class="text-amber-400">ملاحظة:</span> إذا لم تُضِف أي فترة لهذا الموقع، يبقى يعمل بالسلوك الافتراضي القديم
             (كل الأنواع المفعّلة من صفحة إعدادات الموقع، في كل تشغيل للدورة).
@@ -47,6 +49,18 @@
                     <button type="submit" class="px-4 py-2 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-xs font-semibold rounded-lg transition">حفظ</button>
                 </div>
             </div>
+
+            {% if source_groups %}
+            <div class="flex flex-wrap gap-2 items-center">
+                <span class="text-[11px] text-slate-500">أخبار عامة (RSS) من مجموعات المصادر المفضلة للعميل:</span>
+                {% for group in source_groups %}
+                <label class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 border border-slate-800 rounded-full text-xs text-slate-300 cursor-pointer hover:border-teal-500/50 transition">
+                    <input type="checkbox" name="content_types" value="{{ group.token }}" {% if group.token in slot.get_content_types_list %}checked{% endif %} class="w-3.5 h-3.5 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
+                    {{ group.name }}
+                </label>
+                {% endfor %}
+            </div>
+            {% endif %}
 
             <div class="flex flex-wrap gap-2">
                 {% for value, label in content_type_choices %}
@@ -94,6 +108,18 @@
                 <input type="number" name="regular_news_count" min="1" value="1" class="w-20 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
             </div>
         </div>
+        {% if source_groups %}
+        <div class="flex flex-wrap gap-2 items-center">
+            <span class="text-[11px] text-slate-500">أخبار عامة (RSS) من مجموعات المصادر المفضلة للعميل:</span>
+            {% for group in source_groups %}
+            <label class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 border border-slate-800 rounded-full text-xs text-slate-300 cursor-pointer hover:border-teal-500/50 transition">
+                <input type="checkbox" name="content_types" value="{{ group.token }}" class="w-3.5 h-3.5 text-teal-600 bg-slate-900 border-slate-700 rounded focus:ring-teal-500">
+                {{ group.name }}
+            </label>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="flex flex-wrap gap-2">
             {% for value, label in content_type_choices %}
             <label class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 border border-slate-800 rounded-full text-xs text-slate-300 cursor-pointer hover:border-teal-500/50 transition">

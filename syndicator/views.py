@@ -548,11 +548,18 @@ class RegenerateSocialImageView(StaffRequiredMixin, View):
         return redirect('news_ai:wp_site_articles', wp_site_id=log.wp_site_id)
 
 
-def _parse_slot_form(request):
+def _parse_slot_form(request, wp_site):
     """
     Shared parsing/validation for the schedule-slot create/update forms: reads
     time_of_day, content_types (checkbox group) and regular_news_count from
-    POST, validated against WordPressScheduleSlot.CONTENT_TYPE_CHOICES.
+    POST, validated against WordPressScheduleSlot.CONTENT_TYPE_CHOICES plus
+    one 'group_<source_group_id>' token per AISourceGroup this site is
+    actually subscribed to (wp_site.source_groups) - these represent regular
+    (RSS) news scoped to a specific مجموعة مصادر مفضلة, the same tokens the
+    WordPress plugin's own schedule screen writes (see
+    get_due_slot_for_regular_news in ai_utils.py). Without accepting them
+    here, staff could never view or re-save a slot the customer configured
+    via the plugin without silently stripping those selections back out.
     Returns (cleaned_dict, error_message_or_None).
     """
     time_str = request.POST.get('time_of_day', '').strip()
@@ -562,6 +569,7 @@ def _parse_slot_form(request):
         return None, "صيغة الوقت غير صحيحة."
 
     valid_keys = {c[0] for c in WordPressScheduleSlot.CONTENT_TYPE_CHOICES}
+    valid_keys |= {f'group_{gid}' for gid in wp_site.source_groups.values_list('id', flat=True)}
     content_types = [c for c in request.POST.getlist('content_types') if c in valid_keys]
     if not content_types:
         return None, "يجب اختيار نوع محتوى واحد على الأقل لهذه الفترة."
@@ -592,13 +600,22 @@ class ScheduleSlotListView(StaffRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['wp_site'] = self.wp_site
         context['content_type_choices'] = WordPressScheduleSlot.CONTENT_TYPE_CHOICES
+        # Regular (RSS) news, scoped per slot to one or more of the source
+        # groups this site is actually subscribed to (see
+        # wp_site_edit's "مجموعات المصادر المفضلة" section) - rendered as
+        # 'group_<id>' checkboxes alongside the fixed price types, matching
+        # the tokens the WordPress plugin's own schedule screen writes.
+        source_groups = list(self.wp_site.source_groups.all())
+        for group in source_groups:
+            group.token = f'group_{group.id}'
+        context['source_groups'] = source_groups
         return context
 
 
 class ScheduleSlotCreateView(StaffRequiredMixin, View):
     def post(self, request, wp_site_id):
         wp_site = get_object_or_404(WordPressSite, pk=wp_site_id)
-        cleaned, error = _parse_slot_form(request)
+        cleaned, error = _parse_slot_form(request, wp_site)
         if error:
             messages.error(request, error)
         else:
@@ -613,7 +630,8 @@ class ScheduleSlotCreateView(StaffRequiredMixin, View):
 class ScheduleSlotUpdateView(StaffRequiredMixin, View):
     def post(self, request, wp_site_id, pk):
         slot = get_object_or_404(WordPressScheduleSlot, pk=pk, wp_site_id=wp_site_id)
-        cleaned, error = _parse_slot_form(request)
+        wp_site = get_object_or_404(WordPressSite, pk=wp_site_id)
+        cleaned, error = _parse_slot_form(request, wp_site)
         if error:
             messages.error(request, error)
         else:

@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
-FONT_PATH = settings.BASE_DIR / 'static' / 'fonts' / 'Amiri-Bold.ttf'
+FONT_PATH = settings.BASE_DIR / 'static' / 'fonts' / 'Cairo-Black.ttf'
 CANVAS_WIDTH = 1080
 CANVAS_HEIGHT = 1350  # 4:5 - Facebook/Instagram's mobile-optimized feed ratio
 WHITE = (255, 255, 255)

@@ -151,7 +151,7 @@ class SourceListView(StaffRequiredMixin, ListView):
 
 class SourceCreateView(StaffRequiredMixin, CreateView):
     model = AISource
-    fields = ['name', 'url', 'language', 'group', 'is_active']
+    fields = ['name', 'url', 'language', 'group', 'is_active', 'use_proxy']
     template_name = 'ai_dashboard/source_form.html'
     success_url = reverse_lazy('news_ai:sources')
 
@@ -167,7 +167,7 @@ class SourceCreateView(StaffRequiredMixin, CreateView):
 
 class SourceUpdateView(StaffRequiredMixin, UpdateView):
     model = AISource
-    fields = ['name', 'url', 'language', 'group', 'is_active']
+    fields = ['name', 'url', 'language', 'group', 'is_active', 'use_proxy']
     template_name = 'ai_dashboard/source_form.html'
     success_url = reverse_lazy('news_ai:sources')
 
@@ -1129,7 +1129,13 @@ def wp_post_published_api_view(request):
         if wp_site.url.rstrip('/') != site_url.rstrip('/'):
             return JsonResponse({'status': 'error', 'message': 'Site URL mismatch.'}, status=403)
 
+        logger.info(f"wp-post-published hook received for {wp_site.name}: {data.get('link', '')}")
+
         if not wp_site.is_active or not wp_site.facebook_addon_is_active:
+            logger.info(
+                f"Skipping Facebook social share for {wp_site.name}: "
+                f"is_active={wp_site.is_active}, facebook_addon_is_active={wp_site.facebook_addon_is_active}"
+            )
             return JsonResponse({'status': 'ok', 'skipped': True})
 
         try:

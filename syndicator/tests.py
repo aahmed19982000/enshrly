@@ -4,7 +4,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -342,6 +342,65 @@ class FetchNewsItemsFromSourceTests(TestCase):
         self.assertEqual(items[0]['title'], 'عنوان مسحوب من الصفحة')
         self.assertEqual(items[0]['link'], 'https://example.com/news/3')
         self.assertEqual(items[0]['image_url'], 'https://example.com/scraped2.jpg')
+
+
+class SourceProxyRoutingTests(TestCase):
+    """
+    A handful of feeds (dostor.org, sonna.so, ...) block this server's own
+    IP specifically (403 / redirect loops) while working fine from anywhere
+    else - AISource.use_proxy + settings.SCRAPING_PROXY_URL lets staff route
+    just those through a proxy without paying proxy-bandwidth cost for every
+    other source. Covers _proxies_for_source's gating logic and that it
+    actually reaches requests.get for the source fetch itself.
+    """
+    def _fake_response(self, content):
+        mock_resp = type('R', (), {})()
+        mock_resp.content = content.encode()
+        mock_resp.raise_for_status = lambda: None
+        return mock_resp
+
+    def test_no_proxy_dict_when_source_has_use_proxy_false(self):
+        from .ai_utils import _proxies_for_source
+        source = AISource(name='S', url='https://a.com/rss', use_proxy=False)
+        self.assertIsNone(_proxies_for_source(source))
+
+    @override_settings(SCRAPING_PROXY_URL='')
+    def test_no_proxy_dict_when_flagged_but_nothing_configured_server_side(self):
+        from .ai_utils import _proxies_for_source
+        source = AISource(name='S', url='https://a.com/rss', use_proxy=True)
+        self.assertIsNone(_proxies_for_source(source))
+
+    @override_settings(SCRAPING_PROXY_URL='http://user:pass@proxy.example:8080')
+    def test_proxy_dict_when_flagged_and_configured(self):
+        from .ai_utils import _proxies_for_source
+        source = AISource(name='S', url='https://a.com/rss', use_proxy=True)
+        self.assertEqual(
+            _proxies_for_source(source),
+            {'http': 'http://user:pass@proxy.example:8080', 'https': 'http://user:pass@proxy.example:8080'},
+        )
+
+    @override_settings(SCRAPING_PROXY_URL='http://user:pass@proxy.example:8080')
+    @patch('syndicator.ai_utils.requests.get')
+    def test_fetch_news_items_passes_proxies_through_to_requests(self, mock_get):
+        mock_get.return_value = self._fake_response(RSS_FEED_XML)
+
+        fetch_news_items_from_source(
+            'https://a.com/rss', proxies={'http': 'http://user:pass@proxy.example:8080', 'https': 'http://user:pass@proxy.example:8080'},
+        )
+
+        mock_get.assert_called_once()
+        self.assertEqual(
+            mock_get.call_args.kwargs.get('proxies'),
+            {'http': 'http://user:pass@proxy.example:8080', 'https': 'http://user:pass@proxy.example:8080'},
+        )
+
+    @patch('syndicator.ai_utils.requests.get')
+    def test_fetch_news_items_passes_none_proxies_by_default(self, mock_get):
+        mock_get.return_value = self._fake_response(RSS_FEED_XML)
+
+        fetch_news_items_from_source('https://a.com/rss')
+
+        self.assertIsNone(mock_get.call_args.kwargs.get('proxies'))
 
 
 class GenerationLoopIndependenceTests(TestCase):

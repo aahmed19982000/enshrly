@@ -404,6 +404,12 @@ class AISource(models.Model):
     group = models.ForeignKey(AISourceGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='sources', verbose_name="المجموعة")
     is_active = models.BooleanField(default=True, verbose_name="نشط")
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='ar', verbose_name="لغة المصدر")
+    use_proxy = models.BooleanField(
+        default=False, verbose_name="التوجيه عبر بروكسي",
+        help_text="فعّله لو هذا المصدر يحظر IP السيرفر تحديداً (بيرجع 403 أو يدخل في حلقة تحويلات) رغم أنه يعمل "
+                   "بشكل طبيعي من أي مكان آخر. يتطلب ضبط SCRAPING_PROXY_URL في إعدادات السيرفر أولاً - بدونه يُتجاهل "
+                   "هذا الخيار ويتم الجلب المباشر كالمعتاد."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

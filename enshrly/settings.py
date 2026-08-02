@@ -197,6 +197,36 @@ CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=True)
 
+# Without this, Django's default logging config only sends WARNING+ to the
+# console when DEBUG=True (the built-in 'console' handler has a
+# require_debug_true filter) - with DEBUG=False in production, every
+# logger.info()/logger.warning()/logger.error() call anywhere in the app
+# (views, webhooks, background pipelines) vanishes silently instead of
+# reaching `journalctl -u gunicorn`. Celery's own logs were never affected -
+# it configures its own root logger independently via --loglevel on the
+# systemd command, which is why celery-worker logs already showed up while
+# gunicorn's never did.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
+
 LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/ai-dashboard/'
 LOGOUT_REDIRECT_URL = '/auth/login/'
@@ -245,6 +275,14 @@ SITE_BASE_URL = env('SITE_BASE_URL', default='http://localhost:8000')
 # هناك على {SITE_BASE_URL}/facebook/connect/callback/
 FACEBOOK_APP_ID = env('FACEBOOK_APP_ID', default='')
 FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET', default='')
+
+# HTTP(S) proxy used only for AISource rows with use_proxy=True - for feeds
+# that block this server's own IP (403 / redirect loops) but work fine from
+# anywhere else. Standard requests-style proxy URL, e.g.
+# http://username:password@proxy-host:port - works with most proxy
+# providers (Webshare, Smartproxy, Bright Data, ...) unchanged. Left empty,
+# use_proxy is silently ignored and sources are fetched directly as before.
+SCRAPING_PROXY_URL = env('SCRAPING_PROXY_URL', default='')
 
 
 

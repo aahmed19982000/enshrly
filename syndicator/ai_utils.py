@@ -23,6 +23,23 @@ logger = logging.getLogger(__name__)
 
 CAIRO_TZ = ZoneInfo("Africa/Cairo")
 
+
+def _proxies_for_source(source):
+    """
+    requests-compatible `proxies` dict for this AISource if it's flagged
+    use_proxy AND settings.SCRAPING_PROXY_URL is actually configured -
+    otherwise None (plain direct request, unchanged behavior). Lets a
+    handful of specific feeds that block this server's own IP (403 /
+    redirect loops) route through a proxy without paying proxy-bandwidth
+    cost for the many sources that already work fine directly.
+    """
+    if not (source and getattr(source, 'use_proxy', False)):
+        return None
+    proxy_url = getattr(settings, 'SCRAPING_PROXY_URL', '')
+    if not proxy_url:
+        return None
+    return {'http': proxy_url, 'https': proxy_url}
+
 # Every official/live price topic is excluded from the regular RSS-rewrite
 # pipeline - the dedicated generators (generate_gold_price_article_for_site,
 # generate_official_commodity_article_for_site, generate_arab_currencies_article_for_site,
@@ -351,13 +368,13 @@ def call_gemini_api(prompt, api_key=None):
     return None, {}
 
 
-def fetch_full_article_text(url):
+def fetch_full_article_text(url, proxies=None):
     """
     Fetches the full article body from a given URL to provide better context for the AI.
     """
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=10, proxies=proxies)
         if res.status_code != 200:
             return ""
         soup = BeautifulSoup(res.content, 'html.parser')
@@ -630,7 +647,7 @@ def _find_topical_image(article_title, translated_query):
     return _ai_pick_best_image(article_title, candidates)
 
 
-def _scrape_image_from_article_page(link_url, headers):
+def _scrape_image_from_article_page(link_url, headers, proxies=None):
     """
     Best-effort fallback for RSS items with no usable image in the feed
     itself: fetches the linked article page and looks for a real photo on
@@ -642,7 +659,7 @@ def _scrape_image_from_article_page(link_url, headers):
     if nothing usable is found - callers fall back further from there.
     """
     try:
-        page_res = requests.get(link_url, headers=headers, timeout=8)
+        page_res = requests.get(link_url, headers=headers, timeout=8, proxies=proxies)
         if page_res.status_code != 200:
             return ""
         page_soup = BeautifulSoup(page_res.content, 'html.parser')
@@ -668,7 +685,7 @@ def _scrape_image_from_article_page(link_url, headers):
     return ""
 
 
-def _scrape_title_and_image_from_article_page(link_url, headers):
+def _scrape_title_and_image_from_article_page(link_url, headers, proxies=None):
     """
     Fallback for sitemap entries that carry no title at all (a plain
     WordPress/Yoast sitemap.xml, unlike a Google News sitemap which at
@@ -680,7 +697,7 @@ def _scrape_title_and_image_from_article_page(link_url, headers):
     title_text = ""
     image_url = ""
     try:
-        page_res = requests.get(link_url, headers=headers, timeout=8)
+        page_res = requests.get(link_url, headers=headers, timeout=8, proxies=proxies)
         if page_res.status_code != 200:
             return title_text, image_url
         page_soup = BeautifulSoup(page_res.content, 'html.parser')
@@ -810,10 +827,16 @@ URL: {source_url}
         return []
 
 
-def fetch_news_items_from_source(source_url):
+def fetch_news_items_from_source(source_url, proxies=None):
     """
     Fetches news items from an RSS feed or webpage.
     Returns a list of dictionaries with keys: 'title', 'link', 'description', 'image_url', 'guid'.
+
+    `proxies`: optional requests-style proxies dict (see _proxies_for_source)
+    for sources that block this server's own IP - threaded through to every
+    secondary fetch this function makes (article-page image scraping,
+    sitemap recursion) so the whole fetch for one source consistently goes
+    through the same route.
     """
     if 'trends.google.com' in source_url or 'google.com/trending' in source_url:
         return fetch_google_trends_items(source_url)
@@ -822,9 +845,9 @@ def fetch_news_items_from_source(source_url):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
     items = []
-    
+
     try:
-        response = requests.get(source_url, headers=headers, timeout=15)
+        response = requests.get(source_url, headers=headers, timeout=15, proxies=proxies)
         response.raise_for_status()
         content = response.content
         
@@ -870,7 +893,7 @@ def fetch_news_items_from_source(source_url):
                                 image_url = img.get('src')
                                 
                 if not image_url and link_text:
-                    image_url = _scrape_image_from_article_page(link_text, headers)
+                    image_url = _scrape_image_from_article_page(link_text, headers, proxies=proxies)
 
                 items.append({
                     'title': title_text,
@@ -890,7 +913,7 @@ def fetch_news_items_from_source(source_url):
                 # feeds are conventionally ordered newest-page-first).
                 first_loc = sitemap_index_entries[0].find('loc')
                 if first_loc and first_loc.text.strip():
-                    return fetch_news_items_from_source(first_loc.text.strip())
+                    return fetch_news_items_from_source(first_loc.text.strip(), proxies=proxies)
             elif url_entries:
                 # XML sitemap: <url><loc>, with either a Google News
                 # <news:title> (no image either way) or, for a plain
@@ -907,9 +930,9 @@ def fetch_news_items_from_source(source_url):
                     title_text = news_title.text.strip() if news_title else ""
 
                     if title_text:
-                        image_url = _scrape_image_from_article_page(link_text, headers)
+                        image_url = _scrape_image_from_article_page(link_text, headers, proxies=proxies)
                     else:
-                        title_text, image_url = _scrape_title_and_image_from_article_page(link_text, headers)
+                        title_text, image_url = _scrape_title_and_image_from_article_page(link_text, headers, proxies=proxies)
                         if not title_text:
                             continue
 
@@ -3567,7 +3590,7 @@ def run_ai_generation_cycle(target_site_id=None):
             logger.warning("Daily AI cost cap reached mid-cycle - stopping the rest of this run.")
             break
 
-        items = fetch_news_items_from_source(source.url)
+        items = fetch_news_items_from_source(source.url, proxies=_proxies_for_source(source))
         if not items:
             continue
             
@@ -3605,7 +3628,7 @@ def run_ai_generation_cycle(target_site_id=None):
             # Fetch full text to ensure AI has enough useful info
             try:
                 if item.get('link'):
-                    full_text = fetch_full_article_text(item['link'])
+                    full_text = fetch_full_article_text(item['link'], proxies=_proxies_for_source(source))
                     if full_text and len(full_text) > len(item.get('description', '')):
                         item['description'] = full_text
             except Exception as e:

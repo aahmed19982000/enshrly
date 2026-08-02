@@ -182,6 +182,37 @@ class WPPostPublishedAPITests(TestCase):
 
         self.assertEqual(resp.status_code, 403)
 
+    def test_inactive_addon_skips_without_dispatching_task(self):
+        # self.site never set social_image_enabled=True, so facebook_addon_is_active
+        # is False by default - the "skipped" branch, not the task dispatch, is hit.
+        with patch('syndicator.tasks.generate_and_publish_social_share_task.delay') as mock_delay:
+            resp = self._post({'token': str(self.token.token), 'site_url': 'https://client-site.com'})
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json().get('skipped'))
+        mock_delay.assert_not_called()
+
+    def test_active_addon_dispatches_task_instead_of_running_inline(self):
+        # Regression test: this used to call generate_and_publish_social_share_from_wp_payload
+        # directly inline, which could exceed gunicorn's worker timeout on a slow
+        # image download + Facebook API call and silently vanish with no log
+        # line and no SocialSharePost row at all - see generate_and_publish_social_share_task.
+        self.site.social_image_enabled = True
+        self.site.save(update_fields=['social_image_enabled'])
+
+        with patch('syndicator.tasks.generate_and_publish_social_share_task.delay') as mock_delay:
+            resp = self._post({
+                'token': str(self.token.token), 'site_url': 'https://client-site.com',
+                'title': 'خبر تجريبي', 'link': 'https://client-site.com/story/1', 'image_url': '',
+            })
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('skipped', resp.json())
+        mock_delay.assert_called_once()
+        called_args = mock_delay.call_args.args
+        self.assertEqual(called_args[0], self.site.id)
+        self.assertEqual(called_args[1].get('link'), 'https://client-site.com/story/1')
+
 
 class AISettingsAPITests(TestCase):
     def setUp(self):

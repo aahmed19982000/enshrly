@@ -51,6 +51,37 @@ def compress_article_image_task(self, article_id):
         raise self.retry(exc=exc)
 
 
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def generate_and_publish_social_share_task(self, wp_site_id, payload):
+    """
+    Async wrapper for generate_and_publish_social_share_from_wp_payload -
+    moved off wp_post_published_api_view's synchronous request path because
+    it can involve a slow source-image download plus a Facebook Graph API
+    call, which together can exceed gunicorn's worker timeout (30s default,
+    unconfigured on this deployment). A killed worker mid-request never gets
+    a chance to log anything or save a SocialSharePost row - the request
+    just vanishes with zero trace on either side, which is exactly what was
+    observed: the WP plugin's hook fires (logged), the is_active/
+    facebook_addon_is_active gate passes (logged), yet no SocialSharePost
+    row and no error ever appear. Running this in Celery removes the
+    request-time pressure entirely; the underlying pipeline already never
+    raises for normal failures (see _build_and_maybe_post, which always
+    records failures on the SocialSharePost row itself) - retry here is
+    only for truly unexpected crashes (e.g. a DB hiccup), not the composite/
+    Facebook-API failures that pipeline already handles internally.
+    """
+    try:
+        from .models import WordPressSite
+        from .social_image_utils import generate_and_publish_social_share_from_wp_payload
+        wp_site = WordPressSite.objects.get(pk=wp_site_id)
+        generate_and_publish_social_share_from_wp_payload(wp_site, payload)
+    except WordPressSite.DoesNotExist:
+        logger.error(f"generate_and_publish_social_share_task: WordPressSite {wp_site_id} no longer exists")
+    except Exception as exc:
+        logger.error(f"Facebook social share task failed for wp_site_id={wp_site_id}: {exc}")
+        raise self.retry(exc=exc)
+
+
 @shared_task(bind=True, max_retries=1, default_retry_delay=60)
 def scrape_and_generate_news_task(self, target_site_id=None):
     """

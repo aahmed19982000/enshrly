@@ -1139,8 +1139,13 @@ def wp_post_published_api_view(request):
             return JsonResponse({'status': 'ok', 'skipped': True})
 
         try:
-            from .social_image_utils import generate_and_publish_social_share_from_wp_payload
-            generate_and_publish_social_share_from_wp_payload(wp_site, data)
+            # Dispatched to Celery rather than run inline: the pipeline can
+            # involve a slow source-image download plus a Facebook Graph API
+            # call, which together can exceed gunicorn's worker timeout and
+            # silently kill this request before anything gets logged or
+            # saved - see generate_and_publish_social_share_task's docstring.
+            from .tasks import generate_and_publish_social_share_task
+            generate_and_publish_social_share_task.delay(wp_site.id, data)
         except Exception as e:
             # Best-effort add-on - must never surface as an error to WordPress.
             logger.error(f"Error in Facebook social share pipeline for {wp_site.name}: {e}")

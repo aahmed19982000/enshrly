@@ -181,6 +181,26 @@ class SourceUpdateView(StaffRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class SourceTestView(StaffRequiredMixin, View):
+    """
+    AJAX endpoint backing the "اختبار المصدر" button on the add/edit source
+    form — dry-runs a candidate URL through test_source_url() before it's
+    saved, so staff can catch a dead/blocked feed instead of finding out
+    weeks later from a silent zero-article generation cycle.
+    """
+    def post(self, request, *args, **kwargs):
+        from .ai_utils import test_source_url, _proxies_for_source
+
+        url = request.POST.get('url', '').strip()
+        use_proxy = request.POST.get('use_proxy') == 'true'
+        if not url:
+            return JsonResponse({'ok': False, 'error': 'من فضلك أدخل رابط المصدر أولاً.'}, status=400)
+
+        temp_source = AISource(url=url, use_proxy=use_proxy)
+        result = test_source_url(url, proxies=_proxies_for_source(temp_source))
+        return JsonResponse(result)
+
+
 class SourceDeleteView(StaffRequiredMixin, DeleteView):
     model = AISource
     template_name = 'ai_dashboard/source_confirm_delete.html'

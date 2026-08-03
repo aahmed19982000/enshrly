@@ -16,6 +16,7 @@ urlpatterns = [
     path('settings/', views_ai.SettingsUpdateView.as_view(), name='settings'),
     path('sources/', views_ai.SourceListView.as_view(), name='sources'),
     path('sources/add/', views_ai.SourceCreateView.as_view(), name='source_add'),
+    path('sources/test/', views_ai.SourceTestView.as_view(), name='source_test'),
     path('sources/<int:pk>/edit/', views_ai.SourceUpdateView.as_view(), name='source_edit'),
     path('sources/<int:pk>/delete/', views_ai.SourceDeleteView.as_view(), name='source_delete'),
     # Source Groups

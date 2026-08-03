@@ -26,11 +26,17 @@
             <!-- Source URL -->
             <div class="space-y-2">
                 <label for="id_url" class="block text-sm font-semibold text-slate-300">رابط تغذية RSS أو الموقع الإلكتروني</label>
-                <input type="url" name="url" id="id_url" required value="{{ form.url.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="https://example.com/rss.xml">
+                <div class="flex gap-2">
+                    <input type="url" name="url" id="id_url" required value="{{ form.url.value|default:'' }}" class="block w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 transition duration-150 font-mono text-xs" placeholder="https://example.com/rss.xml">
+                    <button type="button" id="test-source-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-teal-400 text-sm font-semibold rounded-xl transition duration-150 whitespace-nowrap">
+                        <i class="fa-solid fa-vial"></i> اختبار المصدر
+                    </button>
+                </div>
                 <p class="text-xs text-slate-500">يفضل إدخال رابط RSS للحصول على نتائج دقيقة وسريعة.</p>
                 {% if form.url.errors %}
                     <p class="text-xs text-rose-400">{{ form.url.errors.as_text }}</p>
                 {% endif %}
+                <div id="test-source-result" class="hidden mt-2 p-4 rounded-xl border text-sm"></div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -93,4 +99,70 @@
         </form>
     </div>
 </div>
+
+<script>
+document.getElementById('test-source-btn').addEventListener('click', async function () {
+    const btn = this;
+    const urlInput = document.getElementById('id_url');
+    const useProxyInput = document.getElementById('id_use_proxy');
+    const resultBox = document.getElementById('test-source-result');
+    const url = urlInput.value.trim();
+
+    resultBox.classList.remove('hidden', 'border-emerald-700', 'bg-emerald-900/20', 'border-rose-700', 'bg-rose-900/20', 'border-amber-700', 'bg-amber-900/20');
+
+    if (!url) {
+        resultBox.classList.add('border-rose-700', 'bg-rose-900/20');
+        resultBox.innerHTML = '<span class="text-rose-400">من فضلك أدخل رابط المصدر أولاً.</span>';
+        return;
+    }
+
+    btn.disabled = true;
+    const originalLabel = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ الاختبار...';
+    resultBox.classList.add('border-slate-700', 'bg-slate-900/40');
+    resultBox.innerHTML = '<span class="text-slate-400">جارٍ فحص الرابط، قد يستغرق حتى 15 ثانية...</span>';
+
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const body = new URLSearchParams();
+        body.set('url', url);
+        body.set('use_proxy', useProxyInput && useProxyInput.checked ? 'true' : 'false');
+
+        const res = await fetch("{% url 'news_ai:source_test' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: body,
+        });
+        const data = await res.json();
+
+        resultBox.classList.remove('border-slate-700', 'bg-slate-900/40');
+
+        if (data.ok) {
+            resultBox.classList.add('border-emerald-700', 'bg-emerald-900/20');
+            let html = `<p class="text-emerald-400 font-bold mb-2"><i class="fa-solid fa-circle-check"></i> نجح — النوع المكتشف: ${data.kind}${data.count !== null ? `، عدد العناصر: ${data.count}` : ''}</p>`;
+            if (data.note) {
+                html += `<p class="text-amber-400 text-xs mb-2">${data.note}</p>`;
+            }
+            if (data.samples && data.samples.length) {
+                html += '<ul class="space-y-1 text-xs text-slate-400 list-disc pr-4">';
+                data.samples.forEach(s => {
+                    html += `<li>${s.title ? s.title : '(بدون عنوان)'} — <span class="font-mono">${s.link}</span></li>`;
+                });
+                html += '</ul>';
+            }
+            resultBox.innerHTML = html;
+        } else {
+            resultBox.classList.add('border-rose-700', 'bg-rose-900/20');
+            resultBox.innerHTML = `<p class="text-rose-400"><i class="fa-solid fa-circle-xmark"></i> فشل: ${data.error}</p>`;
+        }
+    } catch (e) {
+        resultBox.classList.remove('border-slate-700', 'bg-slate-900/40');
+        resultBox.classList.add('border-rose-700', 'bg-rose-900/20');
+        resultBox.innerHTML = '<span class="text-rose-400">حدث خطأ غير متوقع أثناء الاختبار.</span>';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+    }
+});
+</script>
 {% endblock %}

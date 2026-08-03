@@ -827,7 +827,111 @@ URL: {source_url}
         return []
 
 
-def fetch_news_items_from_source(source_url, proxies=None):
+def test_source_url(source_url, proxies=None):
+    """
+    Lightweight dry-run check for a candidate source URL, used by the "test
+    this source" button before a source is saved. Mirrors the format
+    detection in fetch_news_items_from_source (RSS / sitemap index / sitemap
+    / HTML) but skips sub-sitemap recursion, per-article image scraping, and
+    the Gemini fallback, so it stays fast and doesn't spend API budget on a
+    source that might not even be worth adding.
+
+    Returns a dict: {ok, kind, count, samples, error, note}
+    - ok: whether the URL is fetchable and looks like something the real
+      crawler could use.
+    - kind: 'rss' | 'sitemapindex' | 'sitemap' | 'html' | 'google_trends' | 'unknown'
+    - count: number of entries found (items/urls/sitemaps/article blocks).
+    - samples: up to 5 {'title', 'link'} dicts for a human to sanity-check.
+    - error: human-readable Arabic failure reason, or None.
+    - note: optional extra context (e.g. sitemapindex recursion target).
+    """
+    if 'trends.google.com' in source_url or 'google.com/trending' in source_url:
+        return {'ok': True, 'kind': 'google_trends', 'count': None, 'samples': [], 'error': None, 'note': None}
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
+    try:
+        response = requests.get(source_url, headers=headers, timeout=15, proxies=proxies)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': 'انتهت مهلة الاتصال (أكثر من 15 ثانية).', 'note': None}
+    except requests.exceptions.TooManyRedirects:
+        return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': 'حلقة تحويلات لا نهائية (Too Many Redirects) — غالباً الموقع يحظر السيرفر تحديداً. جرّب تفعيل خيار "التوجيه عبر بروكسي".', 'note': None}
+    except requests.exceptions.SSLError:
+        return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': 'خطأ في شهادة SSL الخاصة بالموقع.', 'note': None}
+    except requests.exceptions.ConnectionError:
+        return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': 'تعذر الاتصال بالخادم (Connection Error).', 'note': None}
+    except requests.exceptions.HTTPError:
+        return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': f'الخادم رد بخطأ HTTP {response.status_code}.', 'note': None}
+    except Exception as e:
+        return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': str(e), 'note': None}
+
+    content = response.content
+    try:
+        soup = BeautifulSoup(content, 'lxml-xml')
+    except Exception:
+        try:
+            soup = BeautifulSoup(content, 'xml')
+        except Exception:
+            soup = BeautifulSoup(content, 'html.parser')
+
+    channel_items = soup.find_all('item')
+    if channel_items:
+        samples = []
+        for item in channel_items[:5]:
+            title = item.find('title')
+            link = item.find('link')
+            samples.append({
+                'title': title.text.strip() if title else '',
+                'link': link.text.strip() if link else '',
+            })
+        return {'ok': True, 'kind': 'rss', 'count': len(channel_items), 'samples': samples, 'error': None, 'note': None}
+
+    sitemap_index_entries = soup.find_all('sitemap')
+    url_entries = soup.find_all('url')
+
+    if sitemap_index_entries and not url_entries:
+        first_loc = sitemap_index_entries[0].find('loc')
+        samples = [{'title': '', 'link': e.find('loc').text.strip()} for e in sitemap_index_entries[:5] if e.find('loc')]
+        note = f'فهرس خرائط مواقع فرعي — عند الزحف الفعلي سيُفتح أول رابط فرعي تلقائياً: {first_loc.text.strip()}' if first_loc else None
+        return {'ok': True, 'kind': 'sitemapindex', 'count': len(sitemap_index_entries), 'samples': samples, 'error': None, 'note': note}
+
+    if url_entries:
+        samples = []
+        for url_entry in url_entries[:5]:
+            loc = url_entry.find('loc')
+            if not loc or not loc.text.strip():
+                continue
+            news_title = url_entry.find('news:title')
+            samples.append({
+                'title': news_title.text.strip() if news_title else '(بدون عنوان في الفيد — سيُجلب من صفحة المقال أثناء الزحف الفعلي)',
+                'link': loc.text.strip(),
+            })
+        return {'ok': True, 'kind': 'sitemap', 'count': len(url_entries), 'samples': samples, 'error': None, 'note': None}
+
+    html_soup = BeautifulSoup(content, 'html.parser')
+    articles = html_soup.find_all('article') or html_soup.find_all('div', class_=re.compile(r'post|article|news-item'))
+    if articles:
+        samples = []
+        for art in articles[:5]:
+            link_tag = art.find('a', href=True)
+            title_tag = art.find(['h1', 'h2', 'h3', 'h4']) or art.find(class_=re.compile(r'title'))
+            if link_tag and title_tag:
+                link_text = link_tag['href']
+                if not link_text.startswith('http'):
+                    link_text = urljoin(source_url, link_text)
+                samples.append({'title': title_tag.get_text().strip(), 'link': link_text})
+        return {'ok': True, 'kind': 'html', 'count': len(articles), 'samples': samples, 'error': None, 'note': 'لا يوجد RSS أو Sitemap — سيتم الاعتماد على استخراج المقالات من صفحة HTML مباشرة، وهو أقل دقة.'}
+
+    return {
+        'ok': False, 'kind': 'unknown', 'count': 0, 'samples': [], 'note': None,
+        'error': 'الرابط لا يحتوي على RSS أو Sitemap أو مقالات HTML قياسية يمكن التعرف عليها. سيحاول النظام الفعلي استخدام الزحف الذكي عبر Gemini كملاذ أخير (لم يتم اختباره هنا).',
+    }
+
+
+def fetch_news_items_from_source(source_url, proxies=None, error_out=None):
     """
     Fetches news items from an RSS feed or webpage.
     Returns a list of dictionaries with keys: 'title', 'link', 'description', 'image_url', 'guid'.
@@ -837,6 +941,12 @@ def fetch_news_items_from_source(source_url, proxies=None):
     secondary fetch this function makes (article-page image scraping,
     sitemap recursion) so the whole fetch for one source consistently goes
     through the same route.
+
+    `error_out`: optional list. If the top-level fetch raises, the error
+    message is appended to it (in addition to the usual logger.error) so a
+    caller that cares - run_ai_generation_cycle, to log a failed AIImportLog
+    entry per source - can tell "fetch errored" apart from "fetch succeeded,
+    feed just had nothing new" (both otherwise return an empty list).
     """
     if 'trends.google.com' in source_url or 'google.com/trending' in source_url:
         return fetch_google_trends_items(source_url)
@@ -913,7 +1023,7 @@ def fetch_news_items_from_source(source_url, proxies=None):
                 # feeds are conventionally ordered newest-page-first).
                 first_loc = sitemap_index_entries[0].find('loc')
                 if first_loc and first_loc.text.strip():
-                    return fetch_news_items_from_source(first_loc.text.strip(), proxies=proxies)
+                    return fetch_news_items_from_source(first_loc.text.strip(), proxies=proxies, error_out=error_out)
             elif url_entries:
                 # XML sitemap: <url><loc>, with either a Google News
                 # <news:title> (no image either way) or, for a plain
@@ -977,7 +1087,9 @@ def fetch_news_items_from_source(source_url, proxies=None):
                     items = scrape_webpage_articles_via_gemini(content, source_url)
     except Exception as e:
         logger.error(f"Error fetching news from source {source_url}: {e}")
-        
+        if error_out is not None:
+            error_out.append(str(e))
+
     return items
 
 
@@ -3590,8 +3702,21 @@ def run_ai_generation_cycle(target_site_id=None):
             logger.warning("Daily AI cost cap reached mid-cycle - stopping the rest of this run.")
             break
 
-        items = fetch_news_items_from_source(source.url, proxies=_proxies_for_source(source))
+        fetch_errors = []
+        items = fetch_news_items_from_source(source.url, proxies=_proxies_for_source(source), error_out=fetch_errors)
         if not items:
+            if fetch_errors:
+                # Fetch actually errored (timeout, HTTP error, redirect loop,
+                # etc.) rather than the feed just having nothing new right
+                # now - log it so a source silently dying doesn't take weeks
+                # to notice (see TriggerSiteScraperView's own admission of
+                # this gap).
+                AIImportLog.objects.create(
+                    source=source,
+                    source_url=source.url,
+                    status='failed',
+                    error_message=f"فشل جلب المصدر: {fetch_errors[0]}",
+                )
             continue
             
         # Get WordPress sites mapped to this source - either individually (the

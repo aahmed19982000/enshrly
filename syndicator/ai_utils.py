@@ -1030,6 +1030,26 @@ def fetch_news_items_from_source(source_url, proxies=None, error_out=None):
                 # WordPress/Yoast sitemap.xml, nothing but the URL itself.
                 # Either way the article page has to be scraped for
                 # whatever is missing.
+                #
+                # Some sitemaps (e.g. snabusiness.com) list hub/category
+                # pages (/commodities, /markets, ...) ahead of individual
+                # articles rather than newest-article-first, which would
+                # otherwise fill the [:15] cap with non-article pages.
+                # Stable-sort articles first by URL shape; sitemaps that
+                # don't use these path conventions are left in their
+                # original order since nothing matches the hint list.
+                ARTICLE_PATH_HINTS = ('/article/', '/news/', '/details/', '/story/')
+
+                def _entry_loc(entry):
+                    loc = entry.find('loc')
+                    return loc.text.strip() if loc and loc.text else ''
+
+                def _is_hub_page(entry):
+                    path = urlparse(_entry_loc(entry)).path.lower()
+                    return not any(hint in path for hint in ARTICLE_PATH_HINTS)
+
+                url_entries = sorted(url_entries, key=_is_hub_page)
+
                 for url_entry in url_entries[:15]:
                     loc = url_entry.find('loc')
                     if not loc or not loc.text.strip():

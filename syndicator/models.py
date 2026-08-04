@@ -458,7 +458,9 @@ class AIImportLog(models.Model):
         only falls back to a rough word-count-based guess for older call
         sites or failures where no usage data was ever returned.
         """
-        if self.status == 'failed' and self.error_message and "لم يستجب الـ API" in self.error_message:
+        if self.status == 'failed' and self.error_message and (
+            "لم يستجب الـ API" in self.error_message or "فشل جلب المصدر" in self.error_message
+        ):
             return Decimal('0')
 
         if self.input_tokens is not None and self.output_tokens is not None:

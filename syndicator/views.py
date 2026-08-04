@@ -14,7 +14,9 @@ from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
+from urllib.parse import quote
 from django.conf import settings
+from django.utils import timezone
 from .models import AISettings, AISource, AISourceGroup, AIImportLog, Category, Article, WordPressSite, WordPressScheduleSlot, WordPressSiteGroup, SocialSharePost, WPConnectionToken, SourceGroupWPCategoryMap
 from .tasks import scrape_and_generate_news_task
 from accounts.utils import check_rate_limit, get_client_ip
@@ -230,6 +232,62 @@ class ImportLogListView(StaffRequiredMixin, ListView):
         context['all_sites'] = WordPressSite.objects.filter(is_active=True).order_by('name')
         context['status_filter'] = self.request.GET.get('status', '')
         return context
+
+
+class LogsExportView(StaffRequiredMixin, View):
+    """
+    Exports the same rows ImportLogListView shows (respecting the ?status=
+    filter) as an .xlsx workbook - staff use this to analyze/report on
+    fetch-and-generation activity outside the dashboard, unpaginated.
+    """
+    def get(self, request, *args, **kwargs):
+        import openpyxl
+        from openpyxl.utils import get_column_letter
+
+        status = request.GET.get('status')
+        qs = AIImportLog.objects.select_related('source', 'wp_site', 'article').all()
+        if status in ('success', 'failed'):
+            qs = qs.filter(status=status)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "سجل العمليات"
+        ws.sheet_view.rightToLeft = True
+
+        headers = [
+            "التاريخ والوقت", "الموقع المصدر", "رابط المصدر", "العنوان",
+            "الحالة", "التكلفة (USD)", "الموقع المستهدف", "رابط الخبر المنشور",
+            "رسالة الخطأ",
+        ]
+        ws.append(headers)
+        for cell in ws[1]:
+            cell.font = openpyxl.styles.Font(bold=True)
+
+        status_labels = dict(AIImportLog.STATUS_CHOICES)
+        for log in qs.iterator():
+            ws.append([
+                log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '',
+                log.source.name if log.source else 'مصدر محذوف',
+                log.source_url,
+                log.title or '',
+                status_labels.get(log.status, log.status),
+                float(log.estimated_cost),
+                log.wp_site.name if log.wp_site else '',
+                log.published_url or '',
+                log.error_message or '',
+            ])
+
+        widths = [20, 22, 40, 40, 12, 14, 20, 40, 50]
+        for idx, width in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
+
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"سجل_العمليات_{timezone.now().strftime('%Y-%m-%d')}.xlsx"
+        response['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(filename)}"
+        wb.save(response)
+        return response
 
 
 class RepublishLogView(StaffRequiredMixin, View):

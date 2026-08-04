@@ -25,6 +25,7 @@ urlpatterns = [
     path('sources/groups/<int:pk>/edit/', views_ai.SourceGroupUpdateView.as_view(), name='source_group_edit'),
     path('sources/groups/<int:pk>/delete/', views_ai.SourceGroupDeleteView.as_view(), name='source_group_delete'),
     path('logs/', views_ai.ImportLogListView.as_view(), name='logs'),
+    path('logs/export/', views_ai.LogsExportView.as_view(), name='logs_export'),
     path('logs/<int:pk>/republish/', views_ai.RepublishLogView.as_view(), name='log_republish'),
     path('logs/bulk-redistribute/', views_ai.BulkRedistributeLogsView.as_view(), name='logs_bulk_redistribute'),
     path('trigger/', views_ai.TriggerScraperView.as_view(), name='trigger'),

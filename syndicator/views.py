@@ -203,6 +203,49 @@ class SourceTestView(StaffRequiredMixin, View):
         return JsonResponse(result)
 
 
+class SourceTestAllView(StaffRequiredMixin, ListView):
+    """
+    "اختبار كل المصادر" page - lists every active AISource so the page's JS
+    can fire one SourcePreviewView request per row and show its actual last
+    5 resolved articles side by side, all in one place instead of opening
+    each source's edit form one at a time.
+    """
+    model = AISource
+    template_name = 'ai_dashboard/sources_test_all.html'
+    context_object_name = 'sources'
+    queryset = AISource.objects.filter(is_active=True).order_by('name')
+
+
+class SourcePreviewView(StaffRequiredMixin, View):
+    """
+    AJAX endpoint backing SourceTestAllView - unlike SourceTestView (which
+    only dry-runs the top level of a candidate URL), this walks a saved
+    source exactly like the real crawler does (sitemapindex recursion
+    included, see fetch_news_items_from_source) so nested feeds like
+    masrawy's category-then-page sitemap resolve down to real article
+    titles. Capped to 5 items and Gemini-fallback disabled - this is a
+    read-only sanity check, never worth spending API budget on.
+    """
+    def get(self, request, pk, *args, **kwargs):
+        from .ai_utils import fetch_news_items_from_source, _proxies_for_source
+
+        source = get_object_or_404(AISource, pk=pk)
+        errors = []
+        items = fetch_news_items_from_source(
+            source.url, proxies=_proxies_for_source(source), error_out=errors,
+            limit=5, use_gemini_fallback=False,
+        )
+        samples = [{'title': it['title'] or '(بدون عنوان)', 'link': it['link']} for it in items if it.get('link')]
+        if samples:
+            return JsonResponse({'ok': True, 'count': len(samples), 'samples': samples, 'error': None})
+        return JsonResponse({
+            'ok': False,
+            'count': 0,
+            'samples': [],
+            'error': errors[0] if errors else 'لم يتم العثور على أي أخبار قابلة للتعرف عليها في هذا المصدر.',
+        })
+
+
 class SourceDeleteView(StaffRequiredMixin, DeleteView):
     model = AISource
     template_name = 'ai_dashboard/source_confirm_delete.html'

@@ -15,6 +15,10 @@
                 <i class="fa-solid fa-folder text-xs ml-1.5"></i>
                 <span>إدارة المجموعات</span>
             </a>
+            <a href="{% url 'news_ai:sources_test_all' %}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-150">
+                <i class="fa-solid fa-vial-circle-check text-xs ml-1.5"></i>
+                <span>اختبار كل المصادر</span>
+            </a>
             <a href="{% url 'news_ai:source_add' %}" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center space-x-1.5 space-x-reverse transition duration-200">
                 <i class="fa-solid fa-plus text-xs"></i>
                 <span>إضافة مصدر جديد</span>

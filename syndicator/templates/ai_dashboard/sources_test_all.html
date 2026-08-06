@@ -1,0 +1,180 @@
+{% extends 'ai_dashboard/base.html' %}
+
+{% block title %}اختبار كل المصادر - بوابة الذكاء الاصطناعي{% endblock %}
+{% block header_title %}اختبار كل مصادر الأخبار{% endblock %}
+
+{% block content %}
+<div class="glass-panel p-6 rounded-2xl border border-slate-800">
+    <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+        <div>
+            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-vial-circle-check text-teal-400 ml-2"></i>اختبار كل المصادر دفعة واحدة</h3>
+            <p class="text-xs text-slate-400 mt-1">يجلب آخر 5 أخبار حقيقية من كل مصدر نشط للتأكد من صحته، بدون أي استخدام لـ API جيميناي.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'news_ai:sources' %}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition duration-150">رجوع للمصادر</a>
+            <button id="run-all-btn" class="btn-glow px-4 py-2.5 bg-gradient-to-r from-primary-600 to-teal-500 hover:from-primary-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl flex items-center gap-1.5 transition duration-200">
+                <i class="fa-solid fa-play text-xs"></i>
+                <span>ابدأ اختبار الكل</span>
+            </button>
+        </div>
+    </div>
+
+    {% if sources %}
+    <!-- Progress summary -->
+    <div id="progress-panel" class="hidden mb-6 p-4 rounded-xl border border-slate-800 bg-slate-900/40">
+        <div class="flex items-center justify-between mb-2 text-sm">
+            <span class="text-slate-300 font-semibold">التقدم: <span id="progress-count">0</span> / {{ sources|length }}</span>
+            <span class="flex items-center gap-4">
+                <span class="text-emerald-400"><i class="fa-solid fa-circle-check ml-1"></i><span id="success-count">0</span> نجح</span>
+                <span class="text-rose-400"><i class="fa-solid fa-circle-xmark ml-1"></i><span id="fail-count">0</span> فشل</span>
+            </span>
+        </div>
+        <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div id="progress-bar" class="h-full bg-gradient-to-r from-primary-600 to-teal-500 transition-all duration-300" style="width:0%"></div>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+        <table class="w-full text-right border-collapse">
+            <thead>
+                <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase bg-slate-900/80">
+                    <th scope="col" class="px-6 py-4 font-bold">اسم المصدر</th>
+                    <th scope="col" class="px-6 py-4 font-bold">رابط التغذية</th>
+                    <th scope="col" class="px-6 py-4 font-bold text-center">النتيجة</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-sm text-slate-300">
+                {% for source in sources %}
+                <tr class="source-row hover:bg-slate-800/30 transition duration-150 cursor-pointer" data-source-id="{{ source.pk }}">
+                    <td class="px-6 py-4 font-semibold text-slate-100">
+                        <i class="fa-solid fa-chevron-left row-caret text-[10px] text-slate-600 ml-2 transition-transform"></i>{{ source.name }}
+                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-slate-400 max-w-xs truncate" title="{{ source.url }}">{{ source.url }}</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="row-status inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700">في الانتظار</span>
+                    </td>
+                </tr>
+                <tr class="source-details-row hidden" data-source-id="{{ source.pk }}">
+                    <td colspan="3" class="px-6 py-4 bg-slate-950/50">
+                        <div class="row-details text-xs text-slate-400">لسه ما اتعملش اختبار للمصدر ده.</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-500 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+        <i class="fa-solid fa-rss text-5xl mb-4 block text-slate-600"></i>
+        <h4 class="text-lg font-bold text-slate-400">لا توجد مصادر نشطة لاختبارها</h4>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    const runBtn = document.getElementById('run-all-btn');
+    if (!runBtn) return;
+
+    const rows = Array.from(document.querySelectorAll('.source-row'));
+    const progressPanel = document.getElementById('progress-panel');
+    const progressCountEl = document.getElementById('progress-count');
+    const progressBarEl = document.getElementById('progress-bar');
+    const successCountEl = document.getElementById('success-count');
+    const failCountEl = document.getElementById('fail-count');
+    const total = rows.length;
+    const CONCURRENCY = 4;
+    const previewUrlTemplate = "{% url 'news_ai:source_preview' 0 %}";
+
+    let doneCount = 0, successCount = 0, failCount = 0;
+    let running = false;
+
+    function setStatus(row, label, classes) {
+        const badge = row.querySelector('.row-status');
+        badge.className = 'row-status inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ' + classes;
+        badge.textContent = label;
+    }
+
+    function renderDetails(sourceId, data) {
+        const detailsRow = document.querySelector('.source-details-row[data-source-id="' + sourceId + '"]');
+        const box = detailsRow.querySelector('.row-details');
+        if (data.ok && data.samples && data.samples.length) {
+            let html = '<ul class="space-y-1.5 list-disc pr-4">';
+            data.samples.forEach(s => {
+                html += `<li><a href="${s.link}" target="_blank" rel="noopener" class="text-teal-400 hover:underline">${s.title}</a> — <span class="font-mono text-slate-500">${s.link}</span></li>`;
+            });
+            html += '</ul>';
+            box.innerHTML = html;
+        } else {
+            box.innerHTML = `<span class="text-rose-400"><i class="fa-solid fa-circle-xmark ml-1"></i>${data.error || 'تعذر جلب أي أخبار من هذا المصدر.'}</span>`;
+        }
+    }
+
+    async function testOne(row) {
+        const sourceId = row.dataset.sourceId;
+        setStatus(row, 'جارٍ الاختبار...', 'bg-sky-500/10 text-sky-400 border-sky-500/20');
+        try {
+            const res = await fetch(previewUrlTemplate.replace('/0/', '/' + sourceId + '/'));
+            const data = await res.json();
+            renderDetails(sourceId, data);
+            if (data.ok) {
+                successCount++;
+                setStatus(row, `نجح (${data.count})`, 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20');
+            } else {
+                failCount++;
+                setStatus(row, 'فشل', 'bg-rose-500/10 text-rose-400 border-rose-500/20');
+            }
+        } catch (e) {
+            failCount++;
+            setStatus(row, 'فشل', 'bg-rose-500/10 text-rose-400 border-rose-500/20');
+            renderDetails(sourceId, { ok: false, error: 'حدث خطأ غير متوقع أثناء الاتصال بالسيرفر.' });
+        } finally {
+            doneCount++;
+            progressCountEl.textContent = doneCount;
+            successCountEl.textContent = successCount;
+            failCountEl.textContent = failCount;
+            progressBarEl.style.width = Math.round((doneCount / total) * 100) + '%';
+        }
+    }
+
+    async function runAll() {
+        if (running) return;
+        running = true;
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ الاختبار في الخلفية...';
+        progressPanel.classList.remove('hidden');
+        doneCount = 0; successCount = 0; failCount = 0;
+        progressCountEl.textContent = '0';
+        successCountEl.textContent = '0';
+        failCountEl.textContent = '0';
+        progressBarEl.style.width = '0%';
+
+        let cursor = 0;
+        async function worker() {
+            while (cursor < rows.length) {
+                const row = rows[cursor++];
+                await testOne(row);
+            }
+        }
+        const workers = Array.from({ length: Math.min(CONCURRENCY, rows.length) }, worker);
+        await Promise.all(workers);
+
+        running = false;
+        runBtn.disabled = false;
+        runBtn.innerHTML = '<i class="fa-solid fa-rotate-right text-xs"></i> <span>إعادة الاختبار</span>';
+    }
+
+    runBtn.addEventListener('click', runAll);
+
+    rows.forEach(row => {
+        row.addEventListener('click', () => {
+            const sourceId = row.dataset.sourceId;
+            const detailsRow = document.querySelector('.source-details-row[data-source-id="' + sourceId + '"]');
+            const caret = row.querySelector('.row-caret');
+            detailsRow.classList.toggle('hidden');
+            caret.style.transform = detailsRow.classList.contains('hidden') ? '' : 'rotate(-90deg)';
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -24,6 +24,34 @@ logger = logging.getLogger(__name__)
 CAIRO_TZ = ZoneInfo("Africa/Cairo")
 
 
+def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
+    """
+    Thin wrapper around requests.get with a single automatic retry, used
+    everywhere a fetch is routed through SCRAPING_PROXY_URL. A rotating
+    residential proxy hands out a different random exit IP per request, and
+    an occasional dead/unreachable one causing a transient "Tunnel connection
+    failed" (ProxyError) or reset (ConnectionError/Timeout) is expected
+    behavior for that proxy type, not a real source-down signal - see the
+    filfan.com/egypt-today.com 502 Bad Gateway entries in AIImportLog that
+    prompted this. Retrying once on the next (different) exit IP clears most
+    of these without a human ever seeing them as failures.
+
+    Only retries when actually going through a proxy (proxies is truthy) and
+    only for connection-level failures - an HTTP error (403, 404...) after a
+    successful connection is a real response, not a transient hiccup, so it's
+    left to raise_for_status()/status_code checks in the caller as before.
+    """
+    attempt = 0
+    while True:
+        try:
+            return requests.get(url, headers=headers, timeout=timeout, proxies=proxies)
+        except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            if not proxies or attempt >= max_retries:
+                raise
+            attempt += 1
+            time.sleep(1.5)
+
+
 def _proxies_for_source(source):
     """
     requests-compatible `proxies` dict for this AISource if it's flagged
@@ -374,7 +402,7 @@ def fetch_full_article_text(url, proxies=None):
     """
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=10, proxies=proxies)
+        res = _get_with_proxy_retry(url, headers, 10, proxies)
         if res.status_code != 200:
             return ""
         soup = BeautifulSoup(res.content, 'html.parser')
@@ -659,7 +687,7 @@ def _scrape_image_from_article_page(link_url, headers, proxies=None):
     if nothing usable is found - callers fall back further from there.
     """
     try:
-        page_res = requests.get(link_url, headers=headers, timeout=8, proxies=proxies)
+        page_res = _get_with_proxy_retry(link_url, headers, 8, proxies)
         if page_res.status_code != 200:
             return ""
         page_soup = BeautifulSoup(page_res.content, 'html.parser')
@@ -697,7 +725,7 @@ def _scrape_title_and_image_from_article_page(link_url, headers, proxies=None):
     title_text = ""
     image_url = ""
     try:
-        page_res = requests.get(link_url, headers=headers, timeout=8, proxies=proxies)
+        page_res = _get_with_proxy_retry(link_url, headers, 8, proxies)
         if page_res.status_code != 200:
             return title_text, image_url
         page_soup = BeautifulSoup(page_res.content, 'html.parser')
@@ -853,7 +881,7 @@ def test_source_url(source_url, proxies=None):
     }
 
     try:
-        response = requests.get(source_url, headers=headers, timeout=15, proxies=proxies)
+        response = _get_with_proxy_retry(source_url, headers, 15, proxies)
         response.raise_for_status()
     except requests.exceptions.Timeout:
         return {'ok': False, 'kind': None, 'count': 0, 'samples': [], 'error': 'انتهت مهلة الاتصال (أكثر من 15 ثانية).', 'note': None}
@@ -968,7 +996,7 @@ def fetch_news_items_from_source(source_url, proxies=None, error_out=None, limit
     items = []
 
     try:
-        response = requests.get(source_url, headers=headers, timeout=15, proxies=proxies)
+        response = _get_with_proxy_retry(source_url, headers, 15, proxies)
         response.raise_for_status()
         content = response.content
         

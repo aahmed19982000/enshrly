@@ -434,6 +434,66 @@ class SourceProxyRoutingTests(TestCase):
         self.assertIsNone(mock_get.call_args.kwargs.get('proxies'))
 
 
+class ProxyRetryTests(TestCase):
+    """
+    Rotating residential proxies (Webshare et al.) hand out a different
+    random exit IP per request - an occasional dead one causing a transient
+    ProxyError/ConnectionError ("Tunnel connection failed: 502 Bad Gateway")
+    is expected, not a real source-down signal (see the filfan.com /
+    egypt-today.com AIImportLog entries this retry was added for). Covers
+    _get_with_proxy_retry directly: one retry when routed through a proxy,
+    no retry (fails immediately) for a direct fetch, and no retry at all for
+    a non-connection error like an HTTP status.
+    """
+    def _fake_response(self, content=RSS_FEED_XML):
+        mock_resp = type('R', (), {})()
+        mock_resp.content = content.encode()
+        mock_resp.raise_for_status = lambda: None
+        return mock_resp
+
+    @patch('syndicator.ai_utils.time.sleep')
+    @patch('syndicator.ai_utils.requests.get')
+    def test_retries_once_on_transient_proxy_error_then_succeeds(self, mock_get, mock_sleep):
+        from .ai_utils import _get_with_proxy_retry
+        import requests as requests_module
+
+        proxies = {'http': 'http://user:pass@proxy.example:8080', 'https': 'http://user:pass@proxy.example:8080'}
+        success_response = self._fake_response()
+        mock_get.side_effect = [requests_module.exceptions.ProxyError('Tunnel connection failed: 502 Bad Gateway'), success_response]
+
+        result = _get_with_proxy_retry('https://a.com/rss', {}, 15, proxies)
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertIs(result, success_response)
+        mock_sleep.assert_called_once()
+
+    @patch('syndicator.ai_utils.requests.get')
+    def test_does_not_retry_direct_fetch_without_proxy(self, mock_get):
+        from .ai_utils import _get_with_proxy_retry
+        import requests as requests_module
+
+        mock_get.side_effect = requests_module.exceptions.ConnectionError('Connection refused')
+
+        with self.assertRaises(requests_module.exceptions.ConnectionError):
+            _get_with_proxy_retry('https://a.com/rss', {}, 15, None)
+
+        mock_get.assert_called_once()
+
+    @patch('syndicator.ai_utils.time.sleep')
+    @patch('syndicator.ai_utils.requests.get')
+    def test_gives_up_after_one_retry_if_still_failing(self, mock_get, mock_sleep):
+        from .ai_utils import _get_with_proxy_retry
+        import requests as requests_module
+
+        proxies = {'http': 'http://user:pass@proxy.example:8080', 'https': 'http://user:pass@proxy.example:8080'}
+        mock_get.side_effect = requests_module.exceptions.ProxyError('Tunnel connection failed: 502 Bad Gateway')
+
+        with self.assertRaises(requests_module.exceptions.ProxyError):
+            _get_with_proxy_retry('https://a.com/rss', {}, 15, proxies)
+
+        self.assertEqual(mock_get.call_count, 2)
+
+
 class GenerationLoopIndependenceTests(TestCase):
     """
     Confirms every WordPressSite always gets its own independent generation

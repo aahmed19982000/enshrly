@@ -1,0 +1,174 @@
+{% extends 'landing/base.html' %}
+{% block content %}
+<div class="page-shell-body" style="max-width: 480px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">اشتراك خدمة إدارة الإعلانات</h1>
+
+    <div class="panel panel-accent">
+        <span class="card-title">ملخص الباقة</span>
+        <div style="display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: var(--text);">{{ plan.name }}</span>
+            <span style="font-family: var(--font-display); font-weight: 700; color: var(--gold);" id="display-price">${{ plan.price }}</span>
+        </div>
+        <span style="color: var(--muted); font-size: 0.85rem;">لموقع: {{ site.name }}</span>
+        {% if plan.max_concurrent_active_campaigns %}
+            <span style="color: var(--muted); font-size: 0.85rem;">حتى {{ plan.max_concurrent_active_campaigns }} حملة نشطة في نفس الوقت</span>
+        {% else %}
+            <span style="color: var(--muted); font-size: 0.85rem;">بدون حد لعدد الحملات النشطة</span>
+        {% endif %}
+        <span style="color: var(--muted); font-size: 0.85rem;">أقصى ميزانية يومية للحملة: ${{ plan.max_daily_budget_usd }}</span>
+        <span style="color: var(--muted); font-size: 0.85rem;">هذا الاشتراك مقابل خدمة الإدارة فقط — تكلفة الإعلانات الفعلية على فيسبوك تُدفع مباشرةً من حساب إعلاناتك.</span>
+    </div>
+
+    <form method="post" action="{% url 'payments:ads_addon_checkout' plan.id site.id %}" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        {% csrf_token %}
+
+        <div class="panel">
+            <span class="card-title">فترة الاشتراك</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+                <label class="toggle-chip{% if initial_period == 'monthly' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="monthly" {% if initial_period == 'monthly' %}checked{% endif %} onchange="updatePrice()">
+                    شهري
+                </label>
+                <label class="toggle-chip{% if initial_period == 'quarterly' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="quarterly" {% if initial_period == 'quarterly' %}checked{% endif %} onchange="updatePrice()">
+                    ربع سنوي
+                </label>
+                <label class="toggle-chip{% if initial_period == 'semiannual' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="semiannual" {% if initial_period == 'semiannual' %}checked{% endif %} onchange="updatePrice()">
+                    نصف سنوي
+                </label>
+                <label class="toggle-chip{% if initial_period == 'annual' %} selected{% endif %}">
+                    <input type="radio" name="billing_period" value="annual" {% if initial_period == 'annual' %}checked{% endif %} onchange="updatePrice()">
+                    سنوي
+                </label>
+            </div>
+            <span id="discount-note" style="display: none; color: var(--gold); font-size: 0.85rem;"></span>
+        </div>
+
+        {% if enable_paypal_gateway or enable_paymob_gateway or enable_local_wallet_gateway %}
+        <div class="panel">
+            <span class="card-title">العملة</span>
+            <div style="display: flex; gap: 0.75rem;">
+                {% if enable_paypal_gateway %}
+                <label class="toggle-chip selected">
+                    <input type="radio" name="currency" value="USD" checked onchange="updatePrice()">
+                    دولار (USD)
+                </label>
+                {% endif %}
+                {% if enable_paymob_gateway or enable_local_wallet_gateway %}
+                <label class="toggle-chip{% if not enable_paypal_gateway %} selected{% endif %}">
+                    <input type="radio" name="currency" value="EGP" {% if not enable_paypal_gateway %}checked{% endif %} onchange="updatePrice()">
+                    جنيه مصري (EGP)
+                </label>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <span class="card-title">طريقة الدفع</span>
+
+            {% if enable_paypal_gateway %}
+            <label id="paypal-opt" class="select-row selected">
+                <input type="radio" name="gateway" id="gw-paypal" value="paypal" required onclick="togglePhoneInput(false)">
+                <span class="select-row-label">PayPal / بطاقة ائتمانية دولية</span>
+            </label>
+            {% endif %}
+
+            {% if enable_paymob_gateway %}
+            <label id="paymob-opt" class="select-row" style="display: none;">
+                <input type="radio" name="gateway" id="gw-paymob" value="paymob" onclick="togglePhoneInput(false)">
+                <span class="select-row-label">البطاقات البنكية المصرية (Visa / Mastercard / Meeza)</span>
+            </label>
+            {% endif %}
+
+            {% if enable_local_wallet_gateway %}
+            <label id="local-opt" class="select-row" style="display: none;">
+                <input type="radio" name="gateway" id="gw-local" value="local" onclick="togglePhoneInput(true)">
+                <span class="select-row-label">محافظ محلية (Vodafone Cash / فوري)</span>
+            </label>
+            {% endif %}
+
+            <p id="no-gateway-note" style="display: none; color: var(--rust);">لا توجد طريقة دفع متاحة حالياً بهذه العملة، جرّب عملة أخرى.</p>
+
+            <div id="phone-input-group" class="field" style="display: none;">
+                <label for="sender_phone">رقم المحفظة التي ستحول منها:</label>
+                <input type="text" name="sender_phone" id="sender_phone" placeholder="مثال: 01012345678" style="direction: ltr; text-align: left;">
+                <span class="help-text">يُساعدنا هذا في تأكيد عمليتك تلقائياً وبسرعة فور التحويل.</span>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg">متابعة الدفع</button>
+        {% else %}
+        <div class="panel">
+            <p style="color: var(--rust);">عذراً، لا توجد طريقة دفع متاحة حالياً. برجاء التواصل معنا لإتمام الاشتراك.</p>
+        </div>
+        {% endif %}
+    </form>
+</div>
+
+{% if enable_paypal_gateway or enable_paymob_gateway or enable_local_wallet_gateway %}
+{{ period_prices|json_script:"period-prices-data" }}
+<script>
+const PERIOD_PRICES = JSON.parse(document.getElementById('period-prices-data').textContent);
+
+function updatePrice() {
+    const period = document.querySelector('input[name="billing_period"]:checked').value;
+    const currency = document.querySelector('input[name="currency"]:checked').value;
+    const priceInfo = PERIOD_PRICES[period];
+
+    const display = document.getElementById('display-price');
+    const discountNote = document.getElementById('discount-note');
+    const noGatewayNote = document.getElementById('no-gateway-note');
+
+    if (priceInfo.discount > 0) {
+        discountNote.style.display = 'inline';
+        discountNote.innerText = `شامل خصم ${priceInfo.discount}% عن السعر الشهري`;
+    } else {
+        discountNote.style.display = 'none';
+    }
+
+    display.innerText = currency === 'USD' ? '$' + priceInfo.usd : priceInfo.egp + ' ج.م';
+
+    const usdGateways = [{ opt: document.getElementById('paypal-opt'), input: document.getElementById('gw-paypal') }];
+    const egpGateways = [
+        { opt: document.getElementById('paymob-opt'), input: document.getElementById('gw-paymob') },
+        { opt: document.getElementById('local-opt'), input: document.getElementById('gw-local') },
+    ];
+
+    usdGateways.concat(egpGateways).forEach(g => {
+        if (g.opt) g.opt.style.display = 'none';
+        if (g.input) { g.input.required = false; g.input.checked = false; }
+    });
+
+    const activeGateways = (currency === 'USD' ? usdGateways : egpGateways).filter(g => g.opt && g.input);
+
+    if (activeGateways.length > 0) {
+        noGatewayNote.style.display = 'none';
+        activeGateways.forEach(g => { g.opt.style.display = 'block'; });
+        activeGateways[0].input.required = true;
+        activeGateways[0].input.checked = true;
+        togglePhoneInput(activeGateways[0].input.id === 'gw-local');
+    } else {
+        noGatewayNote.style.display = 'block';
+        togglePhoneInput(false);
+    }
+}
+
+function togglePhoneInput(show) {
+    const group = document.getElementById('phone-input-group');
+    const input = document.getElementById('sender_phone');
+    if (show) {
+        group.style.display = 'block';
+        input.setAttribute('required', 'required');
+    } else {
+        group.style.display = 'none';
+        input.removeAttribute('required');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updatePrice();
+});
+</script>
+{% endif %}
+{% endblock %}

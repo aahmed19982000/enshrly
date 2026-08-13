@@ -1,0 +1,60 @@
+{% extends 'landing/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .ads-header { margin-bottom: 1.75rem; }
+    .ads-header p { color: var(--muted); margin: 0.3rem 0 0; }
+
+    .ads-site-cards { display: flex; flex-direction: column; gap: 1.25rem; }
+    .ads-site-card { background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .ads-site-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+    .ads-site-head .name { font-weight: 700; color: var(--text); }
+
+    .status-text.status-connected { color: var(--moss); }
+    .status-text.status-disconnected { color: var(--muted); }
+
+    .empty-state { padding: 3rem 1.5rem; text-align: center; display: flex; flex-direction: column; gap: 0.5rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 2rem 1rem;">
+    <div class="ads-header">
+        <h1>إدارة الإعلانات الممولة</h1>
+        <p>اربط حساب إعلانات فيسبوك واترك النظام يُنشئ ويدير حملاتك الإعلانية بالنيابة عنك. أنت تدفع لفيسبوك مباشرةً، ونحن نتولى الإدارة.</p>
+    </div>
+
+    {% if sites_data %}
+    <div class="ads-site-cards">
+        {% for data in sites_data %}
+            <div class="ads-site-card">
+                <div class="ads-site-head">
+                    <span class="name">{{ data.site.name }}</span>
+
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        {% if not data.addon_active %}
+                            <a href="{% url 'payments:ads_addon_plans' data.site.pk %}" class="btn btn-primary btn-sm">اشترك في إدارة الإعلانات</a>
+                        {% elif data.is_connected %}
+                            <span class="status-text status-connected">حساب إعلانات متصل</span>
+                            <a href="{% url 'ads:campaign_wizard' data.site.pk %}" class="btn btn-primary btn-sm">حملة إعلانية جديدة</a>
+                            <a href="{% url 'ads:campaign_list' data.site.pk %}" class="btn btn-secondary btn-sm">الحملات ({{ data.campaign_count }})</a>
+                        {% else %}
+                            <a href="{% url 'ads:connect_redirect' data.site.pk %}" class="btn btn-primary btn-sm">ربط حساب إعلانات فيسبوك</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if data.connection and data.connection.status == 'needs_reauth' %}
+                    <span class="status-text" style="color: var(--rust);">انتهت صلاحية اتصال حساب الإعلانات، يرجى إعادة الربط.</span>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <div class="empty-state">
+            <span>لا يوجد لديك أي مواقع مربوطة بعد.</span>
+            <a href="{% url 'accounts:dashboard' %}" class="btn btn-primary btn-sm">اذهب للوحة التحكم</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

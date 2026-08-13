@@ -1,0 +1,59 @@
+{% extends 'landing/base.html' %}
+
+{% block extra_css %}
+<style>
+    .status-text.status-active { color: var(--moss); }
+    .status-text.status-paused { color: var(--muted); }
+    .status-text.status-error { color: var(--rust); }
+    .status-text.status-pending_creation { color: var(--gold); }
+    .status-text.status-draft { color: var(--muted); }
+    .status-text.status-completed { color: var(--muted); }
+    .empty-state { padding: 3rem 1.5rem; text-align: center; display: flex; flex-direction: column; gap: 0.5rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 2rem 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.75rem;">
+        <div>
+            <h1>حملات "{{ site.name }}" الإعلانية</h1>
+            <p style="color: var(--muted); margin: 0.3rem 0 0;">تابع حالة وأداء كل حملة أنشأها النظام لك.</p>
+        </div>
+        <a href="{% url 'ads:campaign_wizard' site.pk %}" class="btn btn-primary btn-sm">حملة إعلانية جديدة</a>
+    </div>
+
+    {% if campaigns %}
+        <div style="overflow-x: auto;">
+            <table class="table-flat" style="min-width: 720px;">
+                <thead>
+                    <tr>
+                        <th>الحملة</th>
+                        <th>الهدف</th>
+                        <th>الميزانية اليومية</th>
+                        <th>الحالة</th>
+                        <th>تاريخ الإنشاء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for campaign in campaigns %}
+                        <tr>
+                            <td><a href="{% url 'ads:campaign_detail' site.pk campaign.pk %}">{{ campaign.name }}</a></td>
+                            <td>{{ campaign.get_objective_display }}</td>
+                            <td>${{ campaign.daily_budget }}</td>
+                            <td>
+                                <span class="status-text status-{{ campaign.status }}" title="{{ campaign.error_message }}">{{ campaign.get_status_display }}</span>
+                            </td>
+                            <td style="color: var(--muted);">{{ campaign.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <span>لا توجد حملات إعلانية بعد لهذا الموقع.</span>
+            <a href="{% url 'ads:campaign_wizard' site.pk %}" class="btn btn-primary btn-sm">أنشئ أول حملة</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

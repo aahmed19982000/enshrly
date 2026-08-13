@@ -1,0 +1,19 @@
+{% extends 'landing/base.html' %}
+{% block title %}ربط حساب إعلانات فيسبوك — Sahafi Hub{% endblock %}
+{% block content %}
+<div class="page-shell-body" style="max-width: 460px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">ربط حساب إعلانات فيسبوك</h1>
+
+    <div class="panel panel-accent text-center" style="align-items: center; gap: 1rem;">
+        <span style="color: var(--muted); font-size: 0.9rem;">
+            اضغط الزر لربط حساب إعلانات فيسبوك الخاص بك بموقع «{{ wp_site.name }}»، ليقوم Sahafi Hub بإنشاء وإدارة حملاتك الإعلانية نيابةً عنك. أنت من يدفع لفيسبوك مباشرةً — نحن فقط ندير الحملة.
+        </span>
+        <a href="{{ oauth_url }}" class="btn btn-primary btn-lg btn-block">
+            ربط حساب الإعلانات
+        </a>
+        <span style="color: var(--muted); font-size: 0.8rem;">
+            سيطلب منك فيسبوك تسجيل الدخول واختيار حساب الإعلانات الذي تديره. لن نطّلع على كلمة مرورك أبدًا.
+        </span>
+    </div>
+</div>
+{% endblock %}

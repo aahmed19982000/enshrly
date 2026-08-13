@@ -36,6 +36,7 @@
             {% if user.customer_profile %}
                 <a href="{% url 'accounts:dashboard' %}">لوحة التحكم</a>
                 <a href="{% url 'accounts:facebook_dashboard' %}">فيسبوك</a>
+                <a href="{% url 'ads:dashboard' %}">إعلانات</a>
             {% endif %}
             <form action="{% url 'accounts:logout' %}" method="post" style="display:inline;">
                 {% csrf_token %}

@@ -24,7 +24,7 @@ FONT_PATH = settings.BASE_DIR / 'static' / 'fonts' / 'Cairo-Black.ttf'
 CANVAS_WIDTH = 1080
 CANVAS_HEIGHT = 1350  # 4:5 - Facebook/Instagram's mobile-optimized feed ratio
 WHITE = (255, 255, 255)
-FACEBOOK_GRAPH_VERSION = 'v21.0'
+FACEBOOK_GRAPH_VERSION = settings.FACEBOOK_GRAPH_VERSION
 DEFAULT_BADGE_TEXT = 'خبر'
 TEXT_BG_ALPHA = 195  # ~76% opaque - headline backgrounds stay legible but let the photo show through
 

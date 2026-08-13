@@ -1,0 +1,125 @@
+{% extends 'landing/base.html' %}
+
+{% block extra_css %}
+<style>
+    .wizard-section { margin-bottom: 1.75rem; }
+    .wizard-section .card-title { display: block; margin-bottom: 0.75rem; }
+    .promote-list { display: flex; flex-direction: column; gap: 0.6rem; max-height: 320px; overflow-y: auto; }
+    .promote-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.9rem; border: 1px solid var(--rule); border-radius: var(--radius-sm); cursor: pointer; }
+    .promote-row img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    .promote-row .title { font-size: 0.9rem; color: var(--text); }
+    .promote-row .meta { font-size: 0.78rem; color: var(--muted); }
+    .help-note { color: var(--muted); font-size: 0.82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 720px; padding: 2rem 1rem 4rem;">
+    <h1>حملة إعلانية جديدة — {{ site.name }}</h1>
+    <p style="color: var(--muted); margin: 0.3rem 0 1.5rem;">اختر المحتوى والهدف والميزانية، وسيتولى النظام إنشاء الحملة على فيسبوك بالنيابة عنك.</p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="panel wizard-section">
+            <span class="card-title">1. ماذا تريد الترويج له؟</span>
+            <div class="promote-list">
+                {% for post in promotable_posts %}
+                    <label class="promote-row">
+                        <input type="radio" name="promote" value="post:{{ post.pk }}" data-is-post="1" required>
+                        {% if post.generated_image %}<img src="{{ post.generated_image.url }}" alt="">{% endif %}
+                        <span>
+                            <span class="title">{{ post.article_title|default:"—" }}</span><br>
+                            <span class="meta">منشور فيسبوك بالفعل — يمكن اختيار "تفاعل أكبر" كهدف</span>
+                        </span>
+                    </label>
+                {% endfor %}
+                {% for log in promotable_articles %}
+                    <label class="promote-row">
+                        <input type="radio" name="promote" value="article:{{ log.pk }}" data-is-post="0" required>
+                        {% if log.article.cover_image %}<img src="{{ log.article.cover_image.url }}" alt="">{% endif %}
+                        <span>
+                            <span class="title">{{ log.title|default:log.article.title|default:"—" }}</span><br>
+                            <span class="meta">خبر منشور على موقعك</span>
+                        </span>
+                    </label>
+                {% endfor %}
+                {% for post in promotable_fb_posts %}
+                    <label class="promote-row">
+                        <input type="radio" name="promote" value="fbpost:{{ post.id }}" data-is-post="1" required>
+                        {% if post.full_picture %}<img src="{{ post.full_picture }}" alt="">{% endif %}
+                        <span>
+                            <span class="title">{{ post.message|default:"منشور من صفحة فيسبوك"|truncatechars:80 }}</span><br>
+                            <span class="meta">منشور من صفحة فيسبوك — يمكن اختيار "تفاعل أكبر" كهدف</span>
+                        </span>
+                    </label>
+                {% endfor %}
+                {% if not promotable_posts and not promotable_articles and not promotable_fb_posts %}
+                    <p class="help-note">لا يوجد محتوى منشور بعد يمكن الترويج له. انتظر حتى يُنشر أول خبر على موقعك.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel wizard-section">
+            <span class="card-title">2. ما هو هدف الحملة؟</span>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                {% for value, label in objective_choices %}
+                    <label class="select-row" id="objective-row-{{ value }}">
+                        <input type="radio" name="objective" value="{{ value }}" id="objective-{{ value }}" required>
+                        <span class="select-row-label">{{ label }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <p class="help-note" id="engagement-note" style="display: none;">هدف "تفاعل أكبر" متاح فقط عند اختيار منشور فيسبوك من القائمة أعلاه.</p>
+        </div>
+
+        <div class="panel wizard-section">
+            <span class="card-title">3. الميزانية اليومية والمدة</span>
+            <div class="field">
+                <label for="daily_budget">الميزانية اليومية (بعملة حساب إعلاناتك{% if connection.currency %}: {{ connection.currency }}{% endif %})</label>
+                <input type="number" step="0.01" min="1" {% if max_daily_budget %}max="{{ max_daily_budget }}"{% endif %} name="daily_budget" id="daily_budget" required style="max-width: 200px;">
+                {% if max_daily_budget %}<span class="help-text">أقصى ميزانية يومية مسموحة في باقتك: ${{ max_daily_budget }}</span>{% endif %}
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem;">
+                {% for days in duration_presets %}
+                    <label class="toggle-chip{% if forloop.first %} selected{% endif %}">
+                        <input type="radio" name="duration_days" value="{{ days }}" {% if forloop.first %}checked{% endif %}>
+                        {{ days }} يوم
+                    </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="panel wizard-section">
+            <span class="card-title">4. الجمهور المستهدف</span>
+            <p class="help-note">سيستخدم النظام الاستهداف التلقائي من فيسبوك (Advantage+) لأفضل نتيجة ممكنة بدون الحاجة لخبرة في الإعلانات — لا داعي لإعداد أي شيء هنا.</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block">إنشاء الحملة</button>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var promoteInputs = document.querySelectorAll('input[name="promote"]');
+    var engagementInput = document.getElementById('objective-OUTCOME_ENGAGEMENT');
+    var engagementRow = document.getElementById('objective-row-OUTCOME_ENGAGEMENT');
+    var engagementNote = document.getElementById('engagement-note');
+
+    function updateEngagementAvailability() {
+        if (!engagementInput) return;
+        var selected = document.querySelector('input[name="promote"]:checked');
+        var isPost = selected && selected.dataset.isPost === '1';
+        engagementInput.disabled = !isPost;
+        if (engagementRow) engagementRow.style.opacity = isPost ? '1' : '0.5';
+        engagementNote.style.display = isPost ? 'none' : 'block';
+        if (!isPost && engagementInput.checked) engagementInput.checked = false;
+    }
+
+    promoteInputs.forEach(function (input) {
+        input.addEventListener('change', updateEngagementAvailability);
+    });
+    updateEngagementAvailability();
+});
+</script>
+{% endblock %}

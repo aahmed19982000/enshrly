@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 
 from accounts.models import CustomerProfile
-from payments.models import SubscriptionPackage, FacebookAddonPlan, Transaction
+from payments.models import SubscriptionPackage, FacebookAddonPlan, AdsAddonPlan, Transaction
 from payments.tasks import send_payment_success_whatsapp
 from payments.views import _complete_transaction, _token_expiry_days
 
@@ -79,6 +79,38 @@ class FacebookAddonPlanDeleteView(StaffRequiredMixin, DeleteView):
     template_name = 'ai_dashboard/saas/facebook_plan_confirm_delete.html'
     success_url = reverse_lazy('news_ai:saas_facebook_plans')
 
+# --- Ads Management Addon Plans ---
+class AdsAddonPlanListView(StaffRequiredMixin, ListView):
+    model = AdsAddonPlan
+    template_name = 'ai_dashboard/saas/ads_plans_list.html'
+    context_object_name = 'plans'
+    ordering = ['price']
+
+class AdsAddonPlanCreateView(StaffRequiredMixin, CreateView):
+    model = AdsAddonPlan
+    template_name = 'ai_dashboard/saas/ads_plan_form.html'
+    fields = [
+        'name', 'price', 'max_concurrent_active_campaigns', 'max_daily_budget_usd',
+        'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
+        'is_recommended', 'is_active',
+    ]
+    success_url = reverse_lazy('news_ai:saas_ads_plans')
+
+class AdsAddonPlanUpdateView(StaffRequiredMixin, UpdateView):
+    model = AdsAddonPlan
+    template_name = 'ai_dashboard/saas/ads_plan_form.html'
+    fields = [
+        'name', 'price', 'max_concurrent_active_campaigns', 'max_daily_budget_usd',
+        'quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent',
+        'is_recommended', 'is_active',
+    ]
+    success_url = reverse_lazy('news_ai:saas_ads_plans')
+
+class AdsAddonPlanDeleteView(StaffRequiredMixin, DeleteView):
+    model = AdsAddonPlan
+    template_name = 'ai_dashboard/saas/ads_plan_confirm_delete.html'
+    success_url = reverse_lazy('news_ai:saas_ads_plans')
+
 # --- Customers Management ---
 class CustomerListView(StaffRequiredMixin, ListView):
     model = CustomerProfile
@@ -134,5 +166,5 @@ class ConfirmTransactionView(StaffRequiredMixin, View):
             )
             messages.success(request, f"تم تأكيد المعاملة بنجاح وإنشاء كود الربط للعميل {client_name}.")
         else:
-            messages.success(request, f"تم تأكيد المعاملة وتفعيل باقة فيسبوك للعميل {client_name}.")
+            messages.success(request, f"تم تأكيد المعاملة وتفعيل {transaction.product_display_name} للعميل {client_name}.")
         return redirect('news_ai:saas_transactions')

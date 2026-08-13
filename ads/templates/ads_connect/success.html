@@ -1,0 +1,16 @@
+{% extends 'landing/base.html' %}
+{% block title %}تم الربط بنجاح — Sahafi Hub{% endblock %}
+{% block content %}
+<div class="page-shell-body" style="max-width: 460px; margin: 0 auto; padding: 3rem 1rem;">
+    <h1 class="page-shell-title">تم الربط بنجاح</h1>
+
+    <div class="panel panel-accent text-center" style="align-items: center; gap: 0.75rem;">
+        <span style="color: var(--moss); font-weight: var(--weight-semibold); font-size: 1.05rem;">
+            ✓ تم ربط حساب إعلانات «{{ account_name }}» بموقع «{{ wp_site.name }}»
+        </span>
+        <span style="color: var(--muted); font-size: 0.9rem;">
+            يمكنك الآن إنشاء حملتك الإعلانية الأولى من لوحة تحكم الإعلانات. يمكنك إغلاق هذه الصفحة.
+        </span>
+    </div>
+</div>
+{% endblock %}

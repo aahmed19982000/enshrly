@@ -126,6 +126,32 @@ class FacebookAddonPlan(PricedPlan):
         verbose_name = "باقة نشر فيسبوك"
         verbose_name_plural = "باقات نشر فيسبوك"
 
+class AdsAddonPlan(PricedPlan):
+    """
+    Gates access to the self-serve Facebook Ads management feature (see the
+    `ads` app). Unlike FacebookAddonPlan's monthly_articles_limit, this does
+    NOT limit ad spend - the customer connects and pays for their own
+    Facebook Ad Account directly to Meta. What's gated here is enshrly's own
+    management service: how many campaigns the system will run for them at
+    once, and a safety ceiling on the daily budget a non-expert customer can
+    set through the wizard.
+    """
+    max_concurrent_active_campaigns = models.PositiveIntegerField(
+        default=1,
+        verbose_name="أقصى عدد حملات نشطة في نفس الوقت",
+        help_text="0 = بدون حد."
+    )
+    max_daily_budget_usd = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('10.00'),
+        verbose_name="أقصى ميزانية يومية للحملة (USD)",
+        help_text="سقف أمان لكل حملة عبر معالج الإنشاء، لحماية العميل غير الخبير من إدخال ميزانية كبيرة بالخطأ."
+    )
+
+    class Meta:
+        verbose_name = "باقة إدارة إعلانات فيسبوك"
+        verbose_name_plural = "باقات إدارة إعلانات فيسبوك"
+
+
 class DevicePairing(models.Model):
     """
     Singleton tracking whether the currently displayed pairing QR (see
@@ -163,6 +189,7 @@ class Transaction(models.Model):
     PRODUCT_TYPE_CHOICES = [
         ('package', 'باقة نشر'),
         ('facebook_addon', 'باقة نشر فيسبوك'),
+        ('ads_addon', 'باقة إدارة إعلانات فيسبوك'),
     ]
 
     transaction_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -172,6 +199,10 @@ class Transaction(models.Model):
     facebook_addon_plan = models.ForeignKey(
         'FacebookAddonPlan', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='transactions', verbose_name="باقة فيسبوك (لو نوع المنتج إضافة فيسبوك)"
+    )
+    ads_addon_plan = models.ForeignKey(
+        'AdsAddonPlan', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='transactions', verbose_name="باقة إدارة إعلانات (لو نوع المنتج إدارة إعلانات)"
     )
     wp_site = models.ForeignKey(
         'syndicator.WordPressSite', on_delete=models.SET_NULL, null=True, blank=True,
@@ -213,6 +244,8 @@ class Transaction(models.Model):
         assume every Transaction had a `package`."""
         if self.product_type == 'facebook_addon':
             return self.facebook_addon_plan.name if self.facebook_addon_plan else 'باقة نشر فيسبوك'
+        if self.product_type == 'ads_addon':
+            return self.ads_addon_plan.name if self.ads_addon_plan else 'باقة إدارة إعلانات فيسبوك'
         return self.package.name if self.package else 'الباقة'
 
 

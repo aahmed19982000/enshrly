@@ -24,7 +24,7 @@ from .models import WordPressSite
 
 logger = logging.getLogger(__name__)
 
-GRAPH_VERSION = 'v21.0'
+GRAPH_VERSION = settings.FACEBOOK_GRAPH_VERSION
 TOKEN_SALT = 'facebook_connect'
 TOKEN_MAX_AGE = 60 * 60 * 24 * 30  # 30 days, matches the copy already shown in wp_site_form.html
 
@@ -70,7 +70,7 @@ def facebook_connect_start(request, token):
         f'?client_id={settings.FACEBOOK_APP_ID}'
         f'&redirect_uri={requests.utils.quote(_callback_redirect_uri(), safe="")}'
         f'&state={requests.utils.quote(token, safe="")}'
-        f'&scope=pages_show_list,pages_read_engagement,pages_manage_posts'
+        f'&scope=pages_show_list,pages_read_engagement,pages_manage_posts,pages_read_user_content'
     )
     return render(request, 'facebook_connect/start.html', {'wp_site': wp_site, 'oauth_url': oauth_url})
 

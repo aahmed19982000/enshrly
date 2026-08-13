@@ -1,0 +1,133 @@
+{% extends 'landing/base.html' %}
+
+{% block extra_css %}
+<style>
+    .pricing-header { text-align: center; margin-bottom: 2rem; }
+    .pricing-header h2 { font-size: 1.9rem; color: var(--text); margin: 0 0 0.5rem; }
+    .pricing-header p { color: var(--muted); margin: 0; }
+    .pricing-grid { direction: ltr; }
+    .pricing-card {
+        direction: rtl;
+        position: relative;
+        background: var(--surface); border: 1px solid rgba(33, 28, 20, 0.28); border-radius: var(--radius-md);
+        padding: 2rem 1.75rem; display: flex; flex-direction: column; gap: 1.2rem;
+    }
+    .pricing-card.recommended {
+        border: 2px solid var(--gold);
+        box-shadow: 0 10px 30px rgba(181, 101, 29, 0.18);
+        transform: scale(1.04);
+        z-index: 1;
+    }
+    .recommended-badge {
+        position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+        background: var(--gold); color: var(--text-on-gold); font-size: 0.75rem; font-weight: 700;
+        padding: 0.3rem 1.1rem; border-radius: 999px; white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    @media (max-width: 640px) { .pricing-card.recommended { transform: none; } }
+    .pricing-card .package-name { font-weight: 700; font-size: 1.2rem; color: var(--text); }
+    .pricing-card .package-price { display: flex; flex-direction: column; gap: 0.15rem; }
+    .pricing-card .package-price .amount { font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+    .pricing-card .package-price .sub { font-size: 0.9rem; color: var(--muted); font-family: var(--font-body); font-weight: normal; white-space: nowrap; }
+    .pricing-card .discount-badge { display: none; font-size: 0.8rem; font-weight: 700; color: var(--rust); }
+    .pricing-card .daily-limit-row {
+        color: var(--rust); font-weight: 600; font-size: 0.95rem; padding: 0.6rem 0;
+        border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    }
+    .pricing-card .btn { margin-top: auto; }
+    .period-selector { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin: 0 auto 2rem; max-width: 600px; }
+    .period-selector .toggle-chip { flex: initial; padding: 0.5rem 1.25rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1080px; padding: 3rem 1rem 5rem;">
+    <div class="pricing-header">
+        <h2>باقات إدارة الإعلانات الممولة لموقع "{{ site.name }}"</h2>
+        <p>يتولى النظام إنشاء وإدارة حملاتك الإعلانية على فيسبوك بالكامل — أنت تدفع لفيسبوك مباشرةً، ونحن ندير الحملات نيابةً عنك.</p>
+    </div>
+
+    {% if not has_used_ads_trial %}
+    <div class="panel panel-accent trial-banner">
+        <span class="title">تجربة مجانية لمدة ٧ أيام</span>
+        <span class="sub">حملة إعلانية واحدة نشطة، حتى $10 ميزانية يومية — بدون بطاقة ائتمان</span>
+        <a href="{% url 'payments:ads_free_trial' site.id %}" class="btn btn-ghost">ابدأ تجربتك المجانية الآن</a>
+    </div>
+    {% endif %}
+
+    <div class="period-selector">
+        <label class="toggle-chip selected">
+            <input type="radio" name="display_period" value="monthly" checked onchange="updateDisplayedPrices()">
+            شهري
+        </label>
+        <label class="toggle-chip">
+            <input type="radio" name="display_period" value="quarterly" onchange="updateDisplayedPrices()">
+            ربع سنوي
+        </label>
+        <label class="toggle-chip">
+            <input type="radio" name="display_period" value="semiannual" onchange="updateDisplayedPrices()">
+            نصف سنوي
+        </label>
+        <label class="toggle-chip">
+            <input type="radio" name="display_period" value="annual" onchange="updateDisplayedPrices()">
+            سنوي
+        </label>
+    </div>
+
+    <div class="grid-auto pricing-grid">
+        {% for plan in plans|dictsortreversed:"price" %}
+            <div class="pricing-card{% if plan.is_recommended %} recommended{% endif %}">
+                {% if plan.is_recommended %}<span class="recommended-badge">الأكثر شعبية</span>{% endif %}
+                <span class="package-name">{{ plan.name }}</span>
+                <div class="package-price">
+                    <span class="amount" id="amount-{{ plan.id }}">${{ plan.price }}</span>
+                    <span class="sub" id="sub-{{ plan.id }}">/ أو {{ plan.price_egp }} ج.م / شهرياً</span>
+                    <span class="discount-badge" id="discount-{{ plan.id }}"></span>
+                </div>
+                <div class="daily-limit-row">{% if plan.max_concurrent_active_campaigns %}حتى {{ plan.max_concurrent_active_campaigns }} حملة نشطة في نفس الوقت{% else %}بدون حد لعدد الحملات{% endif %}</div>
+                <div class="daily-limit-row">أقصى ميزانية يومية للحملة: ${{ plan.max_daily_budget_usd }}</div>
+                <a href="{% url 'payments:ads_addon_checkout' plan.id site.id %}" class="btn btn-primary btn-block" id="subscribe-{{ plan.id }}" data-base-href="{% url 'payments:ads_addon_checkout' plan.id site.id %}">اشترك الآن</a>
+            </div>
+        {% empty %}
+            <p class="text-center" style="grid-column: 1/-1; color: var(--muted);">لا توجد باقات متاحة حالياً.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{{ period_prices|json_script:"period-prices-data" }}
+<script>
+const PLAN_PERIOD_PRICES = JSON.parse(document.getElementById('period-prices-data').textContent);
+const PERIOD_LABELS = {
+    monthly: 'شهرياً',
+    quarterly: 'كل 3 أشهر',
+    semiannual: 'كل 6 أشهر',
+    annual: 'سنوياً',
+};
+
+function updateDisplayedPrices() {
+    const period = document.querySelector('input[name="display_period"]:checked').value;
+    const label = PERIOD_LABELS[period];
+
+    for (const planId in PLAN_PERIOD_PRICES) {
+        const priceInfo = PLAN_PERIOD_PRICES[planId][period];
+        if (!priceInfo) continue;
+
+        document.getElementById('amount-' + planId).innerText = '$' + priceInfo.usd;
+        document.getElementById('sub-' + planId).innerText = '/ أو ' + priceInfo.egp + ' ج.م / ' + label;
+
+        const badge = document.getElementById('discount-' + planId);
+        if (priceInfo.discount > 0) {
+            badge.style.display = 'block';
+            badge.innerText = 'وفّر ' + priceInfo.discount + '%';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        const subscribeLink = document.getElementById('subscribe-' + planId);
+        subscribeLink.href = subscribeLink.dataset.baseHref + '?period=' + period;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', updateDisplayedPrices);
+</script>
+{% endblock %}

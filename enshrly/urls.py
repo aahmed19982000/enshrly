@@ -17,6 +17,7 @@ urlpatterns = [
     path('robots.txt', TemplateView.as_view(template_name='robots.txt', content_type='text/plain'), name='robots'),
     path('auth/', include('accounts.urls')),
     path('payments/', include('payments.urls')),
+    path('ads/', include('ads.urls')),
     path('ai-dashboard/', include('syndicator.urls')), # syndicator.urls has app_name='news_ai'
     # The WordPress connector plugin and other external clients call these at
     # the domain root (no /ai-dashboard/ prefix) — kept in sync with the same

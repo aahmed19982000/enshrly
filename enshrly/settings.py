@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'syndicator',
     'accounts',
     'payments',
+    'ads',
     'landing',
     'pages',
     'blog',
@@ -275,6 +276,11 @@ SITE_BASE_URL = env('SITE_BASE_URL', default='http://localhost:8000')
 # هناك على {SITE_BASE_URL}/facebook/connect/callback/
 FACEBOOK_APP_ID = env('FACEBOOK_APP_ID', default='')
 FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET', default='')
+
+# Graph API version - centralized here so views_facebook_connect.py,
+# social_image_utils.py, and the ads app's Marketing API client all bump
+# together instead of drifting apart as separately-hardcoded constants.
+FACEBOOK_GRAPH_VERSION = env('FACEBOOK_GRAPH_VERSION', default='v21.0')
 
 # HTTP(S) proxy used only for AISource rows with use_proxy=True - for feeds
 # that block this server's own IP (403 / redirect loops) but work fine from

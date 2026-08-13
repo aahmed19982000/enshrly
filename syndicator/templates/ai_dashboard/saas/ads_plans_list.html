@@ -1,0 +1,57 @@
+{% extends 'ai_dashboard/base.html' %}
+{% block header_title %}باقات إدارة الإعلانات{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <p class="text-slate-400">إدارة باقات خدمة إدارة الإعلانات الممولة على فيسبوك (عدد الحملات، سقف الميزانية اليومية، الأسعار).</p>
+    <a href="{% url 'news_ai:saas_ads_plan_add' %}" class="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-bold transition duration-200">
+        <i class="fa-solid fa-plus ml-2"></i>إضافة باقة
+    </a>
+</div>
+
+<div class="glass-panel p-6">
+    <div class="overflow-x-auto">
+        <table class="w-full text-right text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
+                <tr>
+                    <th class="px-4 py-3 rounded-tr-lg">اسم الباقة</th>
+                    <th class="px-4 py-3">السعر الشهري</th>
+                    <th class="px-4 py-3">أقصى عدد حملات نشطة</th>
+                    <th class="px-4 py-3">أقصى ميزانية يومية</th>
+                    <th class="px-4 py-3">مفعلة؟</th>
+                    <th class="px-4 py-3 rounded-tl-lg text-center">الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for plan in plans %}
+                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-4 py-4 font-bold text-white">{{ plan.name }}</td>
+                    <td class="px-4 py-4 text-emerald-400 font-mono">${{ plan.price }}</td>
+                    <td class="px-4 py-4">{% if plan.max_concurrent_active_campaigns %}{{ plan.max_concurrent_active_campaigns }}{% else %}غير محدود{% endif %}</td>
+                    <td class="px-4 py-4 font-mono">${{ plan.max_daily_budget_usd }}</td>
+                    <td class="px-4 py-4">
+                        {% if plan.is_active %}
+                        <span class="bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded text-xs">مفعلة</span>
+                        {% else %}
+                        <span class="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs">معطلة</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-4 flex justify-center space-x-2 space-x-reverse">
+                        <a href="{% url 'news_ai:saas_ads_plan_edit' plan.id %}" class="text-primary-400 hover:text-primary-300 bg-primary-400/10 hover:bg-primary-400/20 px-3 py-1.5 rounded-lg transition duration-150">
+                            <i class="fa-solid fa-pen"></i> تعديل
+                        </a>
+                        <a href="{% url 'news_ai:saas_ads_plan_delete' plan.id %}" class="text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-3 py-1.5 rounded-lg transition duration-150">
+                            <i class="fa-solid fa-trash"></i> حذف
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-4 py-8 text-center text-slate-500">لا توجد باقات مضافة.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

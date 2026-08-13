@@ -10,6 +10,7 @@ class CustomerProfile(models.Model):
     whatsapp_number = models.CharField(max_length=20, unique=True, verbose_name="رقم الواتساب")
     is_whatsapp_verified = models.BooleanField(default=False, verbose_name="تم تفعيل الواتساب")
     has_used_trial = models.BooleanField(default=False, verbose_name="استخدم الفترة التجريبية")
+    has_used_ads_trial = models.BooleanField(default=False, verbose_name="استخدم الفترة التجريبية لإدارة الإعلانات")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

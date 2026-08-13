@@ -1,0 +1,89 @@
+{% extends 'landing/base.html' %}
+
+{% block extra_css %}
+<style>
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); padding: 1.1rem; text-align: center; }
+    .stat-card .value { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; color: var(--gold); }
+    .stat-card .label { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
+    .status-text.status-active { color: var(--moss); }
+    .status-text.status-paused { color: var(--muted); }
+    .status-text.status-error { color: var(--rust); }
+    .status-text.status-pending_creation { color: var(--gold); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 2rem 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+        <div>
+            <h1>{{ campaign.name }}</h1>
+            <p style="color: var(--muted); margin: 0.3rem 0 0;">
+                {{ campaign.get_objective_display }} —
+                <span class="status-text status-{{ campaign.status }}">{{ campaign.get_status_display }}</span>
+            </p>
+        </div>
+        {% if campaign.status == 'active' or campaign.status == 'paused' %}
+            <form method="post" action="{% url 'ads:campaign_toggle' site.pk campaign.pk %}">
+                {% csrf_token %}
+                {% if campaign.status == 'active' %}
+                    <button type="submit" class="btn btn-secondary btn-sm">إيقاف الحملة مؤقتاً</button>
+                {% else %}
+                    <button type="submit" class="btn btn-primary btn-sm">استئناف الحملة</button>
+                {% endif %}
+            </form>
+        {% endif %}
+    </div>
+
+    {% if campaign.error_message %}
+        <div class="panel" style="border-color: var(--rust); margin-bottom: 1.5rem;">
+            <span style="color: var(--rust);">{{ campaign.error_message }}</span>
+        </div>
+    {% endif %}
+
+    <div class="stats-row">
+        <div class="stat-card"><div class="value">${{ totals.spend|default:"0" }}</div><div class="label">إجمالي الإنفاق</div></div>
+        <div class="stat-card"><div class="value">{{ totals.impressions|default:"0" }}</div><div class="label">مرات الظهور</div></div>
+        <div class="stat-card"><div class="value">{{ totals.clicks|default:"0" }}</div><div class="label">النقرات</div></div>
+        <div class="stat-card"><div class="value">{{ totals.reach|default:"0" }}</div><div class="label">الوصول</div></div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 1.5rem;">
+        <span class="card-title">تفاصيل الحملة</span>
+        <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; color: var(--muted);">
+            <span>الميزانية اليومية: ${{ campaign.daily_budget }}</span>
+            <span>الفترة: {{ campaign.start_date }} إلى {{ campaign.end_date|default:"مفتوحة" }}</span>
+            {% if campaign.destination_url %}<span>رابط الوجهة: <a href="{{ campaign.destination_url }}" target="_blank" rel="noopener">{{ campaign.destination_url }}</a></span>{% endif %}
+        </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+        <table class="table-flat" style="min-width: 640px;">
+            <thead>
+                <tr>
+                    <th>التاريخ</th>
+                    <th>الظهور</th>
+                    <th>النقرات</th>
+                    <th>الإنفاق</th>
+                    <th>CTR</th>
+                    <th>CPC</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in insights %}
+                    <tr>
+                        <td>{{ row.date }}</td>
+                        <td>{{ row.impressions }}</td>
+                        <td>{{ row.clicks }}</td>
+                        <td>${{ row.spend }}</td>
+                        <td>{{ row.ctr }}%</td>
+                        <td>${{ row.cpc }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" style="color: var(--muted);">لا توجد بيانات أداء بعد — قد يستغرق ظهور البيانات بضع ساعات بعد انطلاق الحملة.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

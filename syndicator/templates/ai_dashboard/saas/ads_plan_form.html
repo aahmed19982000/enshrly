@@ -1,0 +1,65 @@
+{% extends 'ai_dashboard/base.html' %}
+{% block header_title %}{% if object %}تعديل باقة إدارة إعلانات{% else %}إضافة باقة إدارة إعلانات جديدة{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto glass-panel p-8">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">اسم الباقة</label>
+            <input type="text" name="name" value="{{ object.name|default:'' }}" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition duration-200" required>
+        </div>
+
+        <div class="grid grid-cols-3 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">السعر الشهري (USD)</label>
+                <input type="number" step="0.01" name="price" value="{{ object.price|default:'0.00' }}" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">أقصى عدد حملات نشطة معاً</label>
+                <input type="number" name="max_concurrent_active_campaigns" value="{{ object.max_concurrent_active_campaigns|default:'1' }}" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                <p class="text-xs text-slate-500 mt-1">0 = بدون حد</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">أقصى ميزانية يومية للحملة (USD)</label>
+                <input type="number" step="0.01" name="max_daily_budget_usd" value="{{ object.max_daily_budget_usd|default:'10.00' }}" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+            </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800">
+            <label class="block text-sm font-medium text-slate-300 mb-2 mt-4">فترات الاشتراك ونسب الخصم (%)</label>
+            <div class="grid grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">ربع سنوي</label>
+                    <input type="number" name="quarterly_discount_percent" value="{{ object.quarterly_discount_percent|default:'0' }}" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">نصف سنوي</label>
+                    <input type="number" name="semiannual_discount_percent" value="{{ object.semiannual_discount_percent|default:'0' }}" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">سنوي</label>
+                    <input type="number" name="annual_discount_percent" value="{{ object.annual_discount_percent|default:'0' }}" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-6 space-x-reverse">
+            <label class="flex items-center space-x-3 space-x-reverse cursor-pointer">
+                <input type="checkbox" name="is_recommended" class="w-5 h-5 rounded border-slate-700 text-primary-500 focus:ring-primary-500 bg-slate-800" {% if object.is_recommended %}checked{% endif %}>
+                <span class="text-slate-300">الأكثر شعبية</span>
+            </label>
+            <label class="flex items-center space-x-3 space-x-reverse cursor-pointer">
+                <input type="checkbox" name="is_active" class="w-5 h-5 rounded border-slate-700 text-primary-500 focus:ring-primary-500 bg-slate-800" {% if object is None or object.is_active %}checked{% endif %}>
+                <span class="text-slate-300">الباقة مفعلة وتظهر للعملاء</span>
+            </label>
+        </div>
+
+        <div class="pt-6 border-t border-slate-800 flex justify-end space-x-4 space-x-reverse">
+            <a href="{% url 'news_ai:saas_ads_plans' %}" class="px-6 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition duration-200">إلغاء</a>
+            <button type="submit" class="bg-primary-600 hover:bg-primary-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg shadow-primary-600/30 transition duration-200">حفظ الباقة</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

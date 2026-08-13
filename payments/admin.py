@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import SubscriptionPackage, FacebookAddonPlan, Transaction
+from .models import SubscriptionPackage, FacebookAddonPlan, AdsAddonPlan, Transaction
 
 @admin.register(SubscriptionPackage)
 class SubscriptionPackageAdmin(admin.ModelAdmin):
@@ -43,6 +43,27 @@ class FacebookAddonPlanAdmin(admin.ModelAdmin):
             'fields': ('is_recommended', 'is_active'),
         }),
     )
+
+@admin.register(AdsAddonPlan)
+class AdsAddonPlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price', 'max_concurrent_active_campaigns', 'max_daily_budget_usd', 'is_recommended', 'is_active')
+    list_filter = ('is_active', 'is_recommended')
+    search_fields = ('name',)
+    fieldsets = (
+        ('معلومات السعر الأساسية', {
+            'fields': ('name', 'price'),
+        }),
+        ('حدود الاستخدام', {
+            'fields': ('max_concurrent_active_campaigns', 'max_daily_budget_usd'),
+        }),
+        ('فترات الاشتراك ونسب الخصم', {
+            'fields': ('quarterly_discount_percent', 'semiannual_discount_percent', 'annual_discount_percent'),
+        }),
+        ('الحالة', {
+            'fields': ('is_recommended', 'is_active'),
+        }),
+    )
+
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):

@@ -6,7 +6,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import models
-from .models import SubscriptionPackage, FacebookAddonPlan, Transaction, DevicePairing
+from .models import SubscriptionPackage, FacebookAddonPlan, AdsAddonPlan, Transaction, DevicePairing
 from syndicator.models import WPConnectionToken
 import uuid
 import json
@@ -38,6 +38,10 @@ def _checkout_retry_url(transaction):
         return reverse('payments:facebook_addon_checkout_standalone', kwargs={
             'plan_id': transaction.facebook_addon_plan_id,
         })
+    if transaction.product_type == 'ads_addon':
+        return reverse('payments:ads_addon_checkout', kwargs={
+            'plan_id': transaction.ads_addon_plan_id, 'wp_site_id': transaction.wp_site_id,
+        })
     return reverse('payments:checkout', kwargs={'package_id': transaction.package_id})
 
 def _activate_facebook_addon(transaction):
@@ -60,6 +64,31 @@ def _activate_facebook_addon(transaction):
     site.social_image_enabled = True
     site.save(update_fields=['facebook_addon_plan', 'facebook_addon_trial_ends_at', 'social_image_enabled'])
 
+def _activate_ads_addon(transaction):
+    """
+    يطبّق معاملة إضافة إدارة الإعلانات المكتملة على AdAccountConnection
+    الخاص بالموقع المستهدف (يُنشأ لو غير موجود بعد - العميل قد يشتري الباقة
+    قبل إتمام ربط حساب الإعلانات نفسه عبر ads/views_ads_connect.py) - نفس
+    منطق تراكم الوقت المتبقي المستخدم في _activate_facebook_addon.
+    لا يوجد مسار "standalone" لهذه الإضافة: شراء إدارة إعلانات بدون موقع
+    مربوط بالفعل غير منطقي، فـ wp_site مطلوب دائماً هنا.
+    """
+    from ads.models import AdAccountConnection
+
+    site = transaction.wp_site
+    if not site or not transaction.ads_addon_plan:
+        return
+    connection, _created = AdAccountConnection.objects.get_or_create(wp_site=site)
+    now = timezone.now()
+    base = now
+    if (connection.ads_addon_plan_id == transaction.ads_addon_plan_id
+            and connection.ads_addon_trial_ends_at and connection.ads_addon_trial_ends_at > now):
+        base = connection.ads_addon_trial_ends_at
+    connection.ads_addon_plan = transaction.ads_addon_plan
+    connection.ads_addon_trial_ends_at = base + timedelta(days=_token_expiry_days(transaction))
+    connection.save(update_fields=['ads_addon_plan', 'ads_addon_trial_ends_at'])
+
+
 def _complete_transaction(transaction, client_name):
     """
     منطق "ماذا يحدث عند وصول الدفعة" المشترك، يُستدعى من كل مسار تأكيد بوابة
@@ -70,9 +99,15 @@ def _complete_transaction(transaction, client_name):
     باقة النشر لكن بحد نشر يومي صفر (package_daily_limit=0) - العميل
     يربطها بأي موقع لاحقاً عبر نفس تدفق الربط المعتاد، والإضافة تُمنح
     تلقائياً وقتها (انظر included_facebook_addon_plan في wp_connect_api_view).
-    يُرجع token الربط (أو None لترقية موقع موجود) ليقرر المستدعي هل يرسل
-    رسالة واتساب بالكود.
+    لإضافة إدارة الإعلانات: تُفعَّل مباشرة على الموقع المستهدف دائماً (بدون
+    مسار standalone - انظر _activate_ads_addon).
+    يُرجع token الربط (أو None لترقية موقع موجود/تفعيل إضافة إعلانات) ليقرر
+    المستدعي هل يرسل رسالة واتساب بالكود.
     """
+    if transaction.product_type == 'ads_addon':
+        _activate_ads_addon(transaction)
+        return None
+
     if transaction.product_type == 'facebook_addon':
         if transaction.wp_site_id:
             _activate_facebook_addon(transaction)
@@ -193,6 +228,58 @@ def start_free_trial(request):
 
     messages.success(request, "تم تفعيل الفترة التجريبية المجانية بنجاح لمدة 7 أيام! يمكنك استخدام كود الربط الآن.")
     return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
+
+
+@login_required
+def start_ads_free_trial(request, wp_site_id):
+    """Self-serve 7-day free trial for the ads-management add-on - mirrors
+    start_free_trial's shape (dedicated inactive trial plan, one-time-use
+    flag, zero-amount completed Transaction for the record), but activates
+    directly on an already-owned site's AdAccountConnection instead of
+    issuing a WPConnectionToken (there's no "provision a new site" step
+    here, same as ads_addon_checkout_view)."""
+    profile = getattr(request.user, 'customer_profile', None)
+    if not profile or not profile.is_whatsapp_verified:
+        messages.error(request, "يجب تفعيل حسابك أولاً عن طريق الواتساب.")
+        return redirect('accounts:verify_otp')
+
+    from syndicator.models import WordPressSite
+    owned_site_ids = WPConnectionToken.objects.filter(
+        customer=profile, is_used=True, wp_site__isnull=False
+    ).values_list('wp_site_id', flat=True)
+    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+
+    if profile.has_used_ads_trial:
+        messages.error(request, "لقد استخدمت الفترة التجريبية المجانية لإدارة الإعلانات بالفعل.")
+        return redirect('payments:ads_addon_plans', wp_site_id=site.id)
+
+    trial_plan, created = AdsAddonPlan.objects.get_or_create(
+        name="فترة تجريبية 7 أيام - إدارة الإعلانات",
+        defaults={
+            'price': Decimal('0.00'),
+            'max_concurrent_active_campaigns': 1,
+            'max_daily_budget_usd': Decimal('10.00'),
+            'is_active': False,
+        }
+    )
+
+    profile.has_used_ads_trial = True
+    profile.save(update_fields=['has_used_ads_trial'])
+
+    from ads.models import AdAccountConnection
+    connection, _created = AdAccountConnection.objects.get_or_create(wp_site=site)
+    connection.ads_addon_plan = trial_plan
+    connection.ads_addon_trial_ends_at = timezone.now() + timedelta(days=7)
+    connection.save(update_fields=['ads_addon_plan', 'ads_addon_trial_ends_at'])
+
+    Transaction.objects.create(
+        customer=profile, product_type='ads_addon', ads_addon_plan=trial_plan, wp_site=site,
+        amount=Decimal('0.00'), currency='USD', gateway='local', status='completed',
+        verified_transaction_id=f"ADSTRIAL-{uuid.uuid4().hex[:10].upper()}"
+    )
+
+    messages.success(request, "تم تفعيل الفترة التجريبية المجانية لإدارة الإعلانات لمدة 7 أيام! يمكنك الآن ربط حساب إعلانات فيسبوك.")
+    return redirect('ads:connect_redirect', wp_site_id=site.id)
 
 
 @login_required
@@ -401,6 +488,123 @@ def facebook_addon_checkout_view(request, plan_id, wp_site_id=None):
         initial_period = 'monthly'
 
     return render(request, 'payments/facebook_addon_checkout.html', {
+        'plan': plan,
+        'site': site,
+        'period_prices': plan.all_period_prices(),
+        'initial_period': initial_period,
+        'enable_paypal_gateway': ai_settings.enable_paypal_gateway,
+        'enable_paymob_gateway': ai_settings.enable_paymob_gateway,
+        'enable_local_wallet_gateway': ai_settings.enable_local_wallet_gateway,
+    })
+
+
+@login_required
+def ads_addon_plans_view(request, wp_site_id):
+    """Customer-facing plan picker for the ads-management add-on - mirrors
+    facebook_addon_plans_view, but always scoped to one owned site (no
+    standalone purchase-before-a-site-exists path: managing ads for a site
+    that doesn't exist yet makes no sense)."""
+    profile = getattr(request.user, 'customer_profile', None)
+    from syndicator.models import WordPressSite
+    owned_site_ids = WPConnectionToken.objects.filter(
+        customer=profile, is_used=True, wp_site__isnull=False
+    ).values_list('wp_site_id', flat=True)
+    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+
+    plans = AdsAddonPlan.objects.filter(is_active=True).order_by('price')
+    period_prices = {plan.id: plan.all_period_prices() for plan in plans}
+
+    return render(request, 'payments/ads_addon_plans.html', {
+        'site': site,
+        'plans': plans,
+        'period_prices': period_prices,
+        'has_used_ads_trial': profile.has_used_ads_trial if profile else False,
+    })
+
+
+@login_required
+def ads_addon_checkout_view(request, plan_id, wp_site_id):
+    """Customer self-serve checkout for an ads-management add-on plan -
+    mirrors facebook_addon_checkout_view's gateway branching, always tied to
+    one owned site (see ads_addon_plans_view)."""
+    profile = getattr(request.user, 'customer_profile', None)
+    if not profile or not profile.is_whatsapp_verified:
+        messages.error(request, "يجب تفعيل حسابك أولاً.")
+        request.session['post_verify_redirect'] = request.get_full_path()
+        return redirect('accounts:verify_otp')
+
+    plan = get_object_or_404(AdsAddonPlan, id=plan_id, is_active=True)
+
+    from syndicator.models import WordPressSite
+    owned_site_ids = WPConnectionToken.objects.filter(
+        customer=profile, is_used=True, wp_site__isnull=False
+    ).values_list('wp_site_id', flat=True)
+    site = get_object_or_404(WordPressSite, id=wp_site_id, id__in=owned_site_ids)
+
+    from syndicator.models import AISettings
+    ai_settings = AISettings.get_settings()
+    enabled_gateways = {
+        'paypal': ai_settings.enable_paypal_gateway,
+        'paymob': ai_settings.enable_paymob_gateway,
+        'local': ai_settings.enable_local_wallet_gateway,
+        'crypto': True,
+    }
+
+    if request.method == 'POST':
+        gateway = request.POST.get('gateway')
+        currency = request.POST.get('currency', 'USD')
+        billing_period = request.POST.get('billing_period', 'monthly')
+        sender_phone = request.POST.get('sender_phone', '').strip()
+
+        if gateway not in dict(Transaction.GATEWAY_CHOICES) or not enabled_gateways.get(gateway):
+            messages.error(request, "يرجى اختيار بوابة دفع صحيحة.")
+            return redirect('payments:ads_addon_checkout', plan_id=plan.id, wp_site_id=site.id)
+
+        if currency not in ['USD', 'EGP']:
+            currency = 'USD'
+
+        if billing_period not in dict(AdsAddonPlan.BILLING_PERIOD_CHOICES):
+            billing_period = 'monthly'
+
+        amount = plan.price_for_period(billing_period, currency)
+
+        if gateway == 'local':
+            existing = Transaction.objects.filter(
+                customer=profile, product_type='ads_addon', ads_addon_plan=plan, wp_site=site,
+                billing_period=billing_period, currency=currency, gateway='local', status='pending'
+            ).order_by('-created_at').first()
+            if existing:
+                if sender_phone and sender_phone != existing.sender_phone:
+                    existing.sender_phone = sender_phone
+                    existing.save(update_fields=['sender_phone', 'updated_at'])
+                return redirect('payments:checkout_pending', transaction_id=existing.transaction_id)
+
+        transaction = Transaction.objects.create(
+            customer=profile,
+            product_type='ads_addon',
+            ads_addon_plan=plan,
+            wp_site=site,
+            billing_period=billing_period,
+            amount=amount,
+            currency=currency,
+            gateway=gateway,
+            sender_phone=sender_phone if gateway == 'local' else None
+        )
+
+        if gateway == 'local':
+            return redirect('payments:checkout_pending', transaction_id=transaction.transaction_id)
+        elif gateway == 'paypal':
+            return redirect('payments:paypal_checkout', transaction_id=transaction.transaction_id)
+        elif gateway == 'paymob':
+            return redirect('payments:paymob_checkout', transaction_id=transaction.transaction_id)
+
+        return redirect('payments:payment_success', transaction_id=transaction.transaction_id)
+
+    initial_period = request.GET.get('period', 'monthly')
+    if initial_period not in dict(AdsAddonPlan.BILLING_PERIOD_CHOICES):
+        initial_period = 'monthly'
+
+    return render(request, 'payments/ads_addon_checkout.html', {
         'plan': plan,
         'site': site,
         'period_prices': plan.all_period_prices(),

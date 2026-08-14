@@ -41,17 +41,34 @@ def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
     only for connection-level failures - an HTTP error (403, 404...) after a
     successful connection is a real response, not a transient hiccup, so it's
     left to raise_for_status()/status_code checks in the caller as before.
+
+    When routed via the Cloudflare Worker (see _proxies_for_source), a 403
+    means the *target site* rejected the Worker's own edge IP, not that
+    something's broken - confirmed happening for some sources (dostor.org,
+    sonna.so) but not others (cnnbusinessarabic.com), seemingly depending on
+    which Cloudflare PoP served the Worker request. That's not something to
+    retry - it falls back to the paid SCRAPING_PROXY_URL, if one's
+    configured, exactly as if the Worker didn't exist for this source.
     """
-    request_url, request_proxies = url, proxies
     if proxies and proxies.get('_via_worker'):
         worker_url = settings.CLOUDFLARE_WORKER_URL.rstrip('/')
-        request_url = f"{worker_url}?token={quote(settings.CLOUDFLARE_WORKER_TOKEN)}&url={quote(url, safe='')}"
-        request_proxies = None
+        worker_request_url = f"{worker_url}?token={quote(settings.CLOUDFLARE_WORKER_TOKEN)}&url={quote(url, safe='')}"
+        try:
+            worker_res = requests.get(worker_request_url, headers=headers, timeout=timeout)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            worker_res = None
+        if worker_res is not None and worker_res.status_code != 403:
+            return worker_res
+        proxies = proxies.get('_fallback')
+        if not proxies:
+            if worker_res is not None:
+                return worker_res
+            raise requests.exceptions.ConnectionError(f"Cloudflare Worker unreachable fetching {url}")
 
     attempt = 0
     while True:
         try:
-            return requests.get(request_url, headers=headers, timeout=timeout, proxies=request_proxies)
+            return requests.get(url, headers=headers, timeout=timeout, proxies=proxies)
         except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             if not proxies or attempt >= max_retries:
                 raise
@@ -68,18 +85,22 @@ def _proxies_for_source(source):
     redirect loops) route around it without paying proxy-bandwidth cost for
     the many sources that already work fine directly.
 
-    The Cloudflare Worker (free, no bandwidth billing) takes priority over
-    the paid SCRAPING_PROXY_URL when both are configured - see
-    cloudflare-worker/fetch-proxy.js. It isn't a real requests-style proxy
+    The Cloudflare Worker (free, no bandwidth billing) is tried first when
+    configured, with SCRAPING_PROXY_URL (if also configured) as a fallback
+    for sources the target site rejects the Worker's edge IP for - see
+    cloudflare-worker/fetch-proxy.js and the 403-handling in
+    _get_with_proxy_retry. The Worker isn't a real requests-style proxy
     (Workers can't do CONNECT tunneling), so it's signaled here with a
-    {'_via_worker': True} marker that _get_with_proxy_retry recognizes and
-    turns into a URL rewrite instead of a requests `proxies=` dict.
+    {'_via_worker': True, '_fallback': <proxies dict or None>} marker that
+    _get_with_proxy_retry recognizes and turns into a URL rewrite instead of
+    a requests `proxies=` dict.
     """
     if not (source and getattr(source, 'use_proxy', False)):
         return None
-    if getattr(settings, 'CLOUDFLARE_WORKER_URL', '') and getattr(settings, 'CLOUDFLARE_WORKER_TOKEN', ''):
-        return {'_via_worker': True}
     proxy_url = getattr(settings, 'SCRAPING_PROXY_URL', '')
+    fallback = {'http': proxy_url, 'https': proxy_url} if proxy_url else None
+    if getattr(settings, 'CLOUDFLARE_WORKER_URL', '') and getattr(settings, 'CLOUDFLARE_WORKER_TOKEN', ''):
+        return {'_via_worker': True, '_fallback': fallback}
     if not proxy_url:
         return None
     return {'http': proxy_url, 'https': proxy_url}

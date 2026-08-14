@@ -290,6 +290,15 @@ FACEBOOK_GRAPH_VERSION = env('FACEBOOK_GRAPH_VERSION', default='v21.0')
 # use_proxy is silently ignored and sources are fetched directly as before.
 SCRAPING_PROXY_URL = env('SCRAPING_PROXY_URL', default='')
 
+# Free alternative to SCRAPING_PROXY_URL for use_proxy=True sources: a
+# Cloudflare Worker (see cloudflare-worker/fetch-proxy.js) that fetches the
+# target URL from Cloudflare's edge instead of this server's own IP. Takes
+# priority over SCRAPING_PROXY_URL when both are set, since it costs
+# nothing and isn't subject to a proxy vendor's bandwidth billing (the
+# cause of repeated 402 outages on the paid proxy).
+CLOUDFLARE_WORKER_URL = env('CLOUDFLARE_WORKER_URL', default='')
+CLOUDFLARE_WORKER_TOKEN = env('CLOUDFLARE_WORKER_TOKEN', default='')
+
 
 
 

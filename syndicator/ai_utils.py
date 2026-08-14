@@ -9,7 +9,7 @@ import bleach
 import requests
 from datetime import timedelta
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, quote
 from bs4 import BeautifulSoup
 from django.utils import timezone
 from django.core.files.base import ContentFile
@@ -27,7 +27,8 @@ CAIRO_TZ = ZoneInfo("Africa/Cairo")
 def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
     """
     Thin wrapper around requests.get with a single automatic retry, used
-    everywhere a fetch is routed through SCRAPING_PROXY_URL. A rotating
+    everywhere a fetch is routed through SCRAPING_PROXY_URL (or the
+    CLOUDFLARE_WORKER_URL stand-in - see _proxies_for_source). A rotating
     residential proxy hands out a different random exit IP per request, and
     an occasional dead/unreachable one causing a transient "Tunnel connection
     failed" (ProxyError) or reset (ConnectionError/Timeout) is expected
@@ -41,10 +42,16 @@ def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
     successful connection is a real response, not a transient hiccup, so it's
     left to raise_for_status()/status_code checks in the caller as before.
     """
+    request_url, request_proxies = url, proxies
+    if proxies and proxies.get('_via_worker'):
+        worker_url = settings.CLOUDFLARE_WORKER_URL.rstrip('/')
+        request_url = f"{worker_url}?token={quote(settings.CLOUDFLARE_WORKER_TOKEN)}&url={quote(url, safe='')}"
+        request_proxies = None
+
     attempt = 0
     while True:
         try:
-            return requests.get(url, headers=headers, timeout=timeout, proxies=proxies)
+            return requests.get(request_url, headers=headers, timeout=timeout, proxies=request_proxies)
         except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             if not proxies or attempt >= max_retries:
                 raise
@@ -54,15 +61,24 @@ def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
 
 def _proxies_for_source(source):
     """
-    requests-compatible `proxies` dict for this AISource if it's flagged
-    use_proxy AND settings.SCRAPING_PROXY_URL is actually configured -
+    `proxies` value for this AISource if it's flagged use_proxy AND either
+    CLOUDFLARE_WORKER_URL or SCRAPING_PROXY_URL is actually configured -
     otherwise None (plain direct request, unchanged behavior). Lets a
     handful of specific feeds that block this server's own IP (403 /
-    redirect loops) route through a proxy without paying proxy-bandwidth
-    cost for the many sources that already work fine directly.
+    redirect loops) route around it without paying proxy-bandwidth cost for
+    the many sources that already work fine directly.
+
+    The Cloudflare Worker (free, no bandwidth billing) takes priority over
+    the paid SCRAPING_PROXY_URL when both are configured - see
+    cloudflare-worker/fetch-proxy.js. It isn't a real requests-style proxy
+    (Workers can't do CONNECT tunneling), so it's signaled here with a
+    {'_via_worker': True} marker that _get_with_proxy_retry recognizes and
+    turns into a URL rewrite instead of a requests `proxies=` dict.
     """
     if not (source and getattr(source, 'use_proxy', False)):
         return None
+    if getattr(settings, 'CLOUDFLARE_WORKER_URL', '') and getattr(settings, 'CLOUDFLARE_WORKER_TOKEN', ''):
+        return {'_via_worker': True}
     proxy_url = getattr(settings, 'SCRAPING_PROXY_URL', '')
     if not proxy_url:
         return None

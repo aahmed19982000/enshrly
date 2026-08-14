@@ -248,6 +248,14 @@ else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     DEFAULT_FROM_EMAIL = 'no-reply@sahafihub.com'
 
+# Where check_source_failure_spikes_hourly (syndicator/tasks.py) emails when
+# an AISource has repeatedly failed within the last hour - the early-warning
+# alert that didn't exist during the SCRAPING_PROXY_URL 402 outage, which
+# went unnoticed for weeks because nothing surfaced it besides manually
+# reading the exported operations log. Left empty, the task still runs and
+# logs but sends nothing.
+OPS_ALERT_EMAIL = env('OPS_ALERT_EMAIL', default='')
+
 # إعدادات استقبال وتأكيد مدفوعات المحافظ الإلكترونية
 WALLET_API_KEY = env('WALLET_API_KEY', default='')
 WALLET_NUMBER = env('WALLET_NUMBER', default='')  # رقم فودافون كاش الخاص بالإدارة لاستلام الأموال

@@ -37,10 +37,14 @@ def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
     prompted this. Retrying once on the next (different) exit IP clears most
     of these without a human ever seeing them as failures.
 
-    Only retries when actually going through a proxy (proxies is truthy) and
-    only for connection-level failures - an HTTP error (403, 404...) after a
-    successful connection is a real response, not a transient hiccup, so it's
-    left to raise_for_status()/status_code checks in the caller as before.
+    Connection-level retries only happen when actually going through a proxy
+    (proxies is truthy). A 403 gets its own separate, unconditional retry
+    (below) regardless of proxy - confirmed on 2026-08-14 that some
+    Cloudflare-protected sources (aitnews.com) intermittently 403 a plain
+    direct request that a few seconds later succeeds again, not a hard
+    per-IP block. Any other HTTP error (404, 500...) is still a real
+    response left to raise_for_status()/status_code checks in the caller,
+    same as before.
 
     When routed via the Cloudflare Worker (see _proxies_for_source), a 403
     means the *target site* rejected the Worker's own edge IP, not that
@@ -70,14 +74,21 @@ def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
             raise requests.exceptions.ConnectionError(f"Cloudflare Worker unreachable fetching {url}")
 
     attempt = 0
+    forbidden_retries = 0
     while True:
         try:
-            return requests.get(url, headers=headers, timeout=timeout, proxies=proxies)
+            res = requests.get(url, headers=headers, timeout=timeout, proxies=proxies)
         except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             if not proxies or attempt >= max_retries:
                 raise
             attempt += 1
             time.sleep(1.5)
+            continue
+        if res.status_code == 403 and forbidden_retries < 2:
+            forbidden_retries += 1
+            time.sleep(2)
+            continue
+        return res
 
 
 def _proxies_for_source(source):

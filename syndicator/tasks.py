@@ -189,3 +189,57 @@ def check_expiring_subscriptions_daily():
     return "Renewal checks completed."
 
 
+@shared_task
+def check_source_failure_spikes_hourly():
+    """
+    Early-warning check that didn't exist during the SCRAPING_PROXY_URL 402
+    outage: that ran for weeks, silently failing thousands of fetches,
+    because nothing surfaced it besides someone manually exporting and
+    reading the operations log. Runs hourly; any AISource with 3+ 'failed'
+    AIImportLog entries in the last hour gets emailed to settings.OPS_ALERT_EMAIL
+    (if configured) so a new outage - proxy quota, a newly-blocked source,
+    anything - gets noticed within the hour instead of weeks later.
+    """
+    from django.conf import settings
+    from django.core.mail import send_mail
+    from django.db.models import Count
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import AIImportLog
+
+    since = timezone.now() - timedelta(hours=1)
+    spikes = (
+        AIImportLog.objects
+        .filter(status='failed', created_at__gte=since, source__isnull=False)
+        .values('source__id', 'source__name')
+        .annotate(fail_count=Count('id'))
+        .filter(fail_count__gte=3)
+        .order_by('-fail_count')
+    )
+    if not spikes:
+        return "No source failure spikes in the last hour."
+
+    lines = []
+    for row in spikes:
+        latest = (
+            AIImportLog.objects
+            .filter(source_id=row['source__id'], status='failed', created_at__gte=since)
+            .order_by('-created_at')
+            .values_list('error_message', flat=True)
+            .first()
+        )
+        lines.append(f"- {row['source__name']}: {row['fail_count']} فشل في آخر ساعة - {latest or ''}")
+        logger.warning(f"Source failure spike: {row['source__name']} failed {row['fail_count']}x in the last hour")
+
+    if settings.OPS_ALERT_EMAIL:
+        send_mail(
+            subject=f"تنبيه: {len(lines)} مصدر بيفشل بشكل متكرر",
+            message="المصادر دي فشلت 3 مرات أو أكتر في آخر ساعة:\n\n" + "\n".join(lines),
+            from_email=None,
+            recipient_list=[settings.OPS_ALERT_EMAIL],
+            fail_silently=True,
+        )
+
+    return f"{len(lines)} source(s) flagged."
+
+

@@ -169,14 +169,16 @@ def login_view(request):
     return render(request, 'accounts/login.html', {'auth0_enabled': bool(settings.AUTH0_DOMAIN)})
 
 def auth0_login_view(request):
-    """Kicks off the Auth0 Universal Login redirect, as an alternative to the
-    WhatsApp+OTP signup/login flow."""
+    """Kicks off the Auth0-brokered Google login, as an alternative to the
+    WhatsApp+OTP signup/login flow. Passing connection=google-oauth2 skips
+    Auth0's own Universal Login page (email/password form) and sends the
+    user straight to Google's consent screen."""
     if not settings.AUTH0_DOMAIN:
-        messages.error(request, "تسجيل الدخول عبر Auth0 غير مفعّل حالياً.")
+        messages.error(request, "تسجيل الدخول عبر جوجل غير مفعّل حالياً.")
         return redirect('accounts:login')
     _stash_post_auth_redirect(request)
     redirect_uri = request.build_absolute_uri(reverse('accounts:auth0_callback'))
-    return oauth.auth0.authorize_redirect(request, redirect_uri)
+    return oauth.auth0.authorize_redirect(request, redirect_uri, connection='google-oauth2')
 
 def auth0_callback_view(request):
     """Exchanges the Auth0 authorization code, then finds-or-creates the

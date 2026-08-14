@@ -7,10 +7,11 @@ from datetime import timedelta
 
 class CustomerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
-    whatsapp_number = models.CharField(max_length=20, unique=True, verbose_name="رقم الواتساب")
+    whatsapp_number = models.CharField(max_length=20, unique=True, null=True, blank=True, verbose_name="رقم الواتساب")
     is_whatsapp_verified = models.BooleanField(default=False, verbose_name="تم تفعيل الواتساب")
     has_used_trial = models.BooleanField(default=False, verbose_name="استخدم الفترة التجريبية")
     has_used_ads_trial = models.BooleanField(default=False, verbose_name="استخدم الفترة التجريبية لإدارة الإعلانات")
+    auth0_sub = models.CharField(max_length=255, unique=True, null=True, blank=True, verbose_name="معرف Auth0")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -38,6 +38,14 @@
             </div>
             <button type="submit" class="btn btn-primary btn-block">تسجيل الدخول</button>
         </form>
+        {% if auth0_enabled %}
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin: 1.25rem 0; color: var(--muted);">
+            <hr style="flex: 1; border: none; border-top: 1px solid var(--border, #ccc);">
+            <span>أو</span>
+            <hr style="flex: 1; border: none; border-top: 1px solid var(--border, #ccc);">
+        </div>
+        <a href="{% url 'accounts:auth0_login' %}" class="btn btn-secondary btn-block">تسجيل الدخول عبر Auth0</a>
+        {% endif %}
         <p class="text-center" style="margin-top: 1rem; color: var(--muted);"><a href="{% url 'accounts:forgot_password' %}">نسيت كلمة السر؟</a></p>
         <p class="text-center" style="margin-top: 0.5rem; color: var(--muted);">ليس لديك حساب؟ <a href="{% url 'accounts:signup' %}">إنشاء حساب جديد</a></p>
     </div>

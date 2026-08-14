@@ -26,6 +26,7 @@ django-celery-beat
 lxml
 beautifulsoup4
 requests
+Authlib
 bleach
 cryptography
 arabic-reshaper

@@ -290,6 +290,14 @@ FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET', default='')
 # together instead of drifting apart as separately-hardcoded constants.
 FACEBOOK_GRAPH_VERSION = env('FACEBOOK_GRAPH_VERSION', default='v21.0')
 
+# Auth0 (optional "sign in with Auth0" alternative to the WhatsApp+OTP flow) —
+# create a Regular Web Application at https://manage.auth0.com, set its
+# Allowed Callback URL to {SITE_BASE_URL}/auth/auth0/callback/ and Allowed
+# Logout URL to {SITE_BASE_URL}/auth/login/.
+AUTH0_DOMAIN = env('AUTH0_DOMAIN', default='')
+AUTH0_CLIENT_ID = env('AUTH0_CLIENT_ID', default='')
+AUTH0_CLIENT_SECRET = env('AUTH0_CLIENT_SECRET', default='')
+
 # HTTP(S) proxy used only for AISource rows with use_proxy=True - for feeds
 # that block this server's own IP (403 / redirect loops) but work fine from
 # anywhere else. Standard requests-style proxy URL, e.g.

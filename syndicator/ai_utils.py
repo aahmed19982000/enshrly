@@ -46,19 +46,23 @@ def _get_with_proxy_retry(url, headers, timeout, proxies, max_retries=1):
     means the *target site* rejected the Worker's own edge IP, not that
     something's broken - confirmed happening for some sources (dostor.org,
     sonna.so) but not others (cnnbusinessarabic.com), seemingly depending on
-    which Cloudflare PoP served the Worker request. That's not something to
-    retry - it falls back to the paid SCRAPING_PROXY_URL, if one's
-    configured, exactly as if the Worker didn't exist for this source.
+    which Cloudflare PoP served the Worker request. Since that's free either
+    way, it's worth a few immediate retries on the small chance a retry
+    lands on a different PoP before giving up and falling back to the paid
+    SCRAPING_PROXY_URL, if one's configured.
     """
     if proxies and proxies.get('_via_worker'):
         worker_url = settings.CLOUDFLARE_WORKER_URL.rstrip('/')
         worker_request_url = f"{worker_url}?token={quote(settings.CLOUDFLARE_WORKER_TOKEN)}&url={quote(url, safe='')}"
-        try:
-            worker_res = requests.get(worker_request_url, headers=headers, timeout=timeout)
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            worker_res = None
-        if worker_res is not None and worker_res.status_code != 403:
-            return worker_res
+        worker_res = None
+        for _ in range(3):
+            try:
+                worker_res = requests.get(worker_request_url, headers=headers, timeout=timeout)
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                worker_res = None
+                continue
+            if worker_res.status_code != 403:
+                return worker_res
         proxies = proxies.get('_fallback')
         if not proxies:
             if worker_res is not None:

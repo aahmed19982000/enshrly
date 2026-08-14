@@ -1,0 +1,12 @@
+[
+  {
+    "name": "dostor.org",
+    "url": "https://www.dostor.org/rss.aspx",
+    "output": "feeds/dostor-rss.xml"
+  },
+  {
+    "name": "sonna.so",
+    "url": "https://sonna.so/ar/rss.xml",
+    "output": "feeds/sonna-rss.xml"
+  }
+]

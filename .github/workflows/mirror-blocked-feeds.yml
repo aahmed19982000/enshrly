@@ -1,0 +1,63 @@
+name: Mirror blocked feeds
+
+# Free stand-in for AISource feeds whose site blocks the Django server's own
+# IP (Cloudflare edge reputation - see feeds/README.md). Fetches each feed
+# listed in feeds/mirror-config.json from GitHub's network instead, and
+# publishes the result to the feeds-mirror branch as a single force-pushed
+# commit (no history growth). AISource.url for an affected source then
+# points at the raw.githubusercontent.com copy instead of the real site.
+#
+# To add a newly-blocked source: add {"name", "url", "output"} to
+# feeds/mirror-config.json, then once this workflow has run at least once,
+# point that AISource's url at:
+#   https://raw.githubusercontent.com/<owner>/<repo>/feeds-mirror/<output>
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fetch every configured feed (keep last-good copy on failure)
+        run: |
+          set -euo pipefail
+          jq -c '.[]' feeds/mirror-config.json | while read -r entry; do
+            name=$(echo "$entry" | jq -r '.name')
+            url=$(echo "$entry" | jq -r '.url')
+            out=$(echo "$entry" | jq -r '.output')
+            mkdir -p "$(dirname "$out")"
+            tmp=$(mktemp)
+            if curl -sL --max-time 20 \
+                 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" \
+                 "$url" -o "$tmp" \
+               && [ -s "$tmp" ] \
+               && grep -qi "<rss\|<feed\|<urlset\|<?xml" "$tmp"; then
+              cp "$tmp" "$out"
+              echo "OK: $name"
+            else
+              echo "::warning::Fetch failed or invalid for $name ($url) - keeping previous mirror"
+            fi
+            rm -f "$tmp"
+          done
+
+      - name: Publish to feeds-mirror branch (single commit, no history growth)
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          outputs=$(jq -r '.[].output' feeds/mirror-config.json)
+          git checkout --orphan feeds-mirror-tmp
+          git rm -rf --cached . >/dev/null
+          git add feeds/mirror-config.json $outputs
+          git commit -m "Mirror feeds $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push --force origin feeds-mirror-tmp:feeds-mirror

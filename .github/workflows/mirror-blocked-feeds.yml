@@ -51,8 +51,16 @@ jobs:
           git fetch origin feeds-mirror --depth=1 2>/dev/null || true
           if git rev-parse --verify origin/feeds-mirror >/dev/null 2>&1; then
             jq -r '.[].output' feeds/mirror-config.json | while read -r out; do
-              mkdir -p "$(dirname "$out")"
-              git show "origin/feeds-mirror:$out" > "$out" 2>/dev/null || true
+              # `git show ... > "$out"` would create/truncate "$out" to an
+              # empty file even when the path doesn't exist on feeds-mirror
+              # yet (redirection happens before git show runs, regardless of
+              # whether it succeeds) - confirmed as the cause of a newly
+              # mirrored source publishing as a 0-byte file when its first
+              # live fetch also failed. Check the path exists first instead.
+              if git cat-file -e "origin/feeds-mirror:$out" 2>/dev/null; then
+                mkdir -p "$(dirname "$out")"
+                git show "origin/feeds-mirror:$out" > "$out"
+              fi
             done
           fi
 
@@ -86,11 +94,12 @@ jobs:
           git checkout --orphan feeds-mirror-tmp
           git rm -rf --cached . >/dev/null
           git add feeds/mirror-config.json
-          # Only add outputs that actually exist - a source with no
-          # successful fetch ever (brand new, or first run before
-          # feeds-mirror existed) has nothing to restore or publish yet.
+          # Only add non-empty outputs - a source with no successful fetch
+          # ever (brand new, or first run before feeds-mirror existed) has
+          # nothing to restore or publish yet. -s (not just -f) as a second
+          # guard against ever publishing a 0-byte file again.
           jq -r '.[].output' feeds/mirror-config.json | while read -r out; do
-            [ -f "$out" ] && git add "$out"
+            [ -s "$out" ] && git add "$out"
           done
           git commit -m "Mirror feeds $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push --force origin feeds-mirror-tmp:feeds-mirror

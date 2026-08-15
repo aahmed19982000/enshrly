@@ -8,9 +8,46 @@
         راجع <code class="text-primary-400">feeds/README.md</code> قبل الإضافة للتأكد إن المصدر فعلاً محتاج الحل ده.
     </p>
     <a href="{% url 'news_ai:saas_mirrored_feed_add' %}" class="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-bold transition duration-200 whitespace-nowrap">
-        <i class="fa-solid fa-plus ml-2"></i>إضافة مصدر
+        <i class="fa-solid fa-plus ml-2"></i>إضافة مصدر يدوياً
     </a>
 </div>
+
+{% if candidates %}
+<div class="glass-panel p-6 mb-6 border border-amber-500/30">
+    <h3 class="text-lg font-bold text-amber-400 mb-1"><i class="fa-solid fa-triangle-exclamation ml-2"></i>مصادر بتفشل بشكل متكرر (آخر 24 ساعة)</h3>
+    <p class="text-slate-400 text-sm mb-4">
+        مرشحين للحظر بناءً على سجل العمليات - راجع <code class="text-primary-400">feeds/README.md</code> للتأكد الأول
+        (ممكن يكون الحل الأبسط زي إيقاف use_proxy كافي)، وبعدين ضيفهم بضغطة واحدة لو فعلاً محتاجين المرآة.
+    </p>
+    <div class="overflow-x-auto">
+        <table class="w-full text-right text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
+                <tr>
+                    <th class="px-4 py-3">المصدر</th>
+                    <th class="px-4 py-3">عدد مرات الفشل (24 ساعة)</th>
+                    <th class="px-4 py-3 text-center">الإجراء</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for source in candidates %}
+                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-4 py-4 font-bold text-white">{{ source.name }}</td>
+                    <td class="px-4 py-4 text-red-400 font-mono">{{ source.fail_count }}</td>
+                    <td class="px-4 py-4 text-center">
+                        <form method="post" action="{% url 'news_ai:saas_mirrored_feed_quick_add' source.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-primary-600 hover:bg-primary-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition duration-200">
+                                <i class="fa-solid fa-plus ml-1"></i>إضافة للمرآة
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <div class="glass-panel p-6">
     <div class="overflow-x-auto">

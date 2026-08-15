@@ -71,6 +71,7 @@ urlpatterns = [
     path('saas/ads-plans/<int:pk>/delete/', saas_admin_views.AdsAddonPlanDeleteView.as_view(), name='saas_ads_plan_delete'),
     path('saas/mirrored-feeds/', saas_admin_views.MirroredFeedListView.as_view(), name='saas_mirrored_feeds'),
     path('saas/mirrored-feeds/add/', saas_admin_views.MirroredFeedCreateView.as_view(), name='saas_mirrored_feed_add'),
+    path('saas/mirrored-feeds/quick-add/<int:source_id>/', saas_admin_views.MirroredFeedQuickAddView.as_view(), name='saas_mirrored_feed_quick_add'),
     path('saas/mirrored-feeds/<int:pk>/delete/', saas_admin_views.MirroredFeedDeleteView.as_view(), name='saas_mirrored_feed_delete'),
     path('saas/customers/', saas_admin_views.CustomerListView.as_view(), name='saas_customers'),
     path('saas/transactions/', saas_admin_views.TransactionListView.as_view(), name='saas_transactions'),

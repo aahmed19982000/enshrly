@@ -3,6 +3,9 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
+from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
 
 from accounts.models import CustomerProfile
 from payments.models import SubscriptionPackage, FacebookAddonPlan, AdsAddonPlan, Transaction
@@ -118,6 +121,34 @@ class MirroredFeedListView(StaffRequiredMixin, ListView):
     template_name = 'ai_dashboard/saas/mirrored_feeds_list.html'
     context_object_name = 'configs'
     ordering = ['-created_at']
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        since = timezone.now() - timedelta(hours=24)
+        context['candidates'] = (
+            AISource.objects
+            .filter(is_active=True, mirror_config__isnull=True)
+            .annotate(fail_count=Count('logs', filter=Q(logs__status='failed', logs__created_at__gte=since)))
+            .filter(fail_count__gte=3)
+            .order_by('-fail_count')
+        )
+        return context
+
+class MirroredFeedQuickAddView(StaffRequiredMixin, View):
+    """One-click add straight from the candidates list - skips the manual
+    form since the source and its current url are already known."""
+    def post(self, request, source_id):
+        source = get_object_or_404(AISource, pk=source_id)
+        config, created = MirroredFeedConfig.objects.get_or_create(
+            source=source, defaults={'original_url': source.url},
+        )
+        if created:
+            source.url = config.mirror_url
+            source.save(update_fields=['url'])
+            messages.success(request, f'تم تفعيل المرآة لمصدر "{source.name}" بضغطة واحدة.')
+        else:
+            messages.info(request, f'مصدر "{source.name}" عنده مرآة مفعّلة بالفعل.')
+        return redirect('news_ai:saas_mirrored_feeds')
 
 class MirroredFeedCreateView(StaffRequiredMixin, CreateView):
     model = MirroredFeedConfig

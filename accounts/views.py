@@ -1,10 +1,14 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
-from django.contrib.auth import login, authenticate
+from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.conf import settings
+from django.urls import reverse
+from urllib.parse import urlencode, quote_plus
 from .models import CustomerProfile, WhatsAppOTP, PasswordResetOTP
 from .utils import send_otp_email, send_whatsapp_welcome, get_client_ip, check_rate_limit
+from .auth0 import oauth
 from django.contrib.auth.decorators import login_required
 
 def _stash_post_auth_redirect(request):
@@ -79,7 +83,7 @@ def signup_view(request):
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         return redirect('accounts:verify_otp')
 
-    return render(request, 'accounts/signup.html')
+    return render(request, 'accounts/signup.html', {'auth0_enabled': bool(settings.AUTH0_DOMAIN)})
 
 @login_required
 def verify_otp_view(request):
@@ -162,7 +166,74 @@ def login_view(request):
         else:
             messages.error(request, "رقم الواتساب أو كلمة المرور غير صحيحة.")
 
-    return render(request, 'accounts/login.html')
+    return render(request, 'accounts/login.html', {'auth0_enabled': bool(settings.AUTH0_DOMAIN)})
+
+def auth0_login_view(request):
+    """Kicks off the Auth0-brokered Google login, as an alternative to the
+    WhatsApp+OTP signup/login flow. Passing connection=google-oauth2 skips
+    Auth0's own Universal Login page (email/password form) and sends the
+    user straight to Google's consent screen."""
+    if not settings.AUTH0_DOMAIN:
+        messages.error(request, "تسجيل الدخول عبر جوجل غير مفعّل حالياً.")
+        return redirect('accounts:login')
+    _stash_post_auth_redirect(request)
+    redirect_uri = request.build_absolute_uri(reverse('accounts:auth0_callback'))
+    return oauth.auth0.authorize_redirect(request, redirect_uri, connection='google-oauth2')
+
+def auth0_callback_view(request):
+    """Exchanges the Auth0 authorization code, then finds-or-creates the
+    matching local User: first by auth0_sub (repeat login), then by email
+    (links an Auth0 identity onto an existing WhatsApp-registered account),
+    otherwise creates a brand-new account with no WhatsApp number yet."""
+    if not settings.AUTH0_DOMAIN:
+        return redirect('accounts:login')
+
+    token = oauth.auth0.authorize_access_token(request)
+    userinfo = token.get('userinfo') or {}
+    sub = userinfo.get('sub')
+    email = userinfo.get('email')
+    name = userinfo.get('name') or email or sub
+
+    if not sub:
+        messages.error(request, "تعذر تسجيل الدخول عبر Auth0، حاول مرة أخرى.")
+        return redirect('accounts:login')
+
+    profile = CustomerProfile.objects.filter(auth0_sub=sub).first()
+    if profile:
+        user = profile.user
+    else:
+        user = User.objects.filter(email=email).first() if email else None
+        if user:
+            profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        else:
+            user = User.objects.create(username=f'auth0|{sub}', email=email or '', first_name=name)
+            user.set_unusable_password()
+            user.save()
+            profile = CustomerProfile.objects.create(user=user)
+        profile.auth0_sub = sub
+        profile.is_whatsapp_verified = True
+        profile.save()
+
+    request.session['auth0_login'] = True
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+    if not profile.is_whatsapp_verified:
+        return redirect('accounts:verify_otp')
+    return redirect(request.session.pop('post_verify_redirect', None) or 'accounts:dashboard')
+
+def auth0_logout_view(request):
+    """Local Django logout, plus an Auth0 SSO logout when the session was
+    started via Auth0 — otherwise Auth0's Universal Login would silently
+    re-authenticate the user on the next 'sign in with Auth0' click."""
+    came_from_auth0 = request.session.pop('auth0_login', False)
+    logout(request)
+    if came_from_auth0 and settings.AUTH0_DOMAIN:
+        params = {
+            'returnTo': request.build_absolute_uri(reverse('accounts:login')),
+            'client_id': settings.AUTH0_CLIENT_ID,
+        }
+        return redirect(f'https://{settings.AUTH0_DOMAIN}/v2/logout?{urlencode(params, quote_via=quote_plus)}')
+    return redirect('/')
 
 def forgot_password_view(request):
     if request.method == 'POST':

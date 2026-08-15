@@ -1,0 +1,55 @@
+{% extends 'ai_dashboard/base.html' %}
+{% block header_title %}المصادر المحظورة (Mirror){% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <p class="text-slate-400 max-w-2xl">
+        لمصادر تحظر IP السيرفر بشكل دائم رغم كل الحلول التانية - يتم جلبها عبر GitHub Actions بدل السيرفر مباشرة.
+        راجع <code class="text-primary-400">feeds/README.md</code> قبل الإضافة للتأكد إن المصدر فعلاً محتاج الحل ده.
+    </p>
+    <a href="{% url 'news_ai:saas_mirrored_feed_add' %}" class="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-bold transition duration-200 whitespace-nowrap">
+        <i class="fa-solid fa-plus ml-2"></i>إضافة مصدر
+    </a>
+</div>
+
+<div class="glass-panel p-6">
+    <div class="overflow-x-auto">
+        <table class="w-full text-right text-sm text-slate-300">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
+                <tr>
+                    <th class="px-4 py-3 rounded-tr-lg">المصدر</th>
+                    <th class="px-4 py-3">الرابط الأصلي</th>
+                    <th class="px-4 py-3">رابط المرآة (المستخدم فعلياً)</th>
+                    <th class="px-4 py-3">مفعّل؟</th>
+                    <th class="px-4 py-3 rounded-tl-lg text-center">الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for config in configs %}
+                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition duration-150">
+                    <td class="px-4 py-4 font-bold text-white">{{ config.source.name }}</td>
+                    <td class="px-4 py-4 text-slate-400 max-w-xs truncate" title="{{ config.original_url }}">{{ config.original_url }}</td>
+                    <td class="px-4 py-4 text-slate-500 max-w-xs truncate font-mono text-xs" title="{{ config.mirror_url }}">{{ config.mirror_url }}</td>
+                    <td class="px-4 py-4">
+                        {% if config.is_active %}
+                        <span class="bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded text-xs">مفعّل</span>
+                        {% else %}
+                        <span class="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs">معطّل</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-4 flex justify-center space-x-2 space-x-reverse">
+                        <a href="{% url 'news_ai:saas_mirrored_feed_delete' config.id %}" class="text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-3 py-1.5 rounded-lg transition duration-150">
+                            <i class="fa-solid fa-trash"></i> إلغاء المرآة
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-center text-slate-500">لا يوجد مصادر محظورة مضافة حالياً - كل المصادر بتتجلب مباشرة عادي.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

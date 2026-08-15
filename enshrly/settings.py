@@ -315,6 +315,11 @@ SCRAPING_PROXY_URL = env('SCRAPING_PROXY_URL', default='')
 CLOUDFLARE_WORKER_URL = env('CLOUDFLARE_WORKER_URL', default='')
 CLOUDFLARE_WORKER_TOKEN = env('CLOUDFLARE_WORKER_TOKEN', default='')
 
+# Base raw.githubusercontent.com URL for the feeds-mirror branch (see
+# feeds/README.md and MirroredFeedConfig) - the GitHub Actions workflow at
+# .github/workflows/mirror-blocked-feeds.yml publishes there.
+GITHUB_MIRROR_RAW_BASE = env('GITHUB_MIRROR_RAW_BASE', default='https://raw.githubusercontent.com/aahmed19982000/enshrly/feeds-mirror/')
+
 
 
 

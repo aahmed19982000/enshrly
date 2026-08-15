@@ -1191,6 +1191,23 @@ def wp_connect_api_view(request):
         return JsonResponse({'status': 'error', 'message': 'Internal server error.'}, status=500)
 
 
+def mirrored_feeds_config_api_view(request):
+    """
+    Read-only feed list for .github/workflows/mirror-blocked-feeds.yml -
+    fetched live on every run instead of a git-committed file, so adding a
+    source from the dashboard (السيستم والعمليات > المصادر المحظورة) takes
+    effect on the very next 15-minute run, no deploy needed. No auth: this
+    only exposes already-public RSS/sitemap URLs (nothing sensitive), same
+    as feeds/mirror-config.json did before it.
+    """
+    from .models import MirroredFeedConfig
+    configs = MirroredFeedConfig.objects.filter(is_active=True).select_related('source')
+    return JsonResponse([
+        {'name': c.source.name, 'url': c.original_url, 'output': c.output_path}
+        for c in configs
+    ], safe=False)
+
+
 @csrf_exempt
 def wp_plugin_data_api_view(request):
     try:

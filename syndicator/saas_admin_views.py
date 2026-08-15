@@ -8,6 +8,7 @@ from accounts.models import CustomerProfile
 from payments.models import SubscriptionPackage, FacebookAddonPlan, AdsAddonPlan, Transaction
 from payments.tasks import send_payment_success_whatsapp
 from payments.views import _complete_transaction, _token_expiry_days
+from .models import AISource, MirroredFeedConfig
 
 class StaffRequiredMixin(UserPassesTestMixin):
     login_url = reverse_lazy('news_ai:staff_login')
@@ -110,6 +111,50 @@ class AdsAddonPlanDeleteView(StaffRequiredMixin, DeleteView):
     model = AdsAddonPlan
     template_name = 'ai_dashboard/saas/ads_plan_confirm_delete.html'
     success_url = reverse_lazy('news_ai:saas_ads_plans')
+
+# --- Mirrored Feeds (sources blocked outright, routed via GitHub Actions - see feeds/README.md) ---
+class MirroredFeedListView(StaffRequiredMixin, ListView):
+    model = MirroredFeedConfig
+    template_name = 'ai_dashboard/saas/mirrored_feeds_list.html'
+    context_object_name = 'configs'
+    ordering = ['-created_at']
+
+class MirroredFeedCreateView(StaffRequiredMixin, CreateView):
+    model = MirroredFeedConfig
+    template_name = 'ai_dashboard/saas/mirrored_feed_form.html'
+    fields = ['source', 'original_url', 'is_active']
+    success_url = reverse_lazy('news_ai:saas_mirrored_feeds')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        mirrored_ids = MirroredFeedConfig.objects.values_list('source_id', flat=True)
+        context['available_sources'] = AISource.objects.exclude(id__in=mirrored_ids).order_by('name')
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        source = self.object.source
+        source.url = self.object.mirror_url
+        source.save(update_fields=['url'])
+        messages.success(
+            self.request,
+            f'تم تفعيل المرآة لمصدر "{source.name}". شغّل "Mirror blocked feeds" يدوياً من تبويب '
+            f'Actions على GitHub مرة واحدة عشان النسخة تكون متاحة فوراً بدل ما تستنى الجدولة.'
+        )
+        return response
+
+class MirroredFeedDeleteView(StaffRequiredMixin, DeleteView):
+    model = MirroredFeedConfig
+    template_name = 'ai_dashboard/saas/mirrored_feed_confirm_delete.html'
+    success_url = reverse_lazy('news_ai:saas_mirrored_feeds')
+
+    def form_valid(self, form):
+        # Revert the source back to its real url before the config (and the
+        # original_url that remembers it) is gone.
+        config = self.object
+        config.source.url = config.original_url
+        config.source.save(update_fields=['url'])
+        return super().form_valid(form)
 
 # --- Customers Management ---
 class CustomerListView(StaffRequiredMixin, ListView):

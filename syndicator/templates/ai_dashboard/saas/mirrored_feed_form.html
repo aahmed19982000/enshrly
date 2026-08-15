@@ -1,0 +1,59 @@
+{% extends 'ai_dashboard/base.html' %}
+{% block header_title %}إضافة مصدر محظور (Mirror){% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto glass-panel p-8">
+    {% if available_sources %}
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">المصدر</label>
+            <select name="source" id="id_source" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition duration-200" required>
+                <option value="">-- اختر المصدر --</option>
+                {% for source in available_sources %}
+                <option value="{{ source.id }}" data-url="{{ source.url }}">{{ source.name }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-slate-500 mt-1">بس المصادر اللي لسه مالهاش مرآة مضافة بتظهر هنا.</p>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">الرابط الأصلي (اللي هيتم جلبه فعلياً من GitHub)</label>
+            <input type="url" name="original_url" id="id_original_url" value="" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-sm" required>
+            <p class="text-xs text-slate-500 mt-1">بيتعبّى تلقائياً برابط المصدر الحالي عند الاختيار - عدّله لو محتاج رابط مختلف.</p>
+        </div>
+
+        <label class="flex items-center space-x-3 space-x-reverse cursor-pointer">
+            <input type="checkbox" name="is_active" class="w-5 h-5 rounded border-slate-700 text-primary-500 focus:ring-primary-500 bg-slate-800" checked>
+            <span class="text-slate-300">مفعّل</span>
+        </label>
+
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-200">
+            <i class="fa-solid fa-triangle-exclamation ml-2"></i>
+            بعد الحفظ، هيتغيّر رابط المصدر تلقائياً ليشاور على نسخة GitHub بدل الموقع الأصلي. شغّل workflow
+            "Mirror blocked feeds" يدوياً من تبويب Actions على GitHub مرة واحدة عشان النسخة تبقى جاهزة فوراً.
+        </div>
+
+        <div class="pt-6 border-t border-slate-800 flex justify-end space-x-4 space-x-reverse">
+            <a href="{% url 'news_ai:saas_mirrored_feeds' %}" class="px-6 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition duration-200">إلغاء</a>
+            <button type="submit" class="bg-primary-600 hover:bg-primary-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg shadow-primary-600/30 transition duration-200">حفظ وتفعيل المرآة</button>
+        </div>
+    </form>
+
+    <script>
+        document.getElementById('id_source').addEventListener('change', function () {
+            var opt = this.options[this.selectedIndex];
+            document.getElementById('id_original_url').value = opt.getAttribute('data-url') || '';
+        });
+    </script>
+    {% else %}
+    <div class="text-center text-slate-400 py-8">
+        كل المصادر النشطة عندها مرآة مضافة بالفعل، أو مفيش مصادر أصلاً.
+        <div class="mt-6">
+            <a href="{% url 'news_ai:saas_mirrored_feeds' %}" class="text-primary-400 hover:text-primary-300">رجوع</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -69,6 +69,9 @@ urlpatterns = [
     path('saas/ads-plans/add/', saas_admin_views.AdsAddonPlanCreateView.as_view(), name='saas_ads_plan_add'),
     path('saas/ads-plans/<int:pk>/edit/', saas_admin_views.AdsAddonPlanUpdateView.as_view(), name='saas_ads_plan_edit'),
     path('saas/ads-plans/<int:pk>/delete/', saas_admin_views.AdsAddonPlanDeleteView.as_view(), name='saas_ads_plan_delete'),
+    path('saas/mirrored-feeds/', saas_admin_views.MirroredFeedListView.as_view(), name='saas_mirrored_feeds'),
+    path('saas/mirrored-feeds/add/', saas_admin_views.MirroredFeedCreateView.as_view(), name='saas_mirrored_feed_add'),
+    path('saas/mirrored-feeds/<int:pk>/delete/', saas_admin_views.MirroredFeedDeleteView.as_view(), name='saas_mirrored_feed_delete'),
     path('saas/customers/', saas_admin_views.CustomerListView.as_view(), name='saas_customers'),
     path('saas/transactions/', saas_admin_views.TransactionListView.as_view(), name='saas_transactions'),
     path('saas/transactions/<int:pk>/confirm/', saas_admin_views.ConfirmTransactionView.as_view(), name='saas_transaction_confirm'),
@@ -79,6 +82,7 @@ urlpatterns = [
     path('api/pending-image-articles/', views_ai.pending_image_articles_api_view, name='pending_image_articles_api'),
     path('api/pending-image-articles/<int:log_id>/submit-image/', views_ai.submit_pending_image_api_view, name='submit_pending_image_api'),
     path('api/published-articles-log/', views_ai.published_articles_log_api_view, name='published_articles_log_api'),
+    path('api/mirrored-feeds-config/', views_ai.mirrored_feeds_config_api_view, name='mirrored_feeds_config_api'),
 
     # Facebook Page self-serve connect (OAuth) — the literal 'callback/' and
     # 'choose-page/' paths must come before the generic '<str:token>/'

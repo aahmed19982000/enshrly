@@ -2,15 +2,20 @@ name: Mirror blocked feeds
 
 # Free stand-in for AISource feeds whose site blocks the Django server's own
 # IP (Cloudflare edge reputation - see feeds/README.md). Fetches each feed
-# listed in feeds/mirror-config.json from GitHub's network instead, and
-# publishes the result to the feeds-mirror branch as a single force-pushed
-# commit (no history growth). AISource.url for an affected source then
-# points at the raw.githubusercontent.com copy instead of the real site.
+# from GitHub's network instead, and publishes the result to the
+# feeds-mirror branch as a single force-pushed commit (no history growth).
+# AISource.url for an affected source then points at the
+# raw.githubusercontent.com copy instead of the real site.
 #
-# To add a newly-blocked source: add {"name", "url", "output"} to
-# feeds/mirror-config.json, then once this workflow has run at least once,
-# point that AISource's url at:
-#   https://raw.githubusercontent.com/<owner>/<repo>/feeds-mirror/<output>
+# The list of feeds to mirror is pulled live from the dashboard
+# (mirrored_feeds_config_api_view) every run, so adding a source from
+# السيستم والعمليات > المصادر المحظورة takes effect on the next run with no
+# deploy needed. feeds/mirror-config.json is only the offline fallback if
+# that endpoint can't be reached.
+#
+# To add a newly-blocked source: use the dashboard (preferred), or add
+# {"name", "url", "output"} to feeds/mirror-config.json directly as a
+# fallback entry.
 
 on:
   schedule:
@@ -20,6 +25,9 @@ on:
 permissions:
   contents: write
 
+env:
+  SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://sahafihub.com' }}
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -27,6 +35,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - name: Pull the live feed list from the dashboard (falls back to the committed file)
+        run: |
+          live=$(curl -sL --max-time 15 "$SITE_BASE_URL/ai-dashboard/api/mirrored-feeds-config/" || true)
+          if echo "$live" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            echo "$live" > feeds/mirror-config.json
+            echo "Using live config from the dashboard ($(echo "$live" | jq 'length') source(s))"
+          else
+            echo "::warning::Could not reach the live dashboard config - using the committed feeds/mirror-config.json instead"
+          fi
 
       - name: Restore last-published copies (checkout never has them - they only live on feeds-mirror)
         run: |

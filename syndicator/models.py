@@ -420,6 +420,39 @@ class AISource(models.Model):
         return self.name
 
 
+class MirroredFeedConfig(models.Model):
+    """
+    Marks an AISource as routed through the GitHub Actions feed mirror
+    instead of fetched directly - for sources whose own site blocks this
+    server's IP (and, inconsistently, the Cloudflare Worker's edge IP too)
+    outright, where a direct/Worker fetch just isn't reliable. See
+    feeds/README.md. `source.url` gets pointed at the raw.githubusercontent.com
+    mirror on save (see saas_admin_views.MirroredFeedCreateView) - original_url
+    is what the GitHub Actions workflow actually fetches on `source`'s behalf,
+    kept here since overwriting source.url means it's otherwise lost.
+    """
+    source = models.OneToOneField(AISource, on_delete=models.CASCADE, related_name='mirror_config', verbose_name="المصدر")
+    original_url = models.URLField(max_length=1000, verbose_name="الرابط الأصلي (اللي هيتم جلبه فعلياً عبر GitHub Actions)")
+    is_active = models.BooleanField(default=True, verbose_name="مفعّل")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Mirrored Feed Config"
+        verbose_name_plural = "Mirrored Feed Configs"
+
+    def __str__(self):
+        return f"Mirror: {self.source.name}"
+
+    @property
+    def output_path(self):
+        return f"feeds/source-{self.source_id}.xml"
+
+    @property
+    def mirror_url(self):
+        from django.conf import settings
+        return f"{settings.GITHUB_MIRROR_RAW_BASE}{self.output_path}"
+
+
 class AIImportLog(models.Model):
     STATUS_CHOICES = (
         ('success', 'نجاح (Success)'),

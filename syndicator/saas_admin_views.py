@@ -134,11 +134,31 @@ class MirroredFeedListView(StaffRequiredMixin, ListView):
         )
         return context
 
+def _is_mirror_url(url):
+    """
+    True if `url` already points at our own GitHub mirror - i.e. it's the
+    output of a *previous* mirroring, not a real site. Saving that as a new
+    MirroredFeedConfig.original_url would have the workflow fetch the
+    mirror from itself: a permanent empty/stale copy that never updates.
+    Confirmed happening in production for a source whose url was set to a
+    mirror manually (via shell) before this page existed, then re-added
+    here with its already-mirrored url auto-filled as "original".
+    """
+    from django.conf import settings
+    return bool(url) and url.startswith(settings.GITHUB_MIRROR_RAW_BASE)
+
 class MirroredFeedQuickAddView(StaffRequiredMixin, View):
     """One-click add straight from the candidates list - skips the manual
     form since the source and its current url are already known."""
     def post(self, request, source_id):
         source = get_object_or_404(AISource, pk=source_id)
+        if _is_mirror_url(source.url):
+            messages.error(
+                request,
+                f'مصدر "{source.name}" رابطه الحالي أصلاً مرآة (مش الموقع الحقيقي) - '
+                f'استخدم "إضافة مصدر يدوياً" وحط الرابط الأصلي بنفسك بدل الإضافة السريعة.'
+            )
+            return redirect('news_ai:saas_mirrored_feeds')
         config, created = MirroredFeedConfig.objects.get_or_create(
             source=source, defaults={'original_url': source.url},
         )
@@ -155,6 +175,16 @@ class MirroredFeedCreateView(StaffRequiredMixin, CreateView):
     template_name = 'ai_dashboard/saas/mirrored_feed_form.html'
     fields = ['source', 'original_url', 'is_active']
     success_url = reverse_lazy('news_ai:saas_mirrored_feeds')
+
+    def form_valid(self, form):
+        if _is_mirror_url(form.instance.original_url):
+            messages.error(
+                self.request,
+                'الرابط اللي حطيته "أصلي" هو نفسه رابط مرآة (raw.githubusercontent.com) - '
+                'لازم تحط رابط الـ RSS/sitemap الحقيقي بتاع الموقع نفسه، مش رابط المرآة.'
+            )
+            return self.form_invalid(form)
+        return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

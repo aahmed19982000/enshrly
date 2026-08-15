@@ -28,6 +28,16 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Restore last-published copies (checkout never has them - they only live on feeds-mirror)
+        run: |
+          git fetch origin feeds-mirror --depth=1 2>/dev/null || true
+          if git rev-parse --verify origin/feeds-mirror >/dev/null 2>&1; then
+            jq -r '.[].output' feeds/mirror-config.json | while read -r out; do
+              mkdir -p "$(dirname "$out")"
+              git show "origin/feeds-mirror:$out" > "$out" 2>/dev/null || true
+            done
+          fi
+
       - name: Fetch every configured feed (keep last-good copy on failure)
         run: |
           set -euo pipefail
@@ -55,9 +65,14 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          outputs=$(jq -r '.[].output' feeds/mirror-config.json)
           git checkout --orphan feeds-mirror-tmp
           git rm -rf --cached . >/dev/null
-          git add feeds/mirror-config.json $outputs
+          git add feeds/mirror-config.json
+          # Only add outputs that actually exist - a source with no
+          # successful fetch ever (brand new, or first run before
+          # feeds-mirror existed) has nothing to restore or publish yet.
+          jq -r '.[].output' feeds/mirror-config.json | while read -r out; do
+            [ -f "$out" ] && git add "$out"
+          done
           git commit -m "Mirror feeds $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push --force origin feeds-mirror-tmp:feeds-mirror

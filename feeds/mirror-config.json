@@ -8,5 +8,10 @@
     "name": "sonna.so",
     "url": "https://sonna.so/ar/rss.xml",
     "output": "feeds/sonna-rss.xml"
+  },
+  {
+    "name": "aitnews.com",
+    "url": "https://aitnews.com/news-sitemap.xml",
+    "output": "feeds/aitnews-sitemap.xml"
   }
 ]
